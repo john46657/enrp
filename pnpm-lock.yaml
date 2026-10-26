@@ -14,6 +14,9 @@ importers:
       '@types/node':
         specifier: ^22.19.0
         version: 22.20.5
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.23.1
       eslint:
         specifier: 9.39.5
         version: 9.39.5
@@ -23,6 +26,9 @@ importers:
       globals:
         specifier: 16.5.0
         version: 16.5.0
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
       prettier:
         specifier: 3.6.2
         version: 3.6.2
@@ -47,6 +53,27 @@ importers:
       pino:
         specifier: ^9.14.0
         version: 9.14.0
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.7
+
+  packages/core:
+    dependencies:
+      '@enrp/config':
+        specifier: workspace:*
+        version: link:../config
+      '@enrp/database':
+        specifier: workspace:*
+        version: link:../database
+      '@enrp/permissions':
+        specifier: workspace:*
+        version: link:../permissions
+      '@enrp/shared':
+        specifier: workspace:*
+        version: link:../shared
+      drizzle-orm:
+        specifier: ^0.44.7
+        version: 0.44.7(@types/pg@8.23.1)(pg@8.23.1)
       zod:
         specifier: ^4.1.13
         version: 4.6.7
@@ -83,6 +110,30 @@ importers:
       zod:
         specifier: ^4.1.13
         version: 4.6.7
+
+  tests:
+    dependencies:
+      '@enrp/config':
+        specifier: workspace:*
+        version: link:../packages/config
+      '@enrp/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@enrp/database':
+        specifier: workspace:*
+        version: link:../packages/database
+      '@enrp/permissions':
+        specifier: workspace:*
+        version: link:../packages/permissions
+      '@enrp/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+      pino:
+        specifier: ^9.14.0
+        version: 9.14.0
 
 packages:
 

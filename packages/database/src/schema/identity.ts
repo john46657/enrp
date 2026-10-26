@@ -77,7 +77,7 @@ export const verifications = pgTable(
   (t) => [index('verifications_discord_idx').on(t.discordUserId, t.createdAt)],
 );
 
-export const oauthPurpose = pgEnum('oauth_purpose', ['dashboard_login', 'roblox_verify']);
+export const oauthPurpose = pgEnum('oauth_purpose', ['dashboard_login', 'verify_start', 'verify_discord', 'roblox_verify']);
 
 /**
  * Kurzlebige OAuth-Zustände (state, PKCE-Verifier, Nonce). Der state wird nur gehasht gespeichert,

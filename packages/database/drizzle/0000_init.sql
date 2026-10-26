@@ -1,5 +1,5 @@
 CREATE TYPE "public"."account_link_status" AS ENUM('active', 'revoked');--> statement-breakpoint
-CREATE TYPE "public"."oauth_purpose" AS ENUM('dashboard_login', 'roblox_verify');--> statement-breakpoint
+CREATE TYPE "public"."oauth_purpose" AS ENUM('dashboard_login', 'verify_start', 'verify_discord', 'roblox_verify');--> statement-breakpoint
 CREATE TYPE "public"."verification_outcome" AS ENUM('success', 'failed', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."api_key_kind" AS ENUM('roblox_server');--> statement-breakpoint
 CREATE TYPE "public"."override_effect" AS ENUM('allow', 'deny');--> statement-breakpoint

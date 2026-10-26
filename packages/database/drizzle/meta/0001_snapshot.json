@@ -1,6 +1,6 @@
 {
-  "id": "fcf584d2-3dc0-4263-925c-6dfa4d5bc2d5",
-  "prevId": "1740f156-fc03-4f58-9584-c881c9d8f6d6",
+  "id": "a505587a-a04f-4199-b991-5f1c67215bc5",
+  "prevId": "90ea15e5-cf84-4705-9862-4eb91a8e238a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6339,6 +6339,8 @@
       "schema": "public",
       "values": [
         "dashboard_login",
+        "verify_start",
+        "verify_discord",
         "roblox_verify"
       ]
     },

@@ -2,6 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Integrationstests teilen sich eine Datenbank; Dateien laufen daher nacheinander.
+    fileParallelism: false,
     projects: [
       {
         test: {
@@ -18,8 +20,6 @@ export default defineConfig({
           globalSetup: ['tests/integration/global-setup.ts'],
           setupFiles: ['tests/integration/setup-env.ts'],
           environment: 'node',
-          // Alle Integrationstests teilen sich eine Datenbank und laufen deshalb nacheinander.
-          fileParallelism: false,
           testTimeout: 20000,
           hookTimeout: 60000,
         },
