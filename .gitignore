@@ -1,3 +1,12 @@
 node_modules/
 .env
-data/
+.env.*
+!.env.example
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.turbo/
+backups/
+apps/bot/legacy/data/
+next-env.d.ts
