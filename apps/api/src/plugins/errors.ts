@@ -54,10 +54,8 @@ export function registerErrorHandling(app: FastifyInstance) {
   });
 
   app.setNotFoundHandler((request, reply) => {
-    reply
-      .status(404)
-      .send({
-        error: { code: 'NOT_FOUND', message: 'Endpunkt nicht gefunden.', requestId: request.id },
-      } satisfies ApiErrorBody);
+    reply.status(404).send({
+      error: { code: 'NOT_FOUND', message: 'Endpunkt nicht gefunden.', requestId: request.id },
+    } satisfies ApiErrorBody);
   });
 }

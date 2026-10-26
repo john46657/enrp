@@ -313,14 +313,12 @@ export async function recordVerificationFailure(
   reason: string,
   robloxUserId?: number,
 ) {
-  await db
-    .insert(verifications)
-    .values({
-      discordUserId,
-      robloxUserId: robloxUserId ?? null,
-      outcome: 'failed',
-      failureReason: reason.slice(0, 300),
-    });
+  await db.insert(verifications).values({
+    discordUserId,
+    robloxUserId: robloxUserId ?? null,
+    outcome: 'failed',
+    failureReason: reason.slice(0, 300),
+  });
 }
 
 export async function verificationStatus(db: DbExecutor, discordUserId: string) {

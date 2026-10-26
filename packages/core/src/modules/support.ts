@@ -555,17 +555,15 @@ export async function createCase(
       })
       .returning();
     if (input.references?.length) {
-      await tx
-        .insert(caseReferences)
-        .values(
-          input.references.map((r) => ({
-            caseId: row!.id,
-            kind: r.kind as never,
-            value: r.value,
-            label: r.label ?? null,
-            addedBy: actorId(actor),
-          })),
-        );
+      await tx.insert(caseReferences).values(
+        input.references.map((r) => ({
+          caseId: row!.id,
+          kind: r.kind as never,
+          value: r.value,
+          label: r.label ?? null,
+          addedBy: actorId(actor),
+        })),
+      );
     }
     await addRecordEvent(tx, {
       recordType: 'case',

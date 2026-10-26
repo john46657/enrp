@@ -217,14 +217,12 @@ export async function fireTrigger(ctx: CoreContext, trigger: AutomationTrigger, 
       );
       results.push({ ruleId: rule.id, status: 'succeeded', details });
     } catch (err) {
-      await ctx.db
-        .insert(automationRuns)
-        .values({
-          ruleId: rule.id,
-          status: 'failed',
-          depth,
-          details: { summary: context.summary, error: (err as Error).message },
-        });
+      await ctx.db.insert(automationRuns).values({
+        ruleId: rule.id,
+        status: 'failed',
+        depth,
+        details: { summary: context.summary, error: (err as Error).message },
+      });
       results.push({ ruleId: rule.id, status: 'failed' });
     }
   }

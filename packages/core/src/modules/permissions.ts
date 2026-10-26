@@ -63,15 +63,13 @@ async function applyRoleGrants(ctx: TxContext, actor: Actor, roleId: string, gra
   const previous = await loadGrantsForRoles(ctx.db, [roleId]);
   await ctx.db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
   if (grants.length) {
-    await ctx.db
-      .insert(rolePermissions)
-      .values(
-        grants.map((g) => ({
-          roleId,
-          permission: g.permission,
-          factionIds: g.factionIds?.length ? g.factionIds : null,
-        })),
-      );
+    await ctx.db.insert(rolePermissions).values(
+      grants.map((g) => ({
+        roleId,
+        permission: g.permission,
+        factionIds: g.factionIds?.length ? g.factionIds : null,
+      })),
+    );
   }
   await recordConfigVersion(ctx.db, {
     scope: `role:${roleId}`,
