@@ -147,8 +147,8 @@ Kanal für neue Bewerbungen: `channels.open` der Art. Ist er leer, gilt bei Arte
 
 ## 6. Einrichtung
 
-Einstellen kannst du per `config.json` (alles) oder per `/einstellungen bewerbung` und
-`/einstellungen bewerbungs-kanaele` (die wichtigsten Werte, ohne Neustart).
+Einstellen kannst du per `config.json` (alles, Vorlage für alle Server) oder per `/einstellungen bewerbung` und
+`/einstellungen bewerbungs-kanaele` (die wichtigsten Werte, ohne Neustart, nur für den jeweiligen Server).
 
 ### 6.1 Panels
 - **Bewerbungs-Panel** (`applications.panels.apply`: Titel, Beschreibung, Bild): Bei einer Art erscheint der Button

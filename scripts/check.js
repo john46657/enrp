@@ -9,8 +9,8 @@ const fail = (msg) => {
   console.error(`❌ ${msg}`);
 };
 
-require('../src/lib/settings');
-const config = require('../config.json');
+const settings = require('../src/lib/settings');
+const config = settings.base;
 for (const t of config.tickets.types) {
   if (!t.id || !t.label || !t.emoji || !t.description) fail(`Ticket-Kategorie unvollständig: ${JSON.stringify(t)}`);
 }
@@ -56,13 +56,14 @@ try {
 }
 
 // Öffnungszeiten mit festen Zeitpunkten testen
-const hours = config.tickets.openingHours;
-const wasEnabled = hours.enabled;
-hours.enabled = true;
-hours.periods = [
-  { days: ['mo', 'di', 'mi', 'do', 'fr'], from: '15:00', to: '23:00' },
-  { days: ['sa'], from: '20:00', to: '02:00' },
-];
+const hours = {
+  enabled: true,
+  timezone: 'Europe/Berlin',
+  periods: [
+    { days: ['mo', 'di', 'mi', 'do', 'fr'], from: '15:00', to: '23:00' },
+    { days: ['sa'], from: '20:00', to: '02:00' },
+  ],
+};
 const { isOpen, nextOpening } = require('../src/lib/openingHours');
 const cases = [
   ['2026-10-26T14:30:00Z', true], // Mo 15:30 Berlin (Winterzeit)
@@ -72,28 +73,39 @@ const cases = [
   ['2026-11-01T02:30:00Z', false], // So 03:30
 ];
 for (const [iso, expected] of cases) {
-  if (isOpen(new Date(iso)) !== expected) fail(`Öffnungszeiten: ${iso} sollte ${expected ? 'offen' : 'geschlossen'} sein`);
+  if (isOpen(hours, new Date(iso)) !== expected) fail(`Öffnungszeiten: ${iso} sollte ${expected ? 'offen' : 'geschlossen'} sein`);
 }
-const next = nextOpening(new Date('2026-10-26T13:30:00Z'));
+const next = nextOpening(hours, new Date('2026-10-26T13:30:00Z'));
 if (next?.toISOString() !== '2026-10-26T14:00:00.000Z') fail(`nextOpening falsch: ${next?.toISOString()}`);
-hours.enabled = wasEnabled;
 console.log('✅ Öffnungszeiten-Logik');
 
-// Einstellungen in Discord: setzen, lesen, zurücksetzen
-const settings = require('../src/lib/settings');
+// Einstellungen in Discord: je Server setzen, lesen, zurücksetzen
 const firstType = config.tickets.types[0].id;
+const [a, b] = ['111', '222'];
 const before = { cap: config.tickets.types[0].capacity, log: config.channels.ticketLog };
-settings.set(`tickets.types.${firstType}.capacity`, 99);
-settings.set('channels.ticketLog', '123');
-settings.set('leveling.roleRewards.7', '456');
-if (config.tickets.types[0].capacity !== 99 || config.channels.ticketLog !== '123' || config.leveling.roleRewards[7] !== '456') {
+settings.set(a, `tickets.types.${firstType}.capacity`, 99);
+settings.set(a, 'channels.ticketLog', '123');
+settings.set(a, 'leveling.roleRewards.7', '456');
+settings.set(a, `applications.types.${config.applications.types[0].id}.enabled`, false);
+const ca = settings.forGuild(a);
+if (ca.tickets.types[0].capacity !== 99 || ca.channels.ticketLog !== '123' || ca.leveling.roleRewards[7] !== '456') {
   fail('Einstellungen werden nicht übernommen');
 }
-settings.reset();
-if (config.tickets.types[0].capacity !== before.cap || config.channels.ticketLog !== before.log || '7' in config.leveling.roleRewards) {
+const cb = settings.forGuild(b);
+if (cb.tickets.types[0].capacity !== before.cap || cb.channels.ticketLog !== before.log || '7' in cb.leveling.roleRewards) {
+  fail('Einstellungen eines Servers wirken sich auf einen anderen Server aus');
+}
+const appStore = require('../src/lib/applications/store');
+if (appStore.typeById(a, config.applications.types[0].id).enabled || !appStore.typeById(b, config.applications.types[0].id).enabled) {
+  fail('Bewerbungsarten sind nicht je Server getrennt');
+}
+if (config.tickets.types[0].capacity !== before.cap || config.channels.ticketLog !== before.log) fail('Vorlage config.json wurde verändert');
+settings.reset(a);
+const reset = settings.forGuild(a);
+if (reset.tickets.types[0].capacity !== before.cap || reset.channels.ticketLog !== before.log || '7' in reset.leveling.roleRewards) {
   fail('Einstellungen lassen sich nicht zurücksetzen');
 }
-console.log('✅ Einstellungen setzen/zurücksetzen');
+console.log('✅ Einstellungen je Server setzen/zurücksetzen');
 
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');

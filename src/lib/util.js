@@ -1,5 +1,5 @@
 const { EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
-const config = require('../../config.json');
+const { base: config, forGuild } = require('./settings');
 
 function embed(color = 'primary') {
   return new EmbedBuilder()
@@ -20,9 +20,9 @@ async function getChannel(guild, id) {
   return guild.channels.cache.get(id) ?? (await guild.channels.fetch(id).catch(() => null));
 }
 
-// Schickt etwas in einen der in config.json eingetragenen Kanäle (channels.<key>).
+// Schickt etwas in einen der für diesen Server eingestellten Kanäle (channels.<key>).
 async function sendTo(guild, channelKey, payload) {
-  const channel = await getChannel(guild, config.channels[channelKey]);
+  const channel = await getChannel(guild, forGuild(guild.id).channels[channelKey]);
   if (!channel?.isTextBased()) return null;
   return channel.send(payload).catch((err) => {
     console.error(`[${channelKey}] Senden fehlgeschlagen:`, err.message);
@@ -35,7 +35,7 @@ function fill(template, vars) {
 }
 
 function hasRole(member, roleKey) {
-  const id = config.roles[roleKey];
+  const id = forGuild(member.guild.id).roles[roleKey];
   return Boolean(id && member.roles.cache.has(id));
 }
 

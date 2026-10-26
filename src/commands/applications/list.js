@@ -5,7 +5,7 @@ const store = require('../../lib/applications/store');
 const { buildTeamMessage, answersFile } = require('../../lib/applications/messages');
 const { buildStats } = require('../../lib/applications/stats');
 
-const typeChoices = () => store.types().slice(0, 25).map((t) => ({ name: t.name, value: t.id }));
+const typeChoices = () => store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }));
 const link = (r) => (r.messageId ? `https://discord.com/channels/${r.guildId}/${r.channelId}/${r.messageId}` : null);
 
 module.exports = {
@@ -67,7 +67,7 @@ module.exports = {
       const open = store.openOf(guildId, (r) => !typeId || r.type === typeId).sort((a, b) => a.createdAt - b.createdAt);
       if (!open.length) return replyPrivate(interaction, 'Keine offenen Bewerbungen. 🎉');
       const lines = open.map((r) => {
-        const type = store.typeById(r.type);
+        const type = store.typeById(guildId, r.type);
         const url = link(r);
         return `${url ? `[**${r.number}**](${url})` : `**${r.number}**`} ${type?.emoji ?? ''} <@${r.userId}> – ${store.STATUS[r.status]} · <t:${Math.floor(r.createdAt / 1000)}:R>${r.ai?.level === 'hoch' ? ' · 🔴 KI' : ''}`;
       });
@@ -78,7 +78,7 @@ module.exports = {
       const list = Object.values(store.progressOf(guildId)).filter((p) => p.expiresAt > Date.now());
       if (!list.length) return replyPrivate(interaction, 'Gerade füllt niemand eine Bewerbung aus.');
       const lines = list.map(
-        (p) => `<@${p.userId}> – ${store.typeById(p.typeId)?.name ?? p.typeId} · Frage ${p.step + 1}/${p.total} · gestartet <t:${Math.floor(p.startedAt / 1000)}:R>`,
+        (p) => `<@${p.userId}> – ${store.typeById(guildId, p.typeId)?.name ?? p.typeId} · Frage ${p.step + 1}/${p.total} · gestartet <t:${Math.floor(p.startedAt / 1000)}:R>`,
       );
       return replyPrivate(interaction, { embeds: [embed().setTitle(`✍️ In Bearbeitung (${list.length})`).setDescription(lines.join('\n'))] });
     }
@@ -87,7 +87,7 @@ module.exports = {
       const user = interaction.options.getUser('user');
       const list = store.historyOf(guildId, user.id);
       if (!list.length) return replyPrivate(interaction, `${user} hat noch keine Bewerbungen.`);
-      const lines = list.map((r) => `**${r.number}** ${store.typeById(r.type)?.name ?? r.type} – ${store.STATUS[r.status]} <t:${Math.floor(r.createdAt / 1000)}:R>`);
+      const lines = list.map((r) => `**${r.number}** ${store.typeById(guildId, r.type)?.name ?? r.type} – ${store.STATUS[r.status]} <t:${Math.floor(r.createdAt / 1000)}:R>`);
       return replyPrivate(interaction, { embeds: [embed().setTitle(`📜 Verlauf von ${user.username}`).setDescription(truncate(lines.join('\n'), 4000))] });
     }
 
@@ -105,7 +105,7 @@ module.exports = {
 
     const number = interaction.options.getString('nummer').trim().toUpperCase();
     const record = store.getRecord(guildId, number);
-    const type = record && store.typeById(record.type);
+    const type = record && store.typeById(guildId, record.type);
     if (!record || !type) return replyPrivate(interaction, `Bewerbung ${number} nicht gefunden.`);
 
     if (sub === 'anzeigen') {

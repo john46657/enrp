@@ -1,8 +1,6 @@
-const config = require('../../config.json');
-
-// Fragt einen FiveM-Server ab (config.fivem.address, z. B. "123.45.67.89:30120").
-async function fetchFivemStatus() {
-  const base = `http://${config.fivem.address}`;
+// Fragt einen FiveM-Server ab (fivem.address eines Servers, z. B. "123.45.67.89:30120").
+async function fetchFivemStatus(address) {
+  const base = `http://${address}`;
   try {
     const [dynamic, players] = await Promise.all(
       ['dynamic.json', 'players.json'].map(async (file) => {

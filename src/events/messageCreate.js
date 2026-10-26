@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const config = require('../../config.json');
+const { forGuild } = require('../lib/settings');
 const { bucket, save } = require('../lib/db');
 const { levelInfo } = require('../lib/leveling');
 const { embed, getChannel } = require('../lib/util');
@@ -15,6 +15,7 @@ module.exports = {
     if (!message.inGuild()) return handleDirectMessage(message);
     trackMessage(message);
 
+    const config = forGuild(message.guildId);
     const { leveling } = config;
     if (!leveling.enabled) return;
 

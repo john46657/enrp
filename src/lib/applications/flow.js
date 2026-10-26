@@ -1,7 +1,7 @@
 // Bewerbung per Direktnachricht: Vorabprüfung, Fragen nacheinander, Einreichen.
 // Laufende Bewerbungen liegen im Speicher – ein Neustart des Bots bricht sie ab.
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-const config = require('../../../config.json');
+const { forGuild } = require('../settings');
 const { embed, replyPrivate, truncate } = require('../util');
 const store = require('./store');
 const { checkAnswer, formatDuration, renderMessage, optionValue, QUESTION_TYPES } = require('./forms');
@@ -26,7 +26,7 @@ function startVars(type, user) {
 // ---------- Schritt 1: Angebot aus dem Panel oder /bewerbung ----------
 
 async function offer(interaction, typeId) {
-  const type = store.typeById(typeId);
+  const type = store.typeById(interaction.guildId, typeId);
   if (!type) return replyPrivate(interaction, 'Diese Bewerbung gibt es nicht mehr.');
   const running = sessions.get(interaction.user.id);
   if (running) return replyPrivate(interaction, `Du hast bereits eine laufende Bewerbung in deinen Direktnachrichten: ${dmLink(running.dmChannelId)}`);
@@ -63,7 +63,7 @@ async function offer(interaction, typeId) {
 // ---------- Schritt 2: Start in den DMs ----------
 
 async function start(interaction, guildId, typeId) {
-  const type = store.typeById(typeId);
+  const type = store.typeById(guildId, typeId);
   const guild = interaction.client.guilds.cache.get(guildId);
   if (!type || !guild) return interaction.update({ embeds: [embed('danger').setDescription('Diese Bewerbung gibt es nicht mehr.')], components: [] });
   if (sessions.has(interaction.user.id)) return replyPrivate(interaction, 'Du hast bereits eine laufende Bewerbung.');
@@ -148,7 +148,7 @@ function questionPayload(type, session) {
 }
 
 async function ask(client, session) {
-  const type = store.typeById(session.typeId);
+  const type = store.typeById(session.guildId, session.typeId);
   const user = await client.users.fetch(session.userId);
   session.questionSentAt = Date.now();
   store.setProgress(session.guildId, session.userId, session.typeId, {
@@ -161,7 +161,7 @@ async function ask(client, session) {
 }
 
 async function saveAnswer(client, session, answer) {
-  const type = store.typeById(session.typeId);
+  const type = store.typeById(session.guildId, session.typeId);
   const q = type.questions[session.step];
   const ms = Date.now() - session.questionSentAt;
   session.answers.push({
@@ -201,7 +201,7 @@ async function handleDirectMessage(message) {
   if (expired(session)) return expire(message.client, session);
   if (session.busy) return message.reply('Einen Moment bitte …');
 
-  const type = store.typeById(session.typeId);
+  const type = store.typeById(session.guildId, session.typeId);
   const q = type.questions[session.step];
   if (q.type === 'CHOICE' || q.type === 'ROLE') return message.reply('Bitte nutze das Auswahlmenü oben. 👆');
   if (session.pendingRoblox) return message.reply('Bitte bestätige zuerst das Roblox-Konto oben mit **Ja** oder **Nein**.');
@@ -257,7 +257,7 @@ async function activeSession(interaction, step) {
 async function handleSelect(interaction, step) {
   const session = await activeSession(interaction, step);
   if (!session) return;
-  const q = store.typeById(session.typeId).questions[session.step];
+  const q = store.typeById(session.guildId, session.typeId).questions[session.step];
   const error = checkAnswer(q, interaction.values);
   if (error) return replyPrivate(interaction, `❌ ${error}`);
 
@@ -291,13 +291,14 @@ async function handleRoblox(interaction, step, answer) {
 
 // ---------- Einreichen ----------
 
-function teamChannelId(type) {
-  return type.channels.open || (type.panel === 'apply' ? config.applications.channel : config.applications.qualiChannel);
+function teamChannelId(guildId, type) {
+  const { applications } = forGuild(guildId);
+  return type.channels.open || (type.panel === 'apply' ? applications.channel : applications.qualiChannel);
 }
 
 async function submit(client, session) {
   end(session);
-  const type = store.typeById(session.typeId);
+  const type = store.typeById(session.guildId, session.typeId);
   const guild = client.guilds.cache.get(session.guildId);
   const user = await client.users.fetch(session.userId);
   const fail = (text) => user.send({ embeds: [embed('danger').setTitle('Bewerbung nicht eingereicht').setDescription(text)] }).catch(() => {});
@@ -329,7 +330,7 @@ async function submit(client, session) {
     ai: aiCheck(session.answers),
   });
 
-  const channel = await guild.channels.fetch(teamChannelId(type)).catch(() => null);
+  const channel = await guild.channels.fetch(teamChannelId(guild.id, type)).catch(() => null);
   if (channel?.isTextBased()) {
     const message = await channel
       .send({

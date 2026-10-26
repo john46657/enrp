@@ -4,7 +4,7 @@ const { save, nextNumber } = require('../../lib/db');
 const store = require('../../lib/applications/store');
 const { findRobloxUser } = require('../../lib/applications/roblox');
 
-const scopeName = (scope) => (scope === '*' ? 'Alle Bewerbungen' : scope === 'police' ? 'Polizei-Bewerbung' : (store.typeById(scope)?.name ?? scope));
+const scopeName = (scope) => (scope === '*' ? 'Alle Bewerbungen' : scope === 'police' ? 'Polizei-Bewerbung' : (store.baseTypes().find((t) => t.id === scope)?.name ?? scope));
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -26,7 +26,7 @@ module.exports = {
               { name: 'Alle Bewerbungen', value: '*' },
               { name: 'Polizei-Bewerbung', value: 'police' },
               ...store
-                .types()
+                .baseTypes()
                 .filter((t) => t.workflow !== 'police')
                 .slice(0, 23)
                 .map((t) => ({ name: t.name, value: t.id })),

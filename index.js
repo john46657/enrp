@@ -1,5 +1,5 @@
 require('dotenv').config();
-require('./src/lib/settings'); // in Discord geänderte Einstellungen über config.json legen
+require('./src/lib/settings'); // Einstellungen je Server laden (config.json + Änderungen aus Discord)
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits, Partials, InteractionContextType } = require('discord.js');
