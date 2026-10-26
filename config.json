@@ -1,10 +1,23 @@
 {
-  "serverName": "ENRP",
+  "branding": {
+    "name": "Emden Network",
+    "shortName": "EN",
+    "tagline": "Roleplay. Gemeinschaft. Verantwortung.",
+    "logoUrl": "",
+    "products": {
+      "bot": "{name}",
+      "dashboard": "{name} Control Center",
+      "admin": "{name} Admin",
+      "backend": "{name} Backend",
+      "roblox": "{name} Roblox Integration"
+    }
+  },
   "colors": {
-    "primary": "#5865F2",
-    "success": "#57F287",
-    "danger": "#ED4245",
-    "warning": "#FEE75C"
+    "primary": "#2F7DF6",
+    "accent": "#22C3B5",
+    "success": "#2ECC71",
+    "danger": "#E5484D",
+    "warning": "#F5B841"
   },
   "channels": {
     "welcome": "",

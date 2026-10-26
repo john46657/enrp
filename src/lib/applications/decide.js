@@ -53,7 +53,7 @@ async function afterDecision(guild, record, type, decider) {
     WITHDRAWN: ['warning', 'Deine **{applicationName}** (**{number}**) wurde zurückgezogen.'],
   };
   const [color, template] = texts[record.status];
-  await user?.send({ embeds: [embed(color).setDescription(renderMessage(template, vars)).setFooter({ text: guild.name })] }).catch(() => {});
+  await user?.send({ embeds: [embed(color).setDescription(renderMessage(template, vars))] }).catch(() => {});
 
   const member = await guild.members.fetch(record.userId).catch(() => null);
   const reason = `Bewerbung ${record.number}: ${store.STATUS[record.status]}`;

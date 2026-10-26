@@ -2,6 +2,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = re
 const config = require('../../../config.json');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { fetchFivemStatus } = require('../../lib/fivem');
+const branding = require('../../lib/branding');
 
 module.exports = {
   data: new SlashCommandBuilder().setName('serverstatus').setDescription('Zeigt den Status des Gameservers.'),
@@ -21,7 +22,7 @@ module.exports = {
         embed('success')
           .setTitle('🟢 Server online')
           .addFields(
-            { name: 'Server', value: truncate(status.hostname?.replace(/\^\d/g, '') || config.serverName, 1024) },
+            { name: 'Server', value: truncate(status.hostname?.replace(/\^\d/g, '') || branding.name(), 1024) },
             { name: 'Spieler', value: `${status.players}/${status.maxPlayers}`, inline: true },
             { name: 'Online', value: players },
           ),

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-labelledby="t">
+  <title id="t">Emden Network</title>
+  <defs>
+    <linearGradient id="en-g" x1="40" y1="30" x2="260" y2="270" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2F7DF6"/>
+      <stop offset="1" stop-color="#22C3B5"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(22 22) scale(0.5)">
+    <path d="M256 60 425.7 158v196L256 452 86.3 354V158Z" fill="none" stroke="url(#en-g)" stroke-width="20" stroke-linejoin="round"/>
+    <g stroke="url(#en-g)" stroke-width="30" stroke-linecap="round" fill="none">
+      <path d="M190 160v168"/><path d="M190 160h120"/><path d="M190 244h96"/><path d="M190 328h120"/>
+    </g>
+    <g fill="currentColor"><circle cx="322" cy="160" r="22"/><circle cx="298" cy="244" r="22"/><circle cx="322" cy="328" r="22"/></g>
+    <path d="M196 382c20-14 40-14 60 0s40 14 60 0" fill="none" stroke="#22C3B5" stroke-width="16" stroke-linecap="round"/>
+  </g>
+  <g font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" fill="currentColor">
+    <text x="300" y="168" font-size="112" font-weight="800" letter-spacing="2">EMDEN</text>
+    <text x="304" y="236" font-size="52" font-weight="600" letter-spacing="22" fill="#22C3B5">NETWORK</text>
+  </g>
+</svg>

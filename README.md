@@ -1,6 +1,9 @@
-# ENRP Discord-Bot
+<p align="center"><img src="assets/brand/logo.svg" alt="Emden Network" width="420"></p>
 
-Ein Discord-Bot für Roleplay-Server mit Bewerbungssystem, Moderation, Ticket-System und Community-Funktionen.
+# Emden Network
+
+Der offizielle Discord-Bot von **Emden Network** mit Bewerbungssystem, Moderation, Ticket-System und
+Community-Funktionen.
 Er ist in JavaScript mit [discord.js](https://discord.js.org) geschrieben, braucht keine externe Datenbank
 und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 
@@ -18,7 +21,8 @@ und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 
 ## 1. Bot bei Discord anlegen
 
-1. Öffne das [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
+1. Öffne das [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
+   und nenne sie **Emden Network**. Als App-Icon `assets/brand/icon-512.png` hochladen.
 2. Links auf **Bot** → **Reset Token** → Token kopieren (niemals teilen!).
 3. Unter **Bot → Privileged Gateway Intents** einschalten:
    - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Tickets und Bewerbungen beim Verlassen)
@@ -44,6 +48,8 @@ GUILD_ID=id-deines-servers
 
 | Feld | Bedeutung |
 |---|---|
+| `branding` | Name, Produktbezeichnungen und Logo von Emden Network – siehe [docs/branding.md](docs/branding.md) |
+| `colors` | Markenfarben für Embeds und Panels |
 | `channels.welcome` | Willkommensnachrichten |
 | `channels.modLog` | Moderations-Log |
 | `channels.ticketLog` | Ticket-Aktivitäten und Transkripte |
@@ -131,9 +137,10 @@ nicht löschen.
 
 ```
 index.js              Start, lädt Befehle und Events
-config.json           Einstellungen (keine Geheimnisse)
+config.json           Einstellungen inkl. Branding (keine Geheimnisse)
+assets/brand/…        Logo, App-Icon und Design-Tokens von Emden Network
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
-src/lib/…             Gemeinsame Logik (Datenbank, Tickets, Öffnungszeiten, Level, FiveM)
+src/lib/…             Gemeinsame Logik (Branding, Datenbank, Tickets, Öffnungszeiten, Level, FiveM)
 scripts/check.js      Offline-Prüfung: npm run check
 ```

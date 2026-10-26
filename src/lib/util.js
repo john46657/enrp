@@ -1,10 +1,11 @@
 const { EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const config = require('../../config.json');
+const branding = require('./branding');
 
 function embed(color = 'primary') {
   return new EmbedBuilder()
-    .setColor(config.colors[color] ?? color)
-    .setFooter({ text: config.serverName })
+    .setColor(branding.color(color))
+    .setFooter(branding.footer())
     .setTimestamp();
 }
 

@@ -12,6 +12,7 @@ const {
   TextDisplayBuilder,
 } = require('discord.js');
 const config = require('../../../config.json');
+const branding = require('../branding');
 const { embed, truncate } = require('../util');
 const { bucket, save } = require('../db');
 const store = require('./store');
@@ -31,7 +32,7 @@ function buildPanel(kind) {
   const panel = config.applications.panels[kind];
   const list = panelTypes(kind);
   const container = new ContainerBuilder()
-    .setAccentColor(parseInt(config.colors.primary.slice(1), 16))
+    .setAccentColor(branding.colorInt())
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`));
 
   if (list.length > 1 || kind === 'quali') {
@@ -102,7 +103,7 @@ function infoEmbed(record, type) {
   const info = embed(color)
     .setTitle(`${type.emoji} ${type.name} – ${record.number}`)
     .setAuthor({ name: record.userTag, iconURL: record.avatarUrl ?? undefined })
-    .setFooter({ text: `${config.serverName} · ${record.number}` })
+    .setFooter(branding.footer(record.number))
     .setTimestamp(record.createdAt)
     .addFields({ name: 'Status', value: status.join(' ') });
   if (record.reason) info.addFields({ name: 'Grund', value: truncate(record.reason, 1024) });

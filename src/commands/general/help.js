@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { embed, replyPrivate } = require('../../lib/util');
+const branding = require('../../lib/branding');
 
 const SECTIONS = {
   '📋 Bewerbungen': ['bewerbung', 'bewerbungspanel', 'qualipanel', 'bewerbungen', 'bewerbungssperre'],
@@ -11,7 +12,7 @@ const SECTIONS = {
 };
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('hilfe').setDescription('Zeigt alle Befehle des Bots.'),
+  data: new SlashCommandBuilder().setName('hilfe').setDescription(`Zeigt alle Befehle von ${branding.name()}.`),
 
   async execute(interaction) {
     const commands = await interaction.client.application.commands.fetch({ guildId: process.env.GUILD_ID || undefined }).catch(() => null);
@@ -19,7 +20,7 @@ module.exports = {
       const cmd = commands?.find((c) => c.name === name);
       return cmd ? `</${name}:${cmd.id}>` : `/${name}`;
     };
-    const help = embed().setTitle('📖 Befehle');
+    const help = embed().setTitle(`📖 ${branding.name()} – Befehle`);
     for (const [title, names] of Object.entries(SECTIONS)) {
       const lines = names
         .map((n) => interaction.client.commands.get(n))

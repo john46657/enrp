@@ -1,5 +1,6 @@
 const { Events, ActivityType } = require('discord.js');
 const config = require('../../config.json');
+const branding = require('../lib/branding');
 const { fetchFivemStatus } = require('../lib/fivem');
 const { startTicketWatcher, refreshPanels } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
@@ -11,7 +12,7 @@ module.exports = {
   name: Events.ClientReady,
   once: true,
   async execute(client) {
-    console.log(`✅ Eingeloggt als ${client.user.tag}`);
+    console.log(`✅ ${branding.product('bot')} ist online als ${client.user.tag}`);
 
     // Slash-Commands registrieren: mit GUILD_ID sofort auf diesem Server, sonst global (dauert bis zu 1 h).
     const body = client.commands.map((c) => c.data.toJSON());
@@ -36,7 +37,7 @@ module.exports = {
 
     const updatePresence = async () => {
       if (!config.fivem.address) {
-        client.user.setActivity(config.serverName, { type: ActivityType.Watching });
+        client.user.setActivity(branding.name(), { type: ActivityType.Watching });
         return;
       }
       const status = await fetchFivemStatus();

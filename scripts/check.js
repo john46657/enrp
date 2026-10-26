@@ -11,6 +11,15 @@ const fail = (msg) => {
 
 require('../src/lib/settings');
 const config = require('../config.json');
+const branding = require('../src/lib/branding');
+if (!config.branding?.name) fail('branding.name fehlt');
+for (const key of ['bot', 'dashboard', 'admin', 'backend', 'roblox']) {
+  if (!branding.product(key).includes(branding.name())) fail(`branding.products.${key} enthält den Projektnamen nicht`);
+}
+for (const [key, value] of Object.entries(config.colors)) {
+  if (!/^#[0-9a-f]{6}$/i.test(value)) fail(`colors.${key} ist keine Hex-Farbe: ${value}`);
+}
+console.log(`✅ Branding: ${branding.name()} (${['bot', 'dashboard', 'admin', 'backend', 'roblox'].map(branding.product).join(', ')})`);
 for (const t of config.tickets.types) {
   if (!t.id || !t.label || !t.emoji || !t.description) fail(`Ticket-Kategorie unvollständig: ${JSON.stringify(t)}`);
 }

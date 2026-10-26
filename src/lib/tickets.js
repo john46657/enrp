@@ -17,6 +17,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const config = require('../../config.json');
+const branding = require('./branding');
 const { bucket, save, nextNumber } = require('./db');
 const { embed, sendTo, isStaff, replyPrivate } = require('./util');
 const { isOpen, nextOpening } = require('./openingHours');
@@ -90,7 +91,7 @@ function loadLine(type, count) {
 function buildPanel(guild) {
   const { panel } = settings;
   const container = new ContainerBuilder()
-    .setAccentColor(parseInt(config.colors.primary.slice(1), 16))
+    .setAccentColor(branding.colorInt())
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`))
     .addSeparatorComponents(new SeparatorBuilder())
     .addTextDisplayComponents(

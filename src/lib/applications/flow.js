@@ -40,8 +40,7 @@ async function offer(interaction, typeId) {
       embeds: [
         embed()
           .setTitle(`${type.emoji} ${type.name}`)
-          .setDescription(renderMessage(type.messages.start, startVars(type, interaction.user)))
-          .setFooter({ text: interaction.guild.name }),
+          .setDescription(renderMessage(type.messages.start, startVars(type, interaction.user))),
       ],
       components: [
         new ActionRowBuilder().addComponents(

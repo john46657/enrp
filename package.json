@@ -1,7 +1,7 @@
 {
-  "name": "enrp-bot",
+  "name": "emden-network",
   "version": "1.0.0",
-  "description": "Discord-Bot für Roleplay-Server: Whitelist, Moderation, Tickets, Community",
+  "description": "Emden Network – Discord-Bot: Bewerbungen, Moderation, Tickets, Community",
   "main": "index.js",
   "private": true,
   "scripts": {

@@ -3,6 +3,9 @@ require('./src/lib/settings'); // in Discord geänderte Einstellungen über conf
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits, Partials, InteractionContextType } = require('discord.js');
+const branding = require('./src/lib/branding');
+
+console.log(`⚓ ${branding.product('bot')} startet …`);
 
 if (!process.env.DISCORD_TOKEN) {
   console.error('❌ DISCORD_TOKEN fehlt. Lege eine .env-Datei an (siehe .env.example).');
