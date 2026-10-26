@@ -1,0 +1,166 @@
+{
+  "serverName": "ENRP",
+  "colors": {
+    "primary": "#5865F2",
+    "success": "#57F287",
+    "danger": "#ED4245",
+    "warning": "#FEE75C"
+  },
+  "channels": {
+    "welcome": "",
+    "modLog": "",
+    "ticketLog": "",
+    "whitelistReview": "",
+    "levelUp": ""
+  },
+  "roles": {
+    "autoRole": "",
+    "whitelisted": "",
+    "support": "",
+    "staff": ""
+  },
+  "welcome": {
+    "message": "Willkommen {user} auf **{server}**! Du bist unser {count}. Mitglied. 🎉"
+  },
+  "whitelist": {
+    "questions": [
+      {
+        "id": "ingame",
+        "label": "Name deines Charakters",
+        "style": "short",
+        "required": true
+      },
+      {
+        "id": "alter",
+        "label": "Wie alt bist du (OOC)?",
+        "style": "short",
+        "required": true
+      },
+      {
+        "id": "erfahrung",
+        "label": "Deine RP-Erfahrung",
+        "style": "paragraph",
+        "required": true
+      },
+      {
+        "id": "story",
+        "label": "Kurze Hintergrundgeschichte deines Charakters",
+        "style": "paragraph",
+        "required": true
+      },
+      {
+        "id": "regeln",
+        "label": "Was bedeutet Powergaming?",
+        "style": "paragraph",
+        "required": true
+      }
+    ]
+  },
+  "tickets": {
+    "categoryId": "",
+    "panel": {
+      "title": "🎫 Ticket Support",
+      "description": "Wähle unten eine Kategorie aus. Ein Teammitglied kümmert sich schnellstmöglich um dich.",
+      "image": "",
+      "placeholder": "Wähle eine Kategorie …",
+      "showLoad": true,
+      "footer": ""
+    },
+    "maxOpenPerUser": 2,
+    "pingTeam": true,
+    "channelName": "%PREFIX% %USERNAME%",
+    "onlyTeamCanClose": false,
+    "creatorCanAddUsers": true,
+    "onCreatorLeave": "close",
+    "logging": {
+      "activities": true,
+      "transcripts": true
+    },
+    "claimCategory": {
+      "enabled": true,
+      "categoryId": ""
+    },
+    "openingHours": {
+      "enabled": false,
+      "timezone": "Europe/Berlin",
+      "periods": [
+        {
+          "days": [
+            "mo",
+            "di",
+            "mi",
+            "do",
+            "fr"
+          ],
+          "from": "15:00",
+          "to": "23:00"
+        },
+        {
+          "days": [
+            "sa",
+            "so"
+          ],
+          "from": "12:00",
+          "to": "24:00"
+        }
+      ]
+    },
+    "autoTeamAlert": {
+      "enabled": true,
+      "afterMinutes": 30
+    },
+    "autoUnclaim": {
+      "enabled": true,
+      "afterHours": 24
+    },
+    "types": [
+      {
+        "id": "general",
+        "prefix": "general",
+        "label": "General",
+        "emoji": "📩",
+        "capacity": 20,
+        "roles": [],
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du allgemeine Fragen oder Anliegen hast."
+      },
+      {
+        "id": "shader",
+        "prefix": "shader",
+        "label": "Shader",
+        "emoji": "🌆",
+        "capacity": 20,
+        "roles": [],
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Probleme mit dem Shader hast. Egal ob einfache Fragen zur Installation oder Einrichtung bis hin zu Bugs."
+      },
+      {
+        "id": "moderation",
+        "prefix": "mod",
+        "label": "Moderation",
+        "emoji": "💎",
+        "capacity": 20,
+        "roles": [],
+        "description": "Hier kannst du dich an uns wenden, wenn du andere Nutzer reporten möchtest oder dich an unser vertrautes Team wenden möchtest."
+      },
+      {
+        "id": "leitung",
+        "prefix": "leitung",
+        "label": "Leitung",
+        "emoji": "🔮",
+        "capacity": 10,
+        "roles": [],
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Fragen hast, die sich eher die Leitungsebene anschauen sollte."
+      }
+    ]
+  },
+  "fivem": {
+    "address": "",
+    "connectUrl": ""
+  },
+  "leveling": {
+    "enabled": true,
+    "xpMin": 15,
+    "xpMax": 25,
+    "cooldownSeconds": 60,
+    "roleRewards": {}
+  }
+}
