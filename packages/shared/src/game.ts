@@ -39,14 +39,13 @@ export const commandPayloadSchemas = {
   kick: z.object({ robloxUserId, reason: z.string().min(3).max(200) }),
   ban: z.object({ robloxUserId, reason: z.string().min(3).max(200), durationSeconds: z.number().int().positive().max(60 * 60 * 24 * 365).nullable() }),
   unban: z.object({ robloxUserId }),
-  maintenance: z.object({ enabled: z.boolean(), message: z.string().max(200).optional() }),
   restart_announce: z.object({ minutes: z.number().int().min(1).max(60) }),
 } as const;
 export type CommandType = keyof typeof commandPayloadSchemas;
 export const COMMAND_TYPES = Object.keys(commandPayloadSchemas) as CommandType[];
 
 /** Aufträge, die jeder aktive Server ausführt. */
-export const BROADCAST_COMMANDS: ReadonlySet<CommandType> = new Set(['announce', 'kick', 'maintenance', 'restart_announce']);
+export const BROADCAST_COMMANDS: ReadonlySet<CommandType> = new Set(['announce', 'kick', 'restart_announce']);
 
 export const actionResultSchema = z.object({
   jobId: jobIdSchema,

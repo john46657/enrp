@@ -67,12 +67,19 @@ export async function authRobloxRoutes(app: FastifyInstance, opts: AuthRouteOpti
   app.get('/auth/roblox/callback', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req, reply) => {
     const q = callbackQuery.safeParse(req.query);
     if (!q.success) return sendPage(reply, 400, 'Ungültige Anfrage', ERROR_MESSAGES.INVALID_STATE, false);
-    const result = await opts.verification.handleCallback({
-      state: q.data.state,
-      code: q.data.code,
-      error: q.data.error,
-      browserBinding: req.cookies[cookieName],
-    });
+    let result;
+    try {
+      result = await opts.verification.handleCallback({
+        state: q.data.state,
+        code: q.data.code,
+        error: q.data.error,
+        browserBinding: req.cookies[cookieName],
+      });
+    } catch (err) {
+      // z. B. Datenbank nicht erreichbar: verständliche Seite statt JSON, keine Interna.
+      req.log.error({ err: { message: (err as Error).message } }, 'Callback fehlgeschlagen');
+      return sendPage(reply, 500, 'Verifizierung fehlgeschlagen', ERROR_MESSAGES.INTERNAL, false);
+    }
     reply.clearCookie(cookieName, cookieBase);
     if (result.ok) {
       const name = result.robloxUsername ? ` mit dem Roblox-Account ${result.robloxUsername}` : '';

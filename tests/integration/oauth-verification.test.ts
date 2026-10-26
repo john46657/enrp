@@ -104,6 +104,16 @@ describe('Roblox-OAuth-Verifizierung', () => {
     expect(dump.rows[0].s).not.toContain(params.code);
   });
 
+  it('behandelt einen nicht erreichbaren Roblox-Server (Netzwerkausfall)', async () => {
+    const { discordId, authorizeUrl, cookie } = await startFlow();
+    const params = mock.approve(authorizeUrl, { sub: '5550099' });
+    const offline = new VerificationService(pool, new RobloxOAuthClient({ clientId: '1', clientSecret: 'x'.repeat(16), redirectUri: 'http://localhost/cb', baseUrl: 'http://127.0.0.1:9/oauth', timeoutMs: 500 }), { publicBaseUrl: PUBLIC_BASE });
+    const binding = cookie.split('=')[1];
+    expect(await offline.handleCallback({ ...params, browserBinding: binding })).toEqual({ ok: false, code: 'TOKEN_EXCHANGE_FAILED' });
+    const s = await pool.query('SELECT status FROM oauth_verification_sessions WHERE discord_id = $1', [discordId]);
+    expect(s.rows[0].status).toBe('failed');
+  });
+
   it('lehnt manipulierten state ab', async () => {
     const { authorizeUrl, cookie } = await startFlow();
     const params = mock.approve(authorizeUrl, { sub: '5550002' });

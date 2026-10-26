@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MIGRATIONS_DIR, createPool, migrate, withTransaction, type Pool } from '@emden-network/database';
-import { ensureUser } from '@emden-network/core';
+import { VerificationService, ensureUser } from '@emden-network/core';
+import { buildApp } from '@emden-network/api';
 import { resetDb, snowflake, testPool } from '../helpers/db.js';
 
 let pool: Pool;
@@ -65,6 +66,23 @@ describe('Datenbank', () => {
   it('meldet Datenbankausfälle als Fehler statt zu hängen', async () => {
     const broken = createPool({ connectionString: 'postgres://enrp:falsch@127.0.0.1:1/nichts' });
     await expect(broken.query('SELECT 1')).rejects.toThrow();
+    await broken.end();
+  });
+
+  it('API meldet Datenbankausfall über /readyz und liefert keine Interna', async () => {
+    const broken = createPool({ connectionString: 'postgres://enrp:falsch@127.0.0.1:1/nichts' });
+    const verification = new VerificationService(broken, null, { publicBaseUrl: 'http://localhost' });
+    const app = await buildApp({ pool: broken, verification, cookieSecure: true, internalApiToken: 'i'.repeat(40), gameApiKey: 'g'.repeat(40), allowedPlaceIds: new Set(), disableRateLimit: true });
+    expect((await app.inject({ url: '/healthz' })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/readyz' })).json()).toEqual({ status: 'unavailable' });
+    const status = await app.inject({ url: '/v1/servers/status' });
+    expect(status.statusCode).toBe(500);
+    expect(status.json()).toEqual({ error: 'INTERNAL', message: 'Interner Fehler.' });
+    const cb = await app.inject({ url: '/auth/roblox/callback?state=abc&code=x' });
+    expect(cb.statusCode).toBe(500);
+    expect(cb.body).toContain('interner Fehler');
+    expect(cb.body).not.toContain('ECONNREFUSED');
+    await app.close();
     await broken.end();
   });
 });

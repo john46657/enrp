@@ -7,7 +7,7 @@ export function testPool(): Pool {
 /** Leert alle fachlichen Tabellen, Stammdaten (Fraktionen/Ränge) bleiben erhalten. */
 export async function resetDb(pool: Pool): Promise<void> {
   await pool.query(`TRUNCATE
-    command_job_results, command_jobs, game_events, game_server_players, game_servers,
+    command_job_results, command_jobs, game_settings, game_events, game_server_players, game_servers,
     moderation_cases, ticket_messages, tickets, application_answers, applications,
     training_attendance, trainings, duty_sessions, faction_members,
     discord_links, oauth_verification_sessions, outbox_events, audit_logs, guild_config, users

@@ -4,8 +4,10 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppError } from '@emden-network/shared';
 import type { Pool } from '@emden-network/database';
-import type { VerificationService } from '@emden-network/core';
+import { GameService, type VerificationService } from '@emden-network/core';
 import { authRobloxRoutes } from './routes/auth-roblox.js';
+import { gameRoutes, publicStatusRoutes } from './routes/game.js';
+import { playerRoutes } from './routes/players.js';
 
 export interface AppDeps {
   pool: Pool;
@@ -90,6 +92,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }
   });
 
+  const game = new GameService(deps.pool);
   await app.register(authRobloxRoutes, { verification: deps.verification, cookieSecure: deps.cookieSecure });
+  await app.register(publicStatusRoutes, { game });
+  await app.register(playerRoutes, { pool: deps.pool, verification: deps.verification, internalApiToken: deps.internalApiToken, gameApiKey: deps.gameApiKey });
+  // Eigener Kontext, damit der Auth-Hook nur für /v1/game/* gilt.
+  await app.register(gameRoutes, { game, gameApiKey: deps.gameApiKey, allowedPlaceIds: deps.allowedPlaceIds });
   return app;
 }

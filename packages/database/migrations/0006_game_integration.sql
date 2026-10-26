@@ -43,7 +43,7 @@ CREATE TYPE command_job_status AS ENUM ('pending', 'claimed', 'succeeded', 'fail
 
 CREATE TABLE command_jobs (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  type             text NOT NULL CHECK (type IN ('announce', 'kick', 'ban', 'unban', 'maintenance', 'restart_announce')),
+  type             text NOT NULL CHECK (type IN ('announce', 'kick', 'ban', 'unban', 'restart_announce')),
   payload          jsonb NOT NULL,
   -- NULL = beliebiger Server darf ausführen; für Broadcasts siehe fanout
   target_job_id    text,
@@ -72,6 +72,15 @@ CREATE TABLE command_job_results (
   reported_at      timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (command_job_id, job_id)
 );
+
+-- Globale Spieleinstellungen, die jeder Server mit der Heartbeat-Antwort erhält (z. B. Wartungsmodus).
+CREATE TABLE game_settings (
+  key              text PRIMARY KEY CHECK (key ~ '^[a-z_]{1,32}$'),
+  value            jsonb NOT NULL,
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  updated_by       uuid REFERENCES users(id) ON DELETE SET NULL
+);
+INSERT INTO game_settings (key, value) VALUES ('maintenance', '{"enabled": false, "message": null}');
 
 ALTER TABLE duty_sessions ADD CONSTRAINT duty_sessions_server_fk FOREIGN KEY (game_server_id) REFERENCES game_servers(id) ON DELETE SET NULL;
 ALTER TABLE moderation_cases ADD CONSTRAINT moderation_cases_job_fk FOREIGN KEY (command_job_id) REFERENCES command_jobs(id) ON DELETE SET NULL;

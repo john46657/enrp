@@ -56,13 +56,22 @@ export class VerificationService {
 
   constructor(
     private readonly pool: Pool,
-    private readonly oauth: RobloxOAuthClient,
+    /**
+     * Nur die API benötigt den OAuth-Client (Client-Secret). Der Bot erzeugt lediglich Sessions
+     * und übergibt null – so liegt das Roblox-Secret nie im Bot-Prozess.
+     */
+    private readonly oauthClient: RobloxOAuthClient | null,
     private readonly cfg: VerificationConfig,
     private readonly log: (msg: string, meta?: Record<string, unknown>) => void = () => {},
   ) {
     this.startTtl = cfg.startTtlSeconds ?? 600;
     this.authorizeTtl = cfg.authorizeTtlSeconds ?? 600;
     this.maxSessions = cfg.maxSessionsPer15Min ?? 5;
+  }
+
+  private get oauth(): RobloxOAuthClient {
+    if (!this.oauthClient) throw new Error('VerificationService ohne OAuth-Client: nur createSession/revokeLink/cleanup verfügbar');
+    return this.oauthClient;
   }
 
   /**
