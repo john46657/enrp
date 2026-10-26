@@ -37,10 +37,15 @@ export class EnvValidationError extends Error {
  * Validiert Umgebungsvariablen. Fehlermeldungen nennen nur Variablennamen,
  * niemals deren Werte, damit keine Geheimnisse in Logs landen.
  */
-export function parseEnv<T extends z.ZodType>(schema: T, source: Record<string, string | undefined> = process.env): z.infer<T> {
+export function parseEnv<T extends z.ZodType>(
+  schema: T,
+  source: Record<string, string | undefined> = process.env,
+): z.infer<T> {
   const result = schema.safeParse(source);
   if (!result.success) {
-    throw new EnvValidationError(result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`));
+    throw new EnvValidationError(
+      result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`),
+    );
   }
   return result.data;
 }

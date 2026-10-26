@@ -27,7 +27,14 @@ export function registerErrorHandling(app: FastifyInstance) {
       };
     } else if (error instanceof ZodError) {
       status = 400;
-      body = { error: { code: 'VALIDATION_FAILED', message: 'Die Eingaben sind ungültig.', requestId, details: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) } };
+      body = {
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'Die Eingaben sind ungültig.',
+          requestId,
+          details: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+      };
     } else if ((error as FastifyError).statusCode === 429) {
       status = 429;
       body = { error: { code: 'RATE_LIMITED', message: 'Zu viele Anfragen. Bitte kurz warten.', requestId } };
@@ -40,12 +47,17 @@ export function registerErrorHandling(app: FastifyInstance) {
     } else {
       body = { error: { code: 'INTERNAL', message: 'Interner Fehler. Bitte später erneut versuchen.', requestId } };
     }
-    if (status >= 500) request.log.error({ err: error }, 'Unbehandelter Fehler');
+    if (status >= 500 && !(error instanceof AppError)) request.log.error({ err: error }, 'Unbehandelter Fehler');
+    else if (status >= 500) request.log.warn({ code: body.error.code, status }, body.error.message);
     else request.log.info({ code: body.error.code, status }, 'Anfrage abgelehnt');
     return reply.status(status).send(body);
   });
 
   app.setNotFoundHandler((request, reply) => {
-    reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Endpunkt nicht gefunden.', requestId: request.id } } satisfies ApiErrorBody);
+    reply
+      .status(404)
+      .send({
+        error: { code: 'NOT_FOUND', message: 'Endpunkt nicht gefunden.', requestId: request.id },
+      } satisfies ApiErrorBody);
   });
 }

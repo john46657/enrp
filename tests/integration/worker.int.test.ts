@@ -47,23 +47,37 @@ describe('Backups (echtes pg_dump/pg_restore)', () => {
     // Wiederherstellung braucht Antrag + Freigabe durch eine zweite Person.
     const a = await userWithRole(ctx, '900000000000000001', 'owner');
     const b = await userWithRole(ctx, '900000000000000002', 'owner');
-    const { request, approval, preview } = await backups.requestRestore(ctx, a, { backupId: result.id, targetEnvironment: 'restore_test', reason: 'Wiederherstellungstest' });
+    const { request, approval, preview } = await backups.requestRestore(ctx, a, {
+      backupId: result.id,
+      targetEnvironment: 'restore_test',
+      reason: 'Wiederherstellungstest',
+    });
     expect(preview.tables).toBeTruthy();
-    await expect(runRestore(ctx, cfg({ restoreTestUrl: RESTORE_URL }), request.id)).rejects.toThrow(/nicht freigegeben/);
+    await expect(runRestore(ctx, cfg({ restoreTestUrl: RESTORE_URL }), request.id)).rejects.toThrow(
+      /nicht freigegeben/,
+    );
     await decideApproval(ctx, b, approval.id, 'approve', 'ok');
     const restored = await runRestore(ctx, cfg({ restoreTestUrl: RESTORE_URL }), request.id);
     expect(restored.status).toBe('succeeded');
 
     // Produktion ohne Freischaltung wird nicht automatisch überschrieben.
-    const prod = await backups.requestRestore(ctx, a, { backupId: result.id, targetEnvironment: 'production', reason: 'Notfall' });
+    const prod = await backups.requestRestore(ctx, a, {
+      backupId: result.id,
+      targetEnvironment: 'production',
+      reason: 'Notfall',
+    });
     await decideApproval(ctx, b, prod.approval.id, 'approve', 'ok');
-    expect((await runRestore(ctx, cfg({ restoreTargets: { production: RESTORE_URL } }), prod.request.id)).status).toBe('manual_required');
+    expect((await runRestore(ctx, cfg({ restoreTargets: { production: RESTORE_URL } }), prod.request.id)).status).toBe(
+      'manual_required',
+    );
     await rm(dir, { recursive: true, force: true });
   }, 60_000);
 
   it('fehlgeschlagenes Backup wird markiert, Datei entfernt und Automatisierung ausgelöst', async () => {
     const ctx = createTestContext();
-    await expect(runBackup(ctx, cfg({ pgDump: '/nicht/vorhanden/pg_dump' }), { kind: 'manual', triggeredBy: 'test' })).rejects.toThrow();
+    await expect(
+      runBackup(ctx, cfg({ pgDump: '/nicht/vorhanden/pg_dump' }), { kind: 'manual', triggeredBy: 'test' }),
+    ).rejects.toThrow();
     const health = await backups.backupHealth(ctx.db, ctx.now());
     expect(health.consecutiveFailures).toBe(1);
     expect(health.lastSuccessAt).toBeNull();
@@ -76,7 +90,11 @@ describe('Backups (echtes pg_dump/pg_restore)', () => {
     await writeFile(path.join(dir, result.fileName!), 'manipuliert');
     const a = await owner(ctx);
     const b = await userWithRole(ctx, '900000000000000002', 'owner');
-    const { request, approval } = await backups.requestRestore(ctx, a, { backupId: result.id, targetEnvironment: 'restore_test', reason: 'Test' });
+    const { request, approval } = await backups.requestRestore(ctx, a, {
+      backupId: result.id,
+      targetEnvironment: 'restore_test',
+      reason: 'Test',
+    });
     await decideApproval(ctx, b, approval.id, 'approve', 'ok');
     await expect(runRestore(ctx, cfg({ restoreTestUrl: RESTORE_URL }), request.id)).rejects.toThrow(/Prüfsumme/);
   }, 60_000);

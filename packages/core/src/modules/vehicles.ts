@@ -1,4 +1,18 @@
-import { and, asc, desc, eq, factions, inArray, isNull, robloxUsers, sql, vehicleAssignments, vehicleCategories, vehicles, type DbExecutor } from '@enrp/database';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  factions,
+  inArray,
+  isNull,
+  robloxUsers,
+  sql,
+  vehicleAssignments,
+  vehicleCategories,
+  vehicles,
+  type DbExecutor,
+} from '@enrp/database';
 import { errors } from '@enrp/shared';
 import { z } from 'zod';
 import { type Actor, actorId, requirePermission } from '../actor';
@@ -8,7 +22,12 @@ import { assertNotKilled } from '../flags';
 import { factionScope } from './factions';
 
 export const vehicleInput = z.object({
-  identifier: z.string().trim().min(1).max(80).regex(/^[\w .\-/]+$/, 'Nur Buchstaben, Zahlen, Leerzeichen und . - _ /'),
+  identifier: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[\w .\-/]+$/, 'Nur Buchstaben, Zahlen, Leerzeichen und . - _ /'),
   name: z.string().trim().min(1).max(120),
   categoryId: z.uuid().nullable().optional(),
   factionId: z.uuid().nullable().optional(),
@@ -22,13 +41,23 @@ export async function listVehicleCategories(db: DbExecutor) {
   return db.select().from(vehicleCategories).orderBy(asc(vehicleCategories.sortOrder));
 }
 
-export async function createVehicleCategory(ctx: CoreContext, actor: Actor, input: { key: string; name: string; sortOrder?: number }, reason: string) {
+export async function createVehicleCategory(
+  ctx: CoreContext,
+  actor: Actor,
+  input: { key: string; name: string; sortOrder?: number },
+  reason: string,
+) {
   requirePermission(actor, 'vehicles:create');
   if (!/^[a-z][a-z0-9_]{1,40}$/.test(input.key)) throw errors.badRequest('Ungültiger Schlüssel.');
   return ctx.db.transaction(async (tx) => {
     const [row] = await tx.insert(vehicleCategories).values(input).onConflictDoNothing().returning();
     if (!row) throw errors.conflict('Kategorie existiert bereits.');
-    await writeAudit(tx, actor, { action: 'vehicle_category.create', resourceType: 'vehicle_category', resourceId: row.id, reason, after: row }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      { action: 'vehicle_category.create', resourceType: 'vehicle_category', resourceId: row.id, reason, after: row },
+      ctx.now(),
+    );
     return row;
   });
 }
@@ -41,7 +70,9 @@ export async function listVehicles(
   const scope = factionScope(actor, 'vehicles:view');
   if (Array.isArray(scope) && !scope.length) throw errors.forbidden('Dir fehlt die Berechtigung „vehicles:view“.');
   const where = and(
-    filter.q ? sql`(${vehicles.name} ilike ${`%${filter.q.replace(/[\\%_]/g, '')}%`} or ${vehicles.identifier} ilike ${`%${filter.q.replace(/[\\%_]/g, '')}%`})` : undefined,
+    filter.q
+      ? sql`(${vehicles.name} ilike ${`%${filter.q.replace(/[\\%_]/g, '')}%`} or ${vehicles.identifier} ilike ${`%${filter.q.replace(/[\\%_]/g, '')}%`})`
+      : undefined,
     filter.categoryId ? eq(vehicles.categoryId, filter.categoryId) : undefined,
     filter.factionId ? eq(vehicles.factionId, filter.factionId) : undefined,
     filter.status ? eq(vehicles.status, filter.status as never) : undefined,
@@ -62,13 +93,19 @@ export async function listVehicles(
     .orderBy(asc(vehicles.name))
     .limit(filter.pageSize)
     .offset((filter.page - 1) * filter.pageSize);
-  const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(vehicles).where(where);
+  const [total] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(vehicles)
+    .where(where);
   return { items, total: total?.count ?? 0, page: filter.page, pageSize: filter.pageSize };
 }
 
 export async function getVehicle(db: DbExecutor, actor: Actor, idOrIdentifier: string) {
   const isUuid = /^[0-9a-f-]{36}$/i.test(idOrIdentifier);
-  const [vehicle] = await db.select().from(vehicles).where(isUuid ? eq(vehicles.id, idOrIdentifier) : eq(vehicles.identifier, idOrIdentifier));
+  const [vehicle] = await db
+    .select()
+    .from(vehicles)
+    .where(isUuid ? eq(vehicles.id, idOrIdentifier) : eq(vehicles.identifier, idOrIdentifier));
   if (!vehicle) throw errors.notFound('Fahrzeug');
   requirePermission(actor, 'vehicles:view', { factionId: vehicle.factionId });
   const assignments = await db
@@ -91,12 +128,23 @@ export async function createVehicle(ctx: CoreContext, actor: Actor, input: Vehic
       .onConflictDoNothing()
       .returning();
     if (!row) throw errors.conflict('Ein Fahrzeug mit dieser Kennung existiert bereits.');
-    await writeAudit(tx, actor, { action: 'vehicle.create', resourceType: 'vehicle', resourceId: row.id, reason, after: row }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      { action: 'vehicle.create', resourceType: 'vehicle', resourceId: row.id, reason, after: row },
+      ctx.now(),
+    );
     return row;
   });
 }
 
-export async function updateVehicle(ctx: CoreContext, actor: Actor, id: string, patch: Partial<VehicleInput>, reason: string) {
+export async function updateVehicle(
+  ctx: CoreContext,
+  actor: Actor,
+  id: string,
+  patch: Partial<VehicleInput>,
+  reason: string,
+) {
   const data = vehicleInput.partial().parse(patch);
   const [existing] = await ctx.db.select().from(vehicles).where(eq(vehicles.id, id));
   if (!existing) throw errors.notFound('Fahrzeug');
@@ -106,7 +154,12 @@ export async function updateVehicle(ctx: CoreContext, actor: Actor, id: string, 
   }
   return ctx.db.transaction(async (tx) => {
     const [row] = await tx.update(vehicles).set(data).where(eq(vehicles.id, id)).returning();
-    await writeAudit(tx, actor, { action: 'vehicle.update', resourceType: 'vehicle', resourceId: id, reason, before: existing, after: row }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      { action: 'vehicle.update', resourceType: 'vehicle', resourceId: id, reason, before: existing, after: row },
+      ctx.now(),
+    );
     return row!;
   });
 }
@@ -117,12 +170,21 @@ export async function deleteVehicle(ctx: CoreContext, actor: Actor, id: string, 
   requirePermission(actor, 'vehicles:delete', { factionId: existing.factionId });
   return ctx.db.transaction(async (tx) => {
     await tx.delete(vehicles).where(eq(vehicles.id, id));
-    await writeAudit(tx, actor, { action: 'vehicle.delete', resourceType: 'vehicle', resourceId: id, reason, before: existing }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      { action: 'vehicle.delete', resourceType: 'vehicle', resourceId: id, reason, before: existing },
+      ctx.now(),
+    );
     return { deleted: true };
   });
 }
 
-export async function assignVehicle(ctx: CoreContext, actor: Actor, input: { vehicleId: string; robloxUserId: number; reason: string }) {
+export async function assignVehicle(
+  ctx: CoreContext,
+  actor: Actor,
+  input: { vehicleId: string; robloxUserId: number; reason: string },
+) {
   await assertNotKilled(ctx.db);
   const [vehicle] = await ctx.db.select().from(vehicles).where(eq(vehicles.id, input.vehicleId));
   if (!vehicle) throw errors.notFound('Fahrzeug');
@@ -133,11 +195,28 @@ export async function assignVehicle(ctx: CoreContext, actor: Actor, input: { veh
   return ctx.db.transaction(async (tx) => {
     const [row] = await tx
       .insert(vehicleAssignments)
-      .values({ vehicleId: vehicle.id, robloxUserId: input.robloxUserId, assignedBy: actorId(actor), reason: input.reason, assignedAt: ctx.now() })
+      .values({
+        vehicleId: vehicle.id,
+        robloxUserId: input.robloxUserId,
+        assignedBy: actorId(actor),
+        reason: input.reason,
+        assignedAt: ctx.now(),
+      })
       .onConflictDoNothing()
       .returning();
     if (!row) throw errors.conflict('Das Fahrzeug ist dieser Person bereits zugewiesen.');
-    await writeAudit(tx, actor, { action: 'vehicle.assign', resourceType: 'vehicle', resourceId: vehicle.id, reason: input.reason, after: { robloxUserId: input.robloxUserId } }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      {
+        action: 'vehicle.assign',
+        resourceType: 'vehicle',
+        resourceId: vehicle.id,
+        reason: input.reason,
+        after: { robloxUserId: input.robloxUserId },
+      },
+      ctx.now(),
+    );
     return row;
   });
 }
@@ -159,7 +238,13 @@ export async function unassignVehicle(ctx: CoreContext, actor: Actor, input: { a
     await writeAudit(
       tx,
       actor,
-      { action: 'vehicle.unassign', resourceType: 'vehicle', resourceId: assignment.a.vehicleId, reason: input.reason, before: { robloxUserId: assignment.a.robloxUserId } },
+      {
+        action: 'vehicle.unassign',
+        resourceType: 'vehicle',
+        resourceId: assignment.a.vehicleId,
+        reason: input.reason,
+        before: { robloxUserId: assignment.a.robloxUserId },
+      },
       ctx.now(),
     );
     return row!;
@@ -172,7 +257,13 @@ export async function vehiclesForPlayer(db: DbExecutor, robloxUserId: number, fa
     .select({ identifier: vehicles.identifier, allowedConfigs: vehicles.allowedConfigs })
     .from(vehicleAssignments)
     .innerJoin(vehicles, eq(vehicles.id, vehicleAssignments.vehicleId))
-    .where(and(eq(vehicleAssignments.robloxUserId, robloxUserId), isNull(vehicleAssignments.unassignedAt), eq(vehicles.status, 'active')));
+    .where(
+      and(
+        eq(vehicleAssignments.robloxUserId, robloxUserId),
+        isNull(vehicleAssignments.unassignedAt),
+        eq(vehicles.status, 'active'),
+      ),
+    );
   const factionVehicles = factionId
     ? await db
         .select({ identifier: vehicles.identifier, allowedConfigs: vehicles.allowedConfigs })

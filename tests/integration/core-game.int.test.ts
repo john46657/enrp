@@ -1,7 +1,16 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { duty, factionsModule, game, verification, type RobloxServerActor, updateSetting, setFlag } from '@enrp/core';
 import { accountLinks, dutySessions, eq, robloxUsers } from '@enrp/database';
-import { advance, closeDb, createTestContext, expectAppError, owner, resetDatabase, userWithRole, type TestContext } from './helpers';
+import {
+  advance,
+  closeDb,
+  createTestContext,
+  expectAppError,
+  owner,
+  resetDatabase,
+  userWithRole,
+  type TestContext,
+} from './helpers';
 
 const PLAYER = 1001;
 const PLAYER2 = 1002;
@@ -14,7 +23,11 @@ afterAll(closeDb);
 async function setupServer(ctx: TestContext) {
   const admin = await owner(ctx);
   const key = await game.createRobloxApiKey(ctx, admin, { name: 'Test-Server' }, 'Einrichtung');
-  const auth = await game.authenticateRobloxRequest(ctx.db, { bearer: key.key, timestamp: String(Math.floor(ctx.now().getTime() / 1000)), nonce: 'nonce-0000000000000001' }, ctx.now());
+  const auth = await game.authenticateRobloxRequest(
+    ctx.db,
+    { bearer: key.key, timestamp: String(Math.floor(ctx.now().getTime() / 1000)), nonce: 'nonce-0000000000000001' },
+    ctx.now(),
+  );
   const actor: RobloxServerActor = { kind: 'roblox_server', apiKeyId: auth.apiKeyId };
   const hb = await game.processHeartbeat(ctx, actor, {
     jobId: 'job-1',
@@ -33,14 +46,49 @@ describe('Roblox-Serverauthentifizierung', () => {
     const admin = await owner(ctx);
     const { key } = await game.createRobloxApiKey(ctx, admin, { name: 'S', allowedPlaceIds: ['555'] }, 'x');
     const ts = String(Math.floor(ctx.now().getTime() / 1000));
-    await expectAppError(game.authenticateRobloxRequest(ctx.db, { bearer: 'falsch', timestamp: ts, nonce: 'n'.repeat(20) }, ctx.now()), 'UNAUTHENTICATED');
-    await expectAppError(game.authenticateRobloxRequest(ctx.db, { bearer: key, timestamp: String(Number(ts) - 1000), nonce: 'a'.repeat(20), placeId: '555' }, ctx.now()), 'INVALID_SIGNATURE');
-    await expectAppError(game.authenticateRobloxRequest(ctx.db, { bearer: key, timestamp: ts, nonce: 'b'.repeat(20), placeId: '999' }, ctx.now()), 'FORBIDDEN');
-    await game.authenticateRobloxRequest(ctx.db, { bearer: key, timestamp: ts, nonce: 'c'.repeat(20), placeId: '555' }, ctx.now());
-    await expectAppError(game.authenticateRobloxRequest(ctx.db, { bearer: key, timestamp: ts, nonce: 'c'.repeat(20), placeId: '555' }, ctx.now()), 'REPLAY_DETECTED');
+    await expectAppError(
+      game.authenticateRobloxRequest(ctx.db, { bearer: 'falsch', timestamp: ts, nonce: 'n'.repeat(20) }, ctx.now()),
+      'UNAUTHENTICATED',
+    );
+    await expectAppError(
+      game.authenticateRobloxRequest(
+        ctx.db,
+        { bearer: key, timestamp: String(Number(ts) - 1000), nonce: 'a'.repeat(20), placeId: '555' },
+        ctx.now(),
+      ),
+      'INVALID_SIGNATURE',
+    );
+    await expectAppError(
+      game.authenticateRobloxRequest(
+        ctx.db,
+        { bearer: key, timestamp: ts, nonce: 'b'.repeat(20), placeId: '999' },
+        ctx.now(),
+      ),
+      'FORBIDDEN',
+    );
+    await game.authenticateRobloxRequest(
+      ctx.db,
+      { bearer: key, timestamp: ts, nonce: 'c'.repeat(20), placeId: '555' },
+      ctx.now(),
+    );
+    await expectAppError(
+      game.authenticateRobloxRequest(
+        ctx.db,
+        { bearer: key, timestamp: ts, nonce: 'c'.repeat(20), placeId: '555' },
+        ctx.now(),
+      ),
+      'REPLAY_DETECTED',
+    );
     const keys = await game.listRobloxApiKeys(ctx.db);
     await game.revokeRobloxApiKey(ctx, admin, keys[0]!.id, 'kompromittiert');
-    await expectAppError(game.authenticateRobloxRequest(ctx.db, { bearer: key, timestamp: ts, nonce: 'd'.repeat(20), placeId: '555' }, ctx.now()), 'UNAUTHENTICATED');
+    await expectAppError(
+      game.authenticateRobloxRequest(
+        ctx.db,
+        { bearer: key, timestamp: ts, nonce: 'd'.repeat(20), placeId: '555' },
+        ctx.now(),
+      ),
+      'UNAUTHENTICATED',
+    );
   });
 });
 
@@ -50,24 +98,36 @@ describe('Fraktionen und Dienstsystem', () => {
     const { actor, admin } = await setupServer(ctx);
 
     // Ohne Mitgliedschaft wird der Dienstbeginn abgelehnt.
-    let results = await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-00000001', type: 'duty_start', data: { userId: PLAYER } }] });
+    let results = await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-00000001', type: 'duty_start', data: { userId: PLAYER } }],
+    });
     expect(results[0]).toMatchObject({ status: 'rejected', result: { reason: 'not_member' } });
 
     await factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER, factionKey: 'polizei', reason: 'Aufnahme' });
     // Gefälschter Zeitstempel (1 Stunde in der Vergangenheit) wird ignoriert und markiert.
     const fake = new Date(ctx.now().getTime() - 3600_000).toISOString();
-    results = await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-00000002', type: 'duty_start', occurredAt: fake, data: { userId: PLAYER } }] });
+    results = await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-00000002', type: 'duty_start', occurredAt: fake, data: { userId: PLAYER } }],
+    });
     expect(results[0]!.status).toBe('processed');
     const [session] = await ctx.db.select().from(dutySessions).where(eq(dutySessions.robloxUserId, PLAYER));
     expect(session!.startedAt.toISOString()).toBe(ctx.now().toISOString());
     expect(session!.flags).toContain('clock_skew');
 
     // Doppelte Zustellung desselben Ereignisses ändert nichts.
-    results = await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-00000002', type: 'duty_start', data: { userId: PLAYER } }] });
+    results = await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-00000002', type: 'duty_start', data: { userId: PLAYER } }],
+    });
     expect(results[0]!.status).toBe('duplicate');
 
     advance(ctx, 45 * 60_000);
-    results = await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-00000003', type: 'duty_end', data: { userId: PLAYER } }] });
+    results = await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-00000003', type: 'duty_end', data: { userId: PLAYER } }],
+    });
     expect(results[0]).toMatchObject({ status: 'processed', result: { status: 'ended', durationSeconds: 2700 } });
 
     const totals = await duty.dutyTotals(ctx.db, { robloxUserId: PLAYER });
@@ -79,14 +139,24 @@ describe('Fraktionen und Dienstsystem', () => {
   it('Versetzung beendet laufenden Dienst; Fraktionsverwaltung wirkt nur in eigener Fraktion', async () => {
     const ctx = createTestContext();
     const { actor, admin } = await setupServer(ctx);
-    await factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER, factionKey: 'feuerwehr', reason: 'Aufnahme' });
-    await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-10000001', type: 'duty_start', data: { userId: PLAYER } }] });
+    await factionsModule.assignFaction(ctx, admin, {
+      robloxUserId: PLAYER,
+      factionKey: 'feuerwehr',
+      reason: 'Aufnahme',
+    });
+    await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-10000001', type: 'duty_start', data: { userId: PLAYER } }],
+    });
 
     const police = await factionsModule.getFaction(ctx.db, 'polizei');
     const lead = await userWithRole(ctx, POLICE_LEAD);
     lead.subject.grants = [{ permission: 'factions:edit', factionIds: [police.id] }];
     // Versetzung aus der Feuerwehr erfordert auch Rechte für die Feuerwehr.
-    await expectAppError(factionsModule.assignFaction(ctx, lead, { robloxUserId: PLAYER, factionKey: 'polizei', reason: 'x' }), 'FORBIDDEN');
+    await expectAppError(
+      factionsModule.assignFaction(ctx, lead, { robloxUserId: PLAYER, factionKey: 'polizei', reason: 'x' }),
+      'FORBIDDEN',
+    );
     await factionsModule.assignFaction(ctx, lead, { robloxUserId: PLAYER2, factionKey: 'polizei', reason: 'Aufnahme' });
 
     advance(ctx, 10 * 60_000);
@@ -97,14 +167,25 @@ describe('Fraktionen und Dienstsystem', () => {
       ['polizei', 'active'],
       ['feuerwehr', 'ended'],
     ]);
-    await expectAppError(factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER, factionKey: 'polizei', reason: 'doppelt' }), 'CONFLICT');
+    await expectAppError(
+      factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER, factionKey: 'polizei', reason: 'doppelt' }),
+      'CONFLICT',
+    );
   });
 
   it('Heartbeat schließt Sessions verschwundener Spieler; Watchdog schließt Sessions bei Server-Timeout', async () => {
     const ctx = createTestContext();
     const { actor, admin } = await setupServer(ctx);
-    await factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER, factionKey: 'rettungsdienst', reason: 'Aufnahme' });
-    await factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER2, factionKey: 'polizei', reason: 'Aufnahme' });
+    await factionsModule.assignFaction(ctx, admin, {
+      robloxUserId: PLAYER,
+      factionKey: 'rettungsdienst',
+      reason: 'Aufnahme',
+    });
+    await factionsModule.assignFaction(ctx, admin, {
+      robloxUserId: PLAYER2,
+      factionKey: 'polizei',
+      reason: 'Aufnahme',
+    });
     await game.processGameEvents(ctx, actor, {
       jobId: 'job-1',
       events: [
@@ -114,7 +195,11 @@ describe('Fraktionen und Dienstsystem', () => {
     });
     advance(ctx, 20 * 60_000);
     // PLAYER2 fehlt im Heartbeat → Spiel- und Dienstsession werden geschlossen, Spielzeit gutgeschrieben.
-    await game.processHeartbeat(ctx, actor, { jobId: 'job-1', placeId: '123', players: [{ userId: PLAYER, username: 'MaxMuster' }] });
+    await game.processHeartbeat(ctx, actor, {
+      jobId: 'job-1',
+      placeId: '123',
+      players: [{ userId: PLAYER, username: 'MaxMuster' }],
+    });
     expect(await duty.getActiveDuty(ctx.db, PLAYER2)).toBeNull();
     const [p2] = await ctx.db.select().from(robloxUsers).where(eq(robloxUsers.id, PLAYER2));
     expect(p2!.totalPlaytimeSeconds).toBe(1200);
@@ -134,23 +219,56 @@ describe('Fraktionen und Dienstsystem', () => {
     const ctx = createTestContext();
     const { actor, admin } = await setupServer(ctx);
     await factionsModule.assignFaction(ctx, admin, { robloxUserId: PLAYER, factionKey: 'polizei', reason: 'Aufnahme' });
-    await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-30000001', type: 'duty_start', data: { userId: PLAYER } }] });
+    await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-30000001', type: 'duty_start', data: { userId: PLAYER } }],
+    });
     advance(ctx, 3600_000);
-    await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-30000002', type: 'duty_end', data: { userId: PLAYER } }] });
+    await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-30000002', type: 'duty_end', data: { userId: PLAYER } }],
+    });
     const [session] = await ctx.db.select().from(dutySessions).where(eq(dutySessions.robloxUserId, PLAYER));
 
     const reader = await userWithRole(ctx, '400000000000000010', 'read_only');
-    await expectAppError(duty.correctDutySession(ctx, reader, session!.id, { invalidate: true }, 'Missbrauch'), 'FORBIDDEN');
-    await expectAppError(duty.correctDutySession(ctx, admin, session!.id, { endedAt: new Date(ctx.now().getTime() + 3600_000) }, 'Zukunft'), 'BAD_REQUEST');
-    const corrected = await duty.correctDutySession(ctx, admin, session!.id, { startedAt: new Date(session!.startedAt.getTime() + 600_000) }, 'AFK zu Beginn');
+    await expectAppError(
+      duty.correctDutySession(ctx, reader, session!.id, { invalidate: true }, 'Missbrauch'),
+      'FORBIDDEN',
+    );
+    await expectAppError(
+      duty.correctDutySession(
+        ctx,
+        admin,
+        session!.id,
+        { endedAt: new Date(ctx.now().getTime() + 3600_000) },
+        'Zukunft',
+      ),
+      'BAD_REQUEST',
+    );
+    const corrected = await duty.correctDutySession(
+      ctx,
+      admin,
+      session!.id,
+      { startedAt: new Date(session!.startedAt.getTime() + 600_000) },
+      'AFK zu Beginn',
+    );
     expect(corrected.durationSeconds).toBe(3000);
     expect(corrected.flags).toContain('corrected');
     expect((await duty.listCorrections(ctx.db, session!.id)).length).toBe(1);
 
     await setFlag(ctx, admin, { key: 'duty_tracking', enabled: false, reason: 'Test' });
-    const res = await game.processGameEvents(ctx, actor, { jobId: 'job-1', events: [{ id: 'evt-30000003', type: 'duty_start', data: { userId: PLAYER } }] });
+    const res = await game.processGameEvents(ctx, actor, {
+      jobId: 'job-1',
+      events: [{ id: 'evt-30000003', type: 'duty_start', data: { userId: PLAYER } }],
+    });
     expect(res[0]).toMatchObject({ status: 'rejected' });
-    await updateSetting(ctx, admin, 'duty', { maxSessionHours: 1, clockSkewToleranceSeconds: 60, serverTimeoutSeconds: 120 }, 'kurz');
+    await updateSetting(
+      ctx,
+      admin,
+      'duty',
+      { maxSessionHours: 1, clockSkewToleranceSeconds: 60, serverTimeoutSeconds: 120 },
+      'kurz',
+    );
   });
 });
 
@@ -164,20 +282,34 @@ describe('Verifizierung', () => {
     await expectAppError(verification.consumeOAuthState(ctx.db, ctx.now(), 'verify_start', start.state), 'GONE');
 
     // Browserbindung
-    const bound = await verification.createOAuthState(ctx.db, ctx.now(), { purpose: 'roblox_verify', discordUserId: DISCORD, codeVerifier: 'v', browserBinding: 'cookie-a' });
-    await expectAppError(verification.consumeOAuthState(ctx.db, ctx.now(), 'roblox_verify', bound.state, 'cookie-b'), 'CSRF_FAILED');
+    const bound = await verification.createOAuthState(ctx.db, ctx.now(), {
+      purpose: 'roblox_verify',
+      discordUserId: DISCORD,
+      codeVerifier: 'v',
+      browserBinding: 'cookie-a',
+    });
+    await expectAppError(
+      verification.consumeOAuthState(ctx.db, ctx.now(), 'roblox_verify', bound.state, 'cookie-b'),
+      'CSRF_FAILED',
+    );
 
     await verification.upsertDiscordUser(ctx.db, { id: DISCORD, username: 'max' });
     await verification.completeVerification(ctx, DISCORD, { id: PLAYER, username: 'MaxMuster' });
     const roleJobs = ctx.queue.take('role.add');
     expect(roleJobs).toHaveLength(1);
     expect(roleJobs[0]!.data).toMatchObject({ userId: DISCORD, roleId: '500000000000000001' });
-    expect(await verification.verificationStatus(ctx.db, DISCORD)).toMatchObject({ verified: true, roblox: { id: PLAYER } });
+    expect(await verification.verificationStatus(ctx.db, DISCORD)).toMatchObject({
+      verified: true,
+      roblox: { id: PLAYER },
+    });
 
     // Ein Roblox-Konto kann nicht mit zwei Discord-Konten verknüpft werden.
     const other = '400000000000000002';
     await verification.upsertDiscordUser(ctx.db, { id: other, username: 'other' });
-    await expectAppError(verification.completeVerification(ctx, other, { id: PLAYER, username: 'MaxMuster' }), 'CONFLICT');
+    await expectAppError(
+      verification.completeVerification(ctx, other, { id: PLAYER, username: 'MaxMuster' }),
+      'CONFLICT',
+    );
     await expectAppError(verification.startVerification(ctx, user), 'CONFLICT');
 
     // Aufheben → Wartezeit

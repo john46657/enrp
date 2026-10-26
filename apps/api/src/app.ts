@@ -30,7 +30,10 @@ import { safeEqual } from '@enrp/core';
 export async function buildApp(deps: ApiDeps, options: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const { env } = deps;
   const app = Fastify({
-    logger: options.logger === false ? false : { level: env.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: '[redacted]' } },
+    logger:
+      options.logger === false
+        ? false
+        : { level: env.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: '[redacted]' } },
     trustProxy: env.TRUST_PROXY,
     bodyLimit: env.BODY_LIMIT_BYTES,
     genReqId: () => randomUUID(),
@@ -44,17 +47,33 @@ export async function buildApp(deps: ApiDeps, options: { logger?: boolean } = {}
     requestContext.run({ requestId: request.id }, done);
   });
   app.addHook('onResponse', (request, reply, done) => {
-    deps.metrics.record(`${request.method} ${request.routeOptions.url ?? 'unbekannt'}`, reply.statusCode, reply.elapsedTime);
+    deps.metrics.record(
+      `${request.method} ${request.routeOptions.url ?? 'unbekannt'}`,
+      reply.statusCode,
+      reply.elapsedTime,
+    );
     done();
   });
 
   registerErrorHandling(app);
   await app.register(helmet, {
-    contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"], imgSrc: ["'self'", 'data:'], frameAncestors: ["'none'"] } },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        frameAncestors: ["'none'"],
+      },
+    },
     hsts: env.APP_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
   });
   await app.register(cookie);
-  await app.register(cors, { origin: [new URL(env.DASHBOARD_URL).origin], credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] });
+  await app.register(cors, {
+    origin: [new URL(env.DASHBOARD_URL).origin],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  });
   await app.register(rateLimit, {
     global: true,
     max: 300,
@@ -62,20 +81,46 @@ export async function buildApp(deps: ApiDeps, options: { logger?: boolean } = {}
     redis: deps.redis,
     nameSpace: 'enrp-rl:',
     // Der Bot bündelt viele Nutzer – er wird pro handelnder Person begrenzt, nicht pro IP.
-    keyGenerator: (request) => (typeof request.headers['x-actor-id'] === 'string' ? `actor:${request.headers['x-actor-id']}` : request.ip),
-    errorResponseBuilder: (request, context) => ({ statusCode: 429, error: { code: 'RATE_LIMITED', message: `Zu viele Anfragen. Bitte in ${Math.ceil(context.ttl / 1000)} s erneut versuchen.`, requestId: request.id } }),
+    keyGenerator: (request) =>
+      typeof request.headers['x-actor-id'] === 'string' ? `actor:${request.headers['x-actor-id']}` : request.ip,
+    errorResponseBuilder: (request, context) => ({
+      statusCode: 429,
+      error: {
+        code: 'RATE_LIMITED',
+        message: `Zu viele Anfragen. Bitte in ${Math.ceil(context.ttl / 1000)} s erneut versuchen.`,
+        requestId: request.id,
+      },
+    }),
   });
 
   const docsEnabled = env.ENABLE_API_DOCS ?? env.APP_ENV !== 'production';
   await app.register(swagger, {
     openapi: {
-      info: { title: 'ENRP GermanRP API', version: env.APP_VERSION, description: 'Versionierte REST-API für Dashboard, Discord-Bot und Roblox-Spielserver. Fehlerformat: { error: { code, message, requestId, details? } }.' },
+      info: {
+        title: 'ENRP GermanRP API',
+        version: env.APP_VERSION,
+        description:
+          'Versionierte REST-API für Dashboard, Discord-Bot und Roblox-Spielserver. Fehlerformat: { error: { code, message, requestId, details? } }.',
+      },
       servers: [{ url: env.PUBLIC_URL }],
       components: {
         securitySchemes: {
-          session: { type: 'apiKey', in: 'cookie', name: 'enrp_session', description: 'Dashboard-Sitzung; Schreibzugriffe zusätzlich mit X-CSRF-Token' },
-          service: { type: 'http', scheme: 'bearer', description: 'Bot-Service-Token; handelnde Person über X-Actor-Id/X-Actor-Roles' },
-          roblox: { type: 'http', scheme: 'bearer', description: 'Roblox-Server-Schlüssel + X-Roblox-Timestamp + X-Roblox-Nonce' },
+          session: {
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'enrp_session',
+            description: 'Dashboard-Sitzung; Schreibzugriffe zusätzlich mit X-CSRF-Token',
+          },
+          service: {
+            type: 'http',
+            scheme: 'bearer',
+            description: 'Bot-Service-Token; handelnde Person über X-Actor-Id/X-Actor-Roles',
+          },
+          roblox: {
+            type: 'http',
+            scheme: 'bearer',
+            description: 'Roblox-Server-Schlüssel + X-Roblox-Timestamp + X-Roblox-Nonce',
+          },
         },
       },
     },
@@ -119,7 +164,12 @@ export async function buildApp(deps: ApiDeps, options: { logger?: boolean } = {}
       await v1.register(botRoutes);
       v1.get('/status', { schema: { tags: ['Monitoring'], summary: 'Öffentlicher Status (aggregiert)' } }, async () => {
         const report = await healthReport(deps);
-        return { status: report.status, roblox: report.roblox ? { connected: report.roblox.connected, playersOnline: report.roblox.playersOnline } : null };
+        return {
+          status: report.status,
+          roblox: report.roblox
+            ? { connected: report.roblox.connected, playersOnline: report.roblox.playersOnline }
+            : null,
+        };
       });
     },
     { prefix: '/api/v1' },

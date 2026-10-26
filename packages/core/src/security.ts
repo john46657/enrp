@@ -10,7 +10,13 @@ export type SecuritySeverity = 'info' | 'warning' | 'critical';
 export async function recordSecurityEvent(
   db: DbExecutor,
   hashSecret: string,
-  event: { type: string; severity?: SecuritySeverity; actorId?: string | null; ip?: string | null; details?: Record<string, unknown> },
+  event: {
+    type: string;
+    severity?: SecuritySeverity;
+    actorId?: string | null;
+    ip?: string | null;
+    details?: Record<string, unknown>;
+  },
 ): Promise<void> {
   await db.insert(securityEvents).values({
     type: event.type,

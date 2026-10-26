@@ -92,9 +92,18 @@ export const DEFAULT_ROLES: DefaultRole[] = [
   {
     key: 'faction_management',
     name: 'Fraktionsverwaltung',
-    description: 'Mitglieder, Dienstzeiten und Fahrzeuge der zugewiesenen Fraktion(en). Fraktionen bei der Zuweisung festlegen.',
+    description:
+      'Mitglieder, Dienstzeiten und Fahrzeuge der zugewiesenen Fraktion(en). Fraktionen bei der Zuweisung festlegen.',
     priority: 500,
-    grants: g('players:view', 'factions:view', 'factions:edit', 'duty:view', 'duty:edit', 'vehicles:view', 'vehicles:edit'),
+    grants: g(
+      'players:view',
+      'factions:view',
+      'factions:edit',
+      'duty:view',
+      'duty:edit',
+      'vehicles:view',
+      'vehicles:edit',
+    ),
   },
   {
     key: 'read_only',

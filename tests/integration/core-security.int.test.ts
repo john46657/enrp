@@ -24,7 +24,12 @@ describe('Audit-Log', () => {
   it('bildet eine prüfbare Hash-Kette und erkennt Manipulationen', async () => {
     const ctx = createTestContext();
     for (let i = 0; i < 5; i++) {
-      await writeAudit(ctx.db, systemActor('test'), { action: 'test.event', resourceType: 'test', resourceId: i, after: { i, nested: { b: 1, a: [1, 2] } } }, ctx.now());
+      await writeAudit(
+        ctx.db,
+        systemActor('test'),
+        { action: 'test.event', resourceType: 'test', resourceId: i, after: { i, nested: { b: 1, a: [1, 2] } } },
+        ctx.now(),
+      );
     }
     expect(await verifyAuditChain(ctx.db)).toMatchObject({ ok: true, checked: 5 });
 
@@ -89,7 +94,9 @@ describe('Vier-Augen-Prinzip', () => {
       payload: { roleId: '00000000-0000-0000-0000-000000000000', grants: [] },
       reason: 'Constraint-Test',
     });
-    await expect(ctx.db.execute(sql`update approval_requests set decided_by = ${ADMIN} where id = ${approval.id}`)).rejects.toThrow();
+    await expect(
+      ctx.db.execute(sql`update approval_requests set decided_by = ${ADMIN} where id = ${approval.id}`),
+    ).rejects.toThrow();
   });
 });
 
@@ -101,11 +108,26 @@ describe('Rechteverwaltung', () => {
     await ctx.db.insert(rolePermissions).values({ roleId: modRole!.id, permission: 'permissions:edit' });
     const lead = await userWithRole(ctx, MOD, 'moderation');
 
-    await expectAppError(permissionsAdmin.updateRoleGrants(ctx, lead, 'read_only', [{ permission: 'backups:approve' }], 'Versuch'), 'ESCALATION_DENIED');
-    const applied = await permissionsAdmin.updateRoleGrants(ctx, lead, 'read_only', [{ permission: 'tickets:view' }], 'ok');
+    await expectAppError(
+      permissionsAdmin.updateRoleGrants(ctx, lead, 'read_only', [{ permission: 'backups:approve' }], 'Versuch'),
+      'ESCALATION_DENIED',
+    );
+    const applied = await permissionsAdmin.updateRoleGrants(
+      ctx,
+      lead,
+      'read_only',
+      [{ permission: 'tickets:view' }],
+      'ok',
+    );
     expect(applied.status).toBe('applied');
     // Entfernen/Vergeben kritischer Rechte (permissions:edit) → Freigabe nötig
-    const critical = await permissionsAdmin.updateRoleGrants(ctx, lead, 'read_only', [{ permission: 'tickets:view' }, { permission: 'permissions:edit' }], 'kritisch');
+    const critical = await permissionsAdmin.updateRoleGrants(
+      ctx,
+      lead,
+      'read_only',
+      [{ permission: 'tickets:view' }, { permission: 'permissions:edit' }],
+      'kritisch',
+    );
     expect(critical.status).toBe('approval_required');
 
     // Owner-Rolle ist geschützt
@@ -116,10 +138,20 @@ describe('Rechteverwaltung', () => {
     const ctx = createTestContext();
     const admin = await owner(ctx);
     await expectAppError(
-      permissionsAdmin.setCommandOverride(ctx, admin, { command: 'permissions grant', discordRoleId: '300000000000000001', effect: 'allow' }, 'versuch'),
+      permissionsAdmin.setCommandOverride(
+        ctx,
+        admin,
+        { command: 'permissions grant', discordRoleId: '300000000000000001', effect: 'allow' },
+        'versuch',
+      ),
       'ESCALATION_DENIED',
     );
-    await permissionsAdmin.setCommandOverride(ctx, admin, { command: 'mod', discordRoleId: '300000000000000001', effect: 'deny' }, 'Sperre');
+    await permissionsAdmin.setCommandOverride(
+      ctx,
+      admin,
+      { command: 'mod', discordRoleId: '300000000000000001', effect: 'deny' },
+      'Sperre',
+    );
     const modActor = await userWithRole(ctx, MOD, 'moderation', ['300000000000000001']);
     const access = await permissionsAdmin.checkCommandAccess(ctx.db, ctx.config.ownerDiscordIds, {
       command: 'mod warn',
@@ -143,7 +175,13 @@ describe('Feature-Flags & Einstellungen', () => {
     expect(events.map((e) => e.action)).toEqual(['killswitch.activate', 'killswitch.deactivate']);
 
     await expectAppError(updateSetting(ctx, admin, 'duty', { maxSessionHours: 999 }, 'zu hoch'), 'BAD_REQUEST');
-    const updated = await updateSetting(ctx, admin, 'duty', { maxSessionHours: 8, clockSkewToleranceSeconds: 60, serverTimeoutSeconds: 120 }, 'kürzer');
+    const updated = await updateSetting(
+      ctx,
+      admin,
+      'duty',
+      { maxSessionHours: 8, clockSkewToleranceSeconds: 60, serverTimeoutSeconds: 120 },
+      'kürzer',
+    );
     expect(updated.version).toBe(1);
 
     const reader = await userWithRole(ctx, ADMIN, 'read_only');

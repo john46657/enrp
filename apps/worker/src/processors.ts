@@ -1,4 +1,14 @@
-import { community, duty, game, moderation, releases, retention, systemActor, writeAudit, type CoreContext } from '@enrp/core';
+import {
+  community,
+  duty,
+  game,
+  moderation,
+  releases,
+  retention,
+  systemActor,
+  writeAudit,
+  type CoreContext,
+} from '@enrp/core';
 import { eq, gameServers, sql } from '@enrp/database';
 import { type WorkerEnv } from './env';
 import { pruneBackups, runBackup, runRestore, type BackupConfig } from './jobs/backup';
@@ -10,13 +20,21 @@ export type Processor = (data: Data) => Promise<unknown>;
 
 const str = (v: unknown) => String(v ?? '');
 
-export function createProcessors(ctx: CoreContext, env: WorkerEnv, backupConfig: BackupConfig): Record<string, Record<string, Processor>> {
+export function createProcessors(
+  ctx: CoreContext,
+  env: WorkerEnv,
+  backupConfig: BackupConfig,
+): Record<string, Record<string, Processor>> {
   const system = systemActor('worker');
   return {
     discord: {
       'role.add': (d) => ctx.discord.addRole(str(d.guildId), str(d.userId), str(d.roleId), str(d.reason)),
       'role.remove': (d) => ctx.discord.removeRole(str(d.guildId), str(d.userId), str(d.roleId), str(d.reason)),
-      'message.send': (d) => ctx.discord.sendMessage(str(d.channelId), { content: d.content as string | undefined, embed: d.embed as never }),
+      'message.send': (d) =>
+        ctx.discord.sendMessage(str(d.channelId), {
+          content: d.content as string | undefined,
+          embed: d.embed as never,
+        }),
       'suggestion.post': async (d) => {
         const { message } = await suggestionMessage(ctx, str(d.suggestionId));
         const sent = await ctx.discord.sendMessage(str(d.channelId), message);
@@ -25,7 +43,8 @@ export function createProcessors(ctx: CoreContext, env: WorkerEnv, backupConfig:
       },
       'suggestion.refresh': async (d) => {
         const { suggestion, message } = await suggestionMessage(ctx, str(d.suggestionId));
-        if (suggestion.discordChannelId && suggestion.discordMessageId) await ctx.discord.editMessage(suggestion.discordChannelId, suggestion.discordMessageId, message);
+        if (suggestion.discordChannelId && suggestion.discordMessageId)
+          await ctx.discord.editMessage(suggestion.discordChannelId, suggestion.discordMessageId, message);
       },
       'poll.post': async (d) => {
         const { poll, message } = await pollMessage(ctx, str(d.pollId));
@@ -35,7 +54,8 @@ export function createProcessors(ctx: CoreContext, env: WorkerEnv, backupConfig:
       },
       'poll.refresh': async (d) => {
         const { poll, message } = await pollMessage(ctx, str(d.pollId));
-        if (poll.discordChannelId && poll.discordMessageId) await ctx.discord.editMessage(poll.discordChannelId, poll.discordMessageId, message);
+        if (poll.discordChannelId && poll.discordMessageId)
+          await ctx.discord.editMessage(poll.discordChannelId, poll.discordMessageId, message);
       },
       'giveaway.post': async (d) => {
         const { giveaway, message } = await giveawayMessage(ctx, str(d.giveawayId));
@@ -46,10 +66,13 @@ export function createProcessors(ctx: CoreContext, env: WorkerEnv, backupConfig:
       'giveaway.result': async (d) => {
         const { giveaway, message } = await giveawayMessage(ctx, str(d.giveawayId));
         if (!giveaway.discordChannelId) return;
-        if (giveaway.discordMessageId) await ctx.discord.editMessage(giveaway.discordChannelId, giveaway.discordMessageId, message);
+        if (giveaway.discordMessageId)
+          await ctx.discord.editMessage(giveaway.discordChannelId, giveaway.discordMessageId, message);
         const winners = giveaway.winners?.length ? giveaway.winners.map((w) => `<@${w}>`).join(', ') : null;
         await ctx.discord.sendMessage(giveaway.discordChannelId, {
-          content: winners ? `🎉 Glückwunsch ${winners}! Ihr habt **${giveaway.prize}** gewonnen.` : `Für **${giveaway.prize}** gab es keine gültigen Teilnahmen.`,
+          content: winners
+            ? `🎉 Glückwunsch ${winners}! Ihr habt **${giveaway.prize}** gewonnen.`
+            : `Für **${giveaway.prize}** gab es keine gültigen Teilnahmen.`,
         });
       },
       'announcement.post': async (d) => {
@@ -81,10 +104,17 @@ export function createProcessors(ctx: CoreContext, env: WorkerEnv, backupConfig:
         moderation: await moderation.expireModerationActions(ctx),
         watchdog: await runWatchdog(ctx),
       }),
-      'retention.apply': async () => ({ retention: await retention.applyRetention(ctx), backups: await pruneBackups(ctx, backupConfig) }),
+      'retention.apply': async () => ({
+        retention: await retention.applyRetention(ctx),
+        backups: await pruneBackups(ctx, backupConfig),
+      }),
     },
     backups: {
-      'backup.run': (d) => runBackup(ctx, backupConfig, { kind: str(d.kind) || 'scheduled', triggeredBy: str(d.triggeredBy) || 'system:scheduler' }),
+      'backup.run': (d) =>
+        runBackup(ctx, backupConfig, {
+          kind: str(d.kind) || 'scheduled',
+          triggeredBy: str(d.triggeredBy) || 'system:scheduler',
+        }),
       'restore.run': (d) => runRestore(ctx, backupConfig, str(d.restoreRequestId)),
     },
     automations: {},
@@ -99,15 +129,36 @@ async function dispatchRelease(ctx: CoreContext, env: WorkerEnv, releaseId: stri
   const { release, environmentKey } = await releases.getRelease(ctx.db, releaseId);
   if (release.status !== 'approved') return { skipped: `Status ${release.status}` };
   if (!env.GITHUB_DEPLOY_REPO || !env.GITHUB_DEPLOY_TOKEN) {
-    await writeAudit(ctx.db, systemActor('pipeline'), { action: 'release.dispatch_skipped', resourceType: 'release', resourceId: releaseId, metadata: { reason: 'Pipeline nicht konfiguriert' } }, ctx.now());
+    await writeAudit(
+      ctx.db,
+      systemActor('pipeline'),
+      {
+        action: 'release.dispatch_skipped',
+        resourceType: 'release',
+        resourceId: releaseId,
+        metadata: { reason: 'Pipeline nicht konfiguriert' },
+      },
+      ctx.now(),
+    );
     return { skipped: 'GITHUB_DEPLOY_REPO/GITHUB_DEPLOY_TOKEN nicht gesetzt' };
   }
-  const res = await fetch(`https://api.github.com/repos/${env.GITHUB_DEPLOY_REPO}/actions/workflows/${env.GITHUB_DEPLOY_WORKFLOW}/dispatches`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env.GITHUB_DEPLOY_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'x-github-api-version': '2022-11-28' },
-    body: JSON.stringify({ ref: env.GITHUB_DEPLOY_REF, inputs: { version: release.version, environment: environmentKey, release_id: release.id, kind: release.kind } }),
-    signal: AbortSignal.timeout(15_000),
-  });
+  const res = await fetch(
+    `https://api.github.com/repos/${env.GITHUB_DEPLOY_REPO}/actions/workflows/${env.GITHUB_DEPLOY_WORKFLOW}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.GITHUB_DEPLOY_TOKEN}`,
+        accept: 'application/vnd.github+json',
+        'content-type': 'application/json',
+        'x-github-api-version': '2022-11-28',
+      },
+      body: JSON.stringify({
+        ref: env.GITHUB_DEPLOY_REF,
+        inputs: { version: release.version, environment: environmentKey, release_id: release.id, kind: release.kind },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
   if (!res.ok) throw new Error(`GitHub workflow_dispatch fehlgeschlagen (${res.status})`);
   await releases.markReleaseResult(ctx, release.id, { status: 'deploying' });
   return { dispatched: true };
@@ -117,4 +168,3 @@ export async function onlineServerCount(ctx: CoreContext) {
   const rows = await ctx.db.select({ id: gameServers.id }).from(gameServers).where(eq(gameServers.status, 'online'));
   return rows.length;
 }
-

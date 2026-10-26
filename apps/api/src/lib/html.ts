@@ -1,4 +1,5 @@
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+const escape = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Schlichte, statische Ergebnisseite (z. B. nach der Verifizierung). Alle Inhalte werden escaped. */
 export function resultPage(input: { title: string; message: string; success: boolean }): string {
@@ -8,4 +9,5 @@ export function resultPage(input: { title: string; message: string; success: boo
 </head><body><main><h1>${escape(input.title)}</h1><p>${escape(input.message)}</p></main></body></html>`;
 }
 
-export const RESULT_PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+export const RESULT_PAGE_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";

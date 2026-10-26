@@ -15,7 +15,7 @@ export function likePattern(q: string): string {
 
 export function isUniqueViolation(err: unknown, constraint?: string): boolean {
   const e = (err as { cause?: { code?: string; constraint?: string } } & { code?: string; constraint?: string }) ?? {};
-  const pg = e.code ? e : e.cause ?? {};
+  const pg = e.code ? e : (e.cause ?? {});
   return pg.code === '23505' && (!constraint || pg.constraint === constraint);
 }
 

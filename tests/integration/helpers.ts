@@ -29,7 +29,9 @@ export async function closeDb() {
 export async function resetDatabase() {
   const client = await db().pool.connect();
   try {
-    const { rows } = await client.query<{ tablename: string }>(`select tablename from pg_tables where schemaname = 'public'`);
+    const { rows } = await client.query<{ tablename: string }>(
+      `select tablename from pg_tables where schemaname = 'public'`,
+    );
     await client.query('begin');
     await client.query(`set local enrp.audit_maintenance = 'on'`);
     await client.query(`truncate ${rows.map((r) => `"${r.tablename}"`).join(', ')} restart identity cascade`);
@@ -107,7 +109,13 @@ export function createTestContext(overrides: Partial<CoreContext['config']> = {}
     realtime: noopRealtime,
     logger: pino({ level: 'silent' }),
     discord: new FakeDiscord(),
-    config: { ownerDiscordIds: [OWNER_ID], hashSecret: 'test-hash-secret-0123456789abcdef', guildId: GUILD_ID, appEnv: 'development', ...overrides },
+    config: {
+      ownerDiscordIds: [OWNER_ID],
+      hashSecret: 'test-hash-secret-0123456789abcdef',
+      guildId: GUILD_ID,
+      appEnv: 'development',
+      ...overrides,
+    },
   };
 }
 
@@ -116,7 +124,12 @@ export function advance(ctx: TestContext, ms: number) {
 }
 
 /** Erstellt eine handelnde Person mit den Rechten der angegebenen Plattform-Rolle (per direkter Zuweisung). */
-export async function userWithRole(ctx: CoreContext, discordUserId: string, roleKey?: string, discordRoleIds: string[] = []): Promise<UserActor> {
+export async function userWithRole(
+  ctx: CoreContext,
+  discordUserId: string,
+  roleKey?: string,
+  discordRoleIds: string[] = [],
+): Promise<UserActor> {
   if (roleKey) {
     const [role] = await ctx.db.select().from(appRoles).where(eq(appRoles.key, roleKey));
     if (!role) throw new Error(`Rolle ${roleKey} fehlt`);
@@ -125,7 +138,8 @@ export async function userWithRole(ctx: CoreContext, discordUserId: string, role
   return buildUserActor(ctx.db, ctx.config, { discordUserId, roleIds: discordRoleIds, via: 'bot' });
 }
 
-export const owner = (ctx: CoreContext) => buildUserActor(ctx.db, ctx.config, { discordUserId: OWNER_ID, roleIds: [], via: 'bot' });
+export const owner = (ctx: CoreContext) =>
+  buildUserActor(ctx.db, ctx.config, { discordUserId: OWNER_ID, roleIds: [], via: 'bot' });
 
 export async function expectAppError(promise: Promise<unknown>, code: string) {
   try {

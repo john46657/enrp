@@ -9,7 +9,9 @@ if (!url) {
 const handle = createDatabase(url, { max: 1, applicationName: 'enrp-seed' });
 try {
   const result = await seedDatabase(handle.db);
-  console.log(`Seed abgeschlossen: ${result.roles} Rollen, ${result.factions} Fraktionen, ${result.flags} Feature-Flags neu angelegt.`);
+  console.log(
+    `Seed abgeschlossen: ${result.roles} Rollen, ${result.factions} Fraktionen, ${result.flags} Feature-Flags neu angelegt.`,
+  );
 } finally {
   await handle.close();
 }

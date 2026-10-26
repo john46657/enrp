@@ -1,4 +1,9 @@
-import { type DiscordEmbedInput, type DiscordGateway, type DiscordMemberInfo, type DiscordMessageInput } from '@enrp/core';
+import {
+  type DiscordEmbedInput,
+  type DiscordGateway,
+  type DiscordMemberInfo,
+  type DiscordMessageInput,
+} from '@enrp/core';
 
 const API = 'https://discord.com/api/v10';
 
@@ -32,7 +37,9 @@ export function toDiscordEmbed(embed: DiscordEmbedInput) {
     description: embed.description?.slice(0, 4096),
     color: toColor(embed.color),
     url: embed.url,
-    fields: embed.fields?.slice(0, 25).map((f) => ({ name: f.name.slice(0, 256), value: f.value.slice(0, 1024), inline: f.inline })),
+    fields: embed.fields
+      ?.slice(0, 25)
+      .map((f) => ({ name: f.name.slice(0, 256), value: f.value.slice(0, 1024), inline: f.inline })),
     footer: embed.footer ? { text: embed.footer.slice(0, 2048) } : undefined,
     timestamp: new Date().toISOString(),
   };
@@ -77,14 +84,22 @@ export class DiscordRestGateway implements DiscordGateway {
   ) {}
 
   private async request<T>(method: string, path: string, body?: unknown, reason?: string, attempt = 0): Promise<T> {
-    const headers: Record<string, string> = { authorization: `Bot ${this.token}`, 'user-agent': 'ENRP-Platform (https://github.com, 1.0)' };
+    const headers: Record<string, string> = {
+      authorization: `Bot ${this.token}`,
+      'user-agent': 'ENRP-Platform (https://github.com, 1.0)',
+    };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (reason) headers['x-audit-log-reason'] = encodeURIComponent(reason.slice(0, 400));
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     let res: Response;
     try {
-      res = await this.fetchImpl(`${API}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+      res = await this.fetchImpl(`${API}${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal,
+      });
     } finally {
       clearTimeout(timer);
     }
@@ -106,13 +121,23 @@ export class DiscordRestGateway implements DiscordGateway {
 
   async getMember(guildId: string, userId: string): Promise<DiscordMemberInfo | null> {
     try {
-      const m = await this.request<{ user: { id: string; username: string; global_name: string | null; avatar: string | null }; roles: string[] }>(
-        'GET',
-        `/guilds/${guildId}/members/${userId}`,
-      );
-      return { id: m.user.id, username: m.user.username, globalName: m.user.global_name, avatarHash: m.user.avatar, roleIds: m.roles };
+      const m = await this.request<{
+        user: { id: string; username: string; global_name: string | null; avatar: string | null };
+        roles: string[];
+      }>('GET', `/guilds/${guildId}/members/${userId}`);
+      return {
+        id: m.user.id,
+        username: m.user.username,
+        globalName: m.user.global_name,
+        avatarHash: m.user.avatar,
+        roleIds: m.roles,
+      };
     } catch (err) {
-      if (err instanceof DiscordApiError && (err.discordCode === 10007 || err.discordCode === 10013 || err.status === 404)) return null;
+      if (
+        err instanceof DiscordApiError &&
+        (err.discordCode === 10007 || err.discordCode === 10013 || err.status === 404)
+      )
+        return null;
       throw err;
     }
   }
@@ -126,7 +151,12 @@ export class DiscordRestGateway implements DiscordGateway {
   }
 
   async timeout(guildId: string, userId: string, until: Date | null, reason: string) {
-    await this.request('PATCH', `/guilds/${guildId}/members/${userId}`, { communication_disabled_until: until ? until.toISOString() : null }, reason);
+    await this.request(
+      'PATCH',
+      `/guilds/${guildId}/members/${userId}`,
+      { communication_disabled_until: until ? until.toISOString() : null },
+      reason,
+    );
   }
 
   kick(guildId: string, userId: string, reason: string) {
@@ -134,7 +164,12 @@ export class DiscordRestGateway implements DiscordGateway {
   }
 
   ban(guildId: string, userId: string, reason: string, deleteMessageSeconds = 0) {
-    return this.request<void>('PUT', `/guilds/${guildId}/bans/${userId}`, { delete_message_seconds: deleteMessageSeconds }, reason);
+    return this.request<void>(
+      'PUT',
+      `/guilds/${guildId}/bans/${userId}`,
+      { delete_message_seconds: deleteMessageSeconds },
+      reason,
+    );
   }
 
   async unban(guildId: string, userId: string, reason: string) {

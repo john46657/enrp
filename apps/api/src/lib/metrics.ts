@@ -38,13 +38,27 @@ export class Metrics {
       requestsTotal: this.requests,
       errors5xx: this.errors5xx,
       errors4xx: this.errors4xx,
-      latencyMs: { p50: this.percentile(50), p95: this.percentile(95), p99: this.percentile(99), samples: this.latencies.length },
-      last5Minutes: { requests: recent, errors5xx: recentErrors, errorRate: recent ? Math.round((recentErrors / recent) * 10000) / 100 : null },
+      latencyMs: {
+        p50: this.percentile(50),
+        p95: this.percentile(95),
+        p99: this.percentile(99),
+        samples: this.latencies.length,
+      },
+      last5Minutes: {
+        requests: recent,
+        errors5xx: recentErrors,
+        errorRate: recent ? Math.round((recentErrors / recent) * 10000) / 100 : null,
+      },
       memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       topRoutes: [...this.byRoute.entries()]
         .sort((a, b) => b[1].count - a[1].count)
         .slice(0, 10)
-        .map(([route, r]) => ({ route, count: r.count, errors: r.errors, avgMs: Math.round((r.totalMs / r.count) * 10) / 10 })),
+        .map(([route, r]) => ({
+          route,
+          count: r.count,
+          errors: r.errors,
+          avgMs: Math.round((r.totalMs / r.count) * 10) / 10,
+        })),
     };
   }
 

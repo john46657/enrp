@@ -13,14 +13,22 @@ export function fakeOAuthFetch(identity: { discordId: string; robloxId: number; 
   const impl = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(`${init?.method ?? 'GET'} ${url}`);
-    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
     if (url.endsWith('/oauth2/token') || url.endsWith('/oauth/v1/token')) {
       const body = new URLSearchParams(String(init?.body));
       if (!body.get('code_verifier')) return json({ error: 'invalid_grant' }, 400);
       return json({ access_token: `at-${body.get('code')}` });
     }
-    if (url.endsWith('/users/@me')) return json({ id: identity.discordId, username: 'tester', global_name: 'Tester', avatar: null });
-    if (url.endsWith('/oauth/v1/userinfo')) return json({ sub: String(identity.robloxId), preferred_username: identity.robloxName, name: identity.robloxName, created_at: 1500000000 });
+    if (url.endsWith('/users/@me'))
+      return json({ id: identity.discordId, username: 'tester', global_name: 'Tester', avatar: null });
+    if (url.endsWith('/oauth/v1/userinfo'))
+      return json({
+        sub: String(identity.robloxId),
+        preferred_username: identity.robloxName,
+        name: identity.robloxName,
+        created_at: 1500000000,
+      });
     if (url.includes('/revoke')) return new Response(null, { status: 200 });
     return json({}, 404);
   }) as typeof fetch;
@@ -50,7 +58,10 @@ export async function createTestApp(ctx: TestContext = createTestContext(), oaut
     core: ctx,
     realtime,
     metrics: new Metrics(),
-    oauth: createOAuthClients({ discordClientId: 'cid', discordClientSecret: 'csecret', robloxClientId: 'rid', robloxClientSecret: 'rsecret' }, oauthFetch),
+    oauth: createOAuthClients(
+      { discordClientId: 'cid', discordClientSecret: 'csecret', robloxClientId: 'rid', robloxClientSecret: 'rsecret' },
+      oauthFetch,
+    ),
   };
   const app = await buildApp(deps, { logger: false });
   return { app, ctx, deps };

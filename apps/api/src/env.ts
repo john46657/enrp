@@ -25,7 +25,12 @@ export const apiEnvSchema = baseEnvSchema.extend({
   METRICS_TOKEN: optionalString,
   RELEASE_WEBHOOK_SECRET: optionalString,
   APP_VERSION: z.string().default('0.0.0-dev'),
-  BODY_LIMIT_BYTES: z.coerce.number().int().min(1024).max(10 * 1024 * 1024).default(256 * 1024),
+  BODY_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .max(10 * 1024 * 1024)
+    .default(256 * 1024),
   ENABLE_API_DOCS: booleanFromString.optional(),
 });
 

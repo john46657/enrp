@@ -55,8 +55,12 @@ export const accountLinks = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex('account_links_active_discord_uq').on(t.discordUserId).where(sql`${t.status} = 'active'`),
-    uniqueIndex('account_links_active_roblox_uq').on(t.robloxUserId).where(sql`${t.status} = 'active'`),
+    uniqueIndex('account_links_active_discord_uq')
+      .on(t.discordUserId)
+      .where(sql`${t.status} = 'active'`),
+    uniqueIndex('account_links_active_roblox_uq')
+      .on(t.robloxUserId)
+      .where(sql`${t.status} = 'active'`),
     index('account_links_roblox_idx').on(t.robloxUserId),
   ],
 );
@@ -77,7 +81,12 @@ export const verifications = pgTable(
   (t) => [index('verifications_discord_idx').on(t.discordUserId, t.createdAt)],
 );
 
-export const oauthPurpose = pgEnum('oauth_purpose', ['dashboard_login', 'verify_start', 'verify_discord', 'roblox_verify']);
+export const oauthPurpose = pgEnum('oauth_purpose', [
+  'dashboard_login',
+  'verify_start',
+  'verify_discord',
+  'roblox_verify',
+]);
 
 /**
  * Kurzlebige OAuth-Zustände (state, PKCE-Verifier, Nonce). Der state wird nur gehasht gespeichert,
@@ -114,7 +123,10 @@ export const profileEvents = pgTable(
     actorId: text('actor_id'),
     createdAt: createdAt(),
   },
-  (t) => [index('profile_events_discord_idx').on(t.discordUserId, t.createdAt), index('profile_events_roblox_idx').on(t.robloxUserId, t.createdAt)],
+  (t) => [
+    index('profile_events_discord_idx').on(t.discordUserId, t.createdAt),
+    index('profile_events_roblox_idx').on(t.robloxUserId, t.createdAt),
+  ],
 );
 
 /** Spielsitzungen aus Join/Leave-Ereignissen des Roblox-Servers. */
@@ -132,6 +144,8 @@ export const playSessions = pgTable(
   },
   (t) => [
     index('play_sessions_user_idx').on(t.robloxUserId, t.joinedAt),
-    uniqueIndex('play_sessions_open_uq').on(t.robloxUserId).where(sql`${t.leftAt} is null`),
+    uniqueIndex('play_sessions_open_uq')
+      .on(t.robloxUserId)
+      .where(sql`${t.leftAt} is null`),
   ],
 );

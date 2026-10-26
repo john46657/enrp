@@ -18,7 +18,11 @@ export interface BackupConfig {
 }
 
 /** Startet ein Programm ohne Shell (keine Befehlsinjektion möglich) und sammelt stderr/stdout. */
-export function run(cmd: string, args: string[], env: Record<string, string> = {}): Promise<{ stdout: string; stderr: string }> {
+export function run(
+  cmd: string,
+  args: string[],
+  env: Record<string, string> = {},
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { env: { ...process.env, ...env }, shell: false });
     let stdout = '';
@@ -26,7 +30,11 @@ export function run(cmd: string, args: string[], env: Record<string, string> = {
     child.stdout.on('data', (d) => (stdout += d));
     child.stderr.on('data', (d) => (stderr += d));
     child.on('error', reject);
-    child.on('close', (code) => (code === 0 ? resolve({ stdout, stderr }) : reject(new Error(`${path.basename(cmd)} beendet mit Code ${code}: ${stderr.trim().slice(0, 500)}`))));
+    child.on('close', (code) =>
+      code === 0
+        ? resolve({ stdout, stderr })
+        : reject(new Error(`${path.basename(cmd)} beendet mit Code ${code}: ${stderr.trim().slice(0, 500)}`)),
+    );
   });
 }
 
@@ -34,8 +42,20 @@ export function run(cmd: string, args: string[], env: Record<string, string> = {
 export function pgConnection(url: string) {
   const u = new URL(url);
   return {
-    args: ['--host', u.hostname, '--port', u.port || '5432', '--username', decodeURIComponent(u.username), '--dbname', u.pathname.slice(1)],
-    env: { PGPASSWORD: decodeURIComponent(u.password), PGSSLMODE: u.searchParams.get('sslmode') ?? process.env.PGSSLMODE ?? 'prefer' },
+    args: [
+      '--host',
+      u.hostname,
+      '--port',
+      u.port || '5432',
+      '--username',
+      decodeURIComponent(u.username),
+      '--dbname',
+      u.pathname.slice(1),
+    ],
+    env: {
+      PGPASSWORD: decodeURIComponent(u.password),
+      PGSSLMODE: u.searchParams.get('sslmode') ?? process.env.PGSSLMODE ?? 'prefer',
+    },
   };
 }
 
@@ -71,7 +91,12 @@ export async function runBackup(ctx: CoreContext, cfg: BackupConfig, input: { ki
     await chmod(file, 0o600);
     const { size } = await stat(file);
     const sha256 = await sha256File(file);
-    await backups.markBackupVerifying(ctx.db, run_.id, { fileName, storageLocation: path.resolve(cfg.dir), sizeBytes: size, sha256 });
+    await backups.markBackupVerifying(ctx.db, run_.id, {
+      fileName,
+      storageLocation: path.resolve(cfg.dir),
+      sizeBytes: size,
+      sha256,
+    });
 
     // Prüfung 1: Datei unverändert lesbar, Prüfsumme stimmt.
     if ((await sha256File(file)) !== sha256) throw new Error('Prüfsumme weicht beim erneuten Lesen ab.');
@@ -87,15 +112,39 @@ export async function runBackup(ctx: CoreContext, cfg: BackupConfig, input: { ki
       expiresAt: new Date(ctx.now().getTime() + cfg.retentionDays * 86400_000),
       now: ctx.now(),
     });
-    await writeAudit(ctx.db, systemActor('backup'), { action: 'backup.succeeded', resourceType: 'backup', resourceId: run_.id, metadata: { fileName, size, tables: listing.tables.length } }, ctx.now());
+    await writeAudit(
+      ctx.db,
+      systemActor('backup'),
+      {
+        action: 'backup.succeeded',
+        resourceType: 'backup',
+        resourceId: run_.id,
+        metadata: { fileName, size, tables: listing.tables.length },
+      },
+      ctx.now(),
+    );
     return completed;
   } catch (err) {
     const message = (err as Error).message;
     await backups.failBackupRun(ctx.db, run_.id, message, ctx.now());
     await rm(file, { force: true });
-    await writeAudit(ctx.db, systemActor('backup'), { action: 'backup.failed', resourceType: 'backup', resourceId: run_.id, metadata: { error: message.slice(0, 300) } }, ctx.now());
+    await writeAudit(
+      ctx.db,
+      systemActor('backup'),
+      {
+        action: 'backup.failed',
+        resourceType: 'backup',
+        resourceId: run_.id,
+        metadata: { error: message.slice(0, 300) },
+      },
+      ctx.now(),
+    );
     const health = await backups.backupHealth(ctx.db, ctx.now());
-    await automations.fireTrigger(ctx, 'backup_failed', { count: health.consecutiveFailures, summary: `Backup fehlgeschlagen: ${message.slice(0, 300)}`, dedupeKey: 'backup' });
+    await automations.fireTrigger(ctx, 'backup_failed', {
+      count: health.consecutiveFailures,
+      summary: `Backup fehlgeschlagen: ${message.slice(0, 300)}`,
+      dedupeKey: 'backup',
+    });
     ctx.realtime.publish('alerts', 'backup.failed', { backupId: run_.id });
     throw err;
   }
@@ -104,7 +153,20 @@ export async function runBackup(ctx: CoreContext, cfg: BackupConfig, input: { ki
 async function restoreInto(cfg: BackupConfig, file: string, targetUrl: string) {
   const conn = pgConnection(targetUrl);
   const started = Date.now();
-  await run(cfg.pgRestore, [...conn.args, '--clean', '--if-exists', '--no-owner', '--no-privileges', '--single-transaction', '--exit-on-error', file], conn.env);
+  await run(
+    cfg.pgRestore,
+    [
+      ...conn.args,
+      '--clean',
+      '--if-exists',
+      '--no-owner',
+      '--no-privileges',
+      '--single-transaction',
+      '--exit-on-error',
+      file,
+    ],
+    conn.env,
+  );
   return { restored: true, durationMs: Date.now() - started, target: new URL(targetUrl).pathname.slice(1) };
 }
 
@@ -115,28 +177,47 @@ export async function runRestore(ctx: CoreContext, cfg: BackupConfig, restoreReq
   const backup = await backups.getBackup(ctx.db, request.backupId);
   const file = path.join(backup.storageLocation ?? cfg.dir, backup.fileName ?? '');
   if ((await sha256File(file)) !== backup.sha256) {
-    await backups.updateRestoreRequest(ctx.db, request.id, 'failed', { error: 'Prüfsumme stimmt nicht – Backup beschädigt' });
+    await backups.updateRestoreRequest(ctx.db, request.id, 'failed', {
+      error: 'Prüfsumme stimmt nicht – Backup beschädigt',
+    });
     throw new Error('Prüfsumme des Backups stimmt nicht.');
   }
-  const target = request.targetEnvironment === 'restore_test' ? cfg.restoreTestUrl : cfg.restoreTargets[request.targetEnvironment as 'development' | 'staging' | 'production'];
+  const target =
+    request.targetEnvironment === 'restore_test'
+      ? cfg.restoreTestUrl
+      : cfg.restoreTargets[request.targetEnvironment as 'development' | 'staging' | 'production'];
   const productionBlocked = request.targetEnvironment === 'production' && !cfg.allowProductionRestore;
   if (!target || productionBlocked) {
     // Ohne konfiguriertes Ziel wird nichts automatisch überschrieben: manueller Ablauf laut docs/operations.md.
     await backups.updateRestoreRequest(ctx.db, request.id, 'manual_required', {
       ...(request.preview as object),
-      instructions: 'Automatische Wiederherstellung für dieses Ziel nicht freigeschaltet. Manuellen Ablauf in docs/operations.md befolgen.',
+      instructions:
+        'Automatische Wiederherstellung für dieses Ziel nicht freigeschaltet. Manuellen Ablauf in docs/operations.md befolgen.',
     });
-    await writeAudit(ctx.db, systemActor('backup'), { action: 'backup.restore.manual_required', resourceType: 'restore_request', resourceId: request.id }, ctx.now());
+    await writeAudit(
+      ctx.db,
+      systemActor('backup'),
+      { action: 'backup.restore.manual_required', resourceType: 'restore_request', resourceId: request.id },
+      ctx.now(),
+    );
     return { status: 'manual_required' };
   }
   await backups.updateRestoreRequest(ctx.db, request.id, 'running');
   try {
     const result = await restoreInto(cfg, file, target);
     await backups.updateRestoreRequest(ctx.db, request.id, 'succeeded', { ...(request.preview as object), result });
-    await writeAudit(ctx.db, systemActor('backup'), { action: 'backup.restore.succeeded', resourceType: 'restore_request', resourceId: request.id, metadata: result }, ctx.now());
+    await writeAudit(
+      ctx.db,
+      systemActor('backup'),
+      { action: 'backup.restore.succeeded', resourceType: 'restore_request', resourceId: request.id, metadata: result },
+      ctx.now(),
+    );
     return { status: 'succeeded', ...result };
   } catch (err) {
-    await backups.updateRestoreRequest(ctx.db, request.id, 'failed', { ...(request.preview as object), error: (err as Error).message.slice(0, 500) });
+    await backups.updateRestoreRequest(ctx.db, request.id, 'failed', {
+      ...(request.preview as object),
+      error: (err as Error).message.slice(0, 500),
+    });
     throw err;
   }
 }

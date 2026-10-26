@@ -8,7 +8,11 @@ import { canonicalJson, sha256Hex } from './crypto';
 export interface ApprovalExecutor {
   /** Berechtigung, die zusätzlich zu approvals:approve für die Freigabe nötig ist. */
   requiredPermission: string;
-  execute: (ctx: TxContext, payload: Record<string, unknown>, approval: { id: string; requestedBy: string; reason: string }) => Promise<unknown>;
+  execute: (
+    ctx: TxContext,
+    payload: Record<string, unknown>,
+    approval: { id: string; requestedBy: string; reason: string },
+  ) => Promise<unknown>;
 }
 
 const executors = new Map<string, ApprovalExecutor>();
@@ -48,7 +52,13 @@ export async function createApproval(
     await writeAudit(
       db,
       actor,
-      { action: 'approval.create', resourceType: 'approval', resourceId: row!.id, reason: input.reason, after: { actionType: input.actionType, summary: input.summary } },
+      {
+        action: 'approval.create',
+        resourceType: 'approval',
+        resourceId: row!.id,
+        reason: input.reason,
+        after: { actionType: input.actionType, summary: input.summary },
+      },
       now,
     );
     return row!;
@@ -93,7 +103,10 @@ export async function decideApproval(
   const pre = await getApproval(ctx.db, idOrNumber);
   if (pre?.status === 'pending' && pre.expiresAt <= ctx.now()) {
     // Außerhalb der Entscheidungs-Transaktion markieren, damit der Status nicht per Rollback verloren geht.
-    await ctx.db.update(approvalRequests).set({ status: 'expired' }).where(and(eq(approvalRequests.id, pre.id), eq(approvalRequests.status, 'pending')));
+    await ctx.db
+      .update(approvalRequests)
+      .set({ status: 'expired' })
+      .where(and(eq(approvalRequests.id, pre.id), eq(approvalRequests.status, 'pending')));
     throw new AppError('GONE', 'Die Freigabeanfrage ist abgelaufen.');
   }
   return ctx.db.transaction(async (tx) => {
@@ -106,7 +119,10 @@ export async function decideApproval(
     if (approval.status !== 'pending') throw errors.invalidState(`Die Anfrage ist bereits ${approval.status}.`);
     if (approval.expiresAt <= now) throw new AppError('GONE', 'Die Freigabeanfrage ist abgelaufen.');
     if (approval.requestedBy === user.discordUserId) {
-      throw new AppError('SELF_ACTION_FORBIDDEN', 'Du kannst deine eigene Anfrage nicht selbst genehmigen oder ablehnen.');
+      throw new AppError(
+        'SELF_ACTION_FORBIDDEN',
+        'Du kannst deine eigene Anfrage nicht selbst genehmigen oder ablehnen.',
+      );
     }
     const executor = executors.get(approval.actionType);
     if (!executor) throw errors.invalidState('Für diesen Freigabetyp gibt es keine Ausführung mehr.');
@@ -115,7 +131,8 @@ export async function decideApproval(
     }
     // Integrität: Payload darf seit der Beantragung nicht verändert worden sein.
     const hash = sha256Hex(canonicalJson({ actionType: approval.actionType, payload: approval.payload }));
-    if (hash !== approval.payloadHash) throw errors.invalidState('Die Anfrage wurde verändert und kann nicht ausgeführt werden.');
+    if (hash !== approval.payloadHash)
+      throw errors.invalidState('Die Anfrage wurde verändert und kann nicht ausgeführt werden.');
 
     if (decision === 'reject') {
       const [row] = await tx
@@ -123,7 +140,12 @@ export async function decideApproval(
         .set({ status: 'rejected', decidedBy: user.discordUserId, decidedAt: now, decisionReason: reason })
         .where(eq(approvalRequests.id, approval.id))
         .returning();
-      await writeAudit(tx, actor, { action: 'approval.reject', resourceType: 'approval', resourceId: approval.id, reason }, now);
+      await writeAudit(
+        tx,
+        actor,
+        { action: 'approval.reject', resourceType: 'approval', resourceId: approval.id, reason },
+        now,
+      );
       return row!;
     }
 
@@ -149,7 +171,13 @@ export async function decideApproval(
     await writeAudit(
       tx,
       actor,
-      { action: 'approval.approve', resourceType: 'approval', resourceId: approval.id, reason, metadata: { actionType: approval.actionType } },
+      {
+        action: 'approval.approve',
+        resourceType: 'approval',
+        resourceId: approval.id,
+        reason,
+        metadata: { actionType: approval.actionType },
+      },
       now,
     );
     return row;
@@ -161,14 +189,20 @@ export async function cancelApproval(ctx: CoreContext, actor: Actor, idOrNumber:
   return ctx.db.transaction(async (tx) => {
     const approval = await getApproval(tx, idOrNumber);
     if (!approval) throw errors.notFound('Freigabeanfrage');
-    if (approval.requestedBy !== user.discordUserId) throw errors.forbidden('Nur die antragstellende Person kann die Anfrage zurückziehen.');
+    if (approval.requestedBy !== user.discordUserId)
+      throw errors.forbidden('Nur die antragstellende Person kann die Anfrage zurückziehen.');
     const [row] = await tx
       .update(approvalRequests)
       .set({ status: 'cancelled', decisionReason: reason, decidedAt: ctx.now() })
       .where(and(eq(approvalRequests.id, approval.id), eq(approvalRequests.status, 'pending')))
       .returning();
     if (!row) throw errors.invalidState('Die Anfrage ist nicht mehr offen.');
-    await writeAudit(tx, actor, { action: 'approval.cancel', resourceType: 'approval', resourceId: approval.id, reason }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      { action: 'approval.cancel', resourceType: 'approval', resourceId: approval.id, reason },
+      ctx.now(),
+    );
     return row;
   });
 }

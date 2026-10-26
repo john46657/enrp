@@ -32,7 +32,10 @@ export async function listFactions(db: DbExecutor) {
 
 export async function getFaction(db: DbExecutor, idOrKey: string) {
   const isUuid = /^[0-9a-f-]{36}$/i.test(idOrKey);
-  const [row] = await db.select().from(factions).where(isUuid ? eq(factions.id, idOrKey) : eq(factions.key, idOrKey));
+  const [row] = await db
+    .select()
+    .from(factions)
+    .where(isUuid ? eq(factions.id, idOrKey) : eq(factions.key, idOrKey));
   if (!row) throw errors.notFound('Fraktion');
   return row;
 }
@@ -46,7 +49,11 @@ export async function getActiveMembership(db: DbExecutor, robloxUserId: number) 
   return row ?? null;
 }
 
-export async function listMembers(db: DbExecutor, factionId: string, opts: { page: number; pageSize: number; q?: string }) {
+export async function listMembers(
+  db: DbExecutor,
+  factionId: string,
+  opts: { page: number; pageSize: number; q?: string },
+) {
   const where = and(
     eq(factionMemberships.factionId, factionId),
     eq(factionMemberships.status, 'active'),
@@ -75,9 +82,16 @@ export async function listMembers(db: DbExecutor, factionId: string, opts: { pag
   return { items, total: total?.count ?? 0, page: opts.page, pageSize: opts.pageSize };
 }
 
-export async function membershipHistory(db: DbExecutor, filter: { factionId?: string; robloxUserId?: number; limit?: number }) {
+export async function membershipHistory(
+  db: DbExecutor,
+  filter: { factionId?: string; robloxUserId?: number; limit?: number },
+) {
   return db
-    .select({ membership: factionMemberships, faction: { id: factions.id, key: factions.key, name: factions.name }, username: robloxUsers.username })
+    .select({
+      membership: factionMemberships,
+      faction: { id: factions.id, key: factions.key, name: factions.name },
+      username: robloxUsers.username,
+    })
     .from(factionMemberships)
     .innerJoin(factions, eq(factions.id, factionMemberships.factionId))
     .innerJoin(robloxUsers, eq(robloxUsers.id, factionMemberships.robloxUserId))
@@ -91,11 +105,21 @@ export async function membershipHistory(db: DbExecutor, filter: { factionId?: st
     .limit(filter.limit ?? 100);
 }
 
-async function syncFactionRole(ctx: TxContext, robloxUserId: number, roleId: string | null, action: 'role.add' | 'role.remove') {
+async function syncFactionRole(
+  ctx: TxContext,
+  robloxUserId: number,
+  roleId: string | null,
+  action: 'role.add' | 'role.remove',
+) {
   if (!roleId || !ctx.config.guildId) return;
   const link = await getActiveLinkByRoblox(ctx.db, robloxUserId);
   if (!link) return;
-  await ctx.queue.enqueue('discord', action, { guildId: ctx.config.guildId, userId: link.discordUserId, roleId, reason: 'Fraktionsverwaltung' });
+  await ctx.queue.enqueue('discord', action, {
+    guildId: ctx.config.guildId,
+    userId: link.discordUserId,
+    roleId,
+    reason: 'Fraktionsverwaltung',
+  });
 }
 
 /** Fraktionsrechte werden immer bezogen auf die betroffene Fraktion geprüft. */
@@ -123,7 +147,8 @@ export async function assignFaction(
     // Sperrt die Person gegen parallele Änderungen.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`membership:${input.robloxUserId}`}))`);
     const current = await getActiveMembership(tx, input.robloxUserId);
-    if (current?.faction.id === target.id) throw errors.conflict(`${player.username} ist bereits Mitglied der Fraktion ${target.name}.`);
+    if (current?.faction.id === target.id)
+      throw errors.conflict(`${player.username} ist bereits Mitglied der Fraktion ${target.name}.`);
     if (current) {
       requireFactionEdit(actor, current.faction.id);
       await tx
@@ -136,7 +161,13 @@ export async function assignFaction(
     }
     const [membership] = await tx
       .insert(factionMemberships)
-      .values({ factionId: target.id, robloxUserId: input.robloxUserId, addedBy: actorId(actor), addReason: input.reason, joinedAt: now })
+      .values({
+        factionId: target.id,
+        robloxUserId: input.robloxUserId,
+        addedBy: actorId(actor),
+        addReason: input.reason,
+        joinedAt: now,
+      })
       .returning();
     await tx.insert(profileEvents).values({
       robloxUserId: input.robloxUserId,
@@ -164,7 +195,11 @@ export async function assignFaction(
   });
 }
 
-export async function removeFromFaction(ctx: CoreContext, actor: Actor, input: { robloxUserId: number; reason: string }) {
+export async function removeFromFaction(
+  ctx: CoreContext,
+  actor: Actor,
+  input: { robloxUserId: number; reason: string },
+) {
   await assertNotKilled(ctx.db);
   const now = ctx.now();
   return ctx.db.transaction(async (tx) => {
@@ -187,7 +222,13 @@ export async function removeFromFaction(ctx: CoreContext, actor: Actor, input: {
     await writeAudit(
       tx,
       actor,
-      { action: 'faction.remove', resourceType: 'faction_membership', resourceId: current.membership.id, reason: input.reason, before: { factionKey: current.faction.key } },
+      {
+        action: 'faction.remove',
+        resourceType: 'faction_membership',
+        resourceId: current.membership.id,
+        reason: input.reason,
+        before: { factionKey: current.faction.key },
+      },
       now,
     );
     await syncFactionRole({ ...ctx, db: tx }, input.robloxUserId, current.faction.discordRoleId, 'role.remove');
@@ -206,13 +247,31 @@ export async function updateFaction(
   requirePermission(actor, 'factions:configure', { factionId: faction.id });
   return ctx.db.transaction(async (tx) => {
     const [row] = await tx.update(factions).set(patch).where(eq(factions.id, faction.id)).returning();
-    await writeAudit(tx, actor, { action: 'faction.update', resourceType: 'faction', resourceId: faction.id, reason, before: faction, after: row }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      {
+        action: 'faction.update',
+        resourceType: 'faction',
+        resourceId: faction.id,
+        reason,
+        before: faction,
+        after: row,
+      },
+      ctx.now(),
+    );
     return row!;
   });
 }
 
 export async function factionStats(db: DbExecutor, since: Date | null) {
-  const rows = await db.execute<{ faction_id: string; members: number; duty_seconds: number; sessions: number; on_duty: number }>(sql`
+  const rows = await db.execute<{
+    faction_id: string;
+    members: number;
+    duty_seconds: number;
+    sessions: number;
+    on_duty: number;
+  }>(sql`
     select f.id as faction_id,
       (select count(*)::int from faction_memberships m where m.faction_id = f.id and m.status = 'active') as members,
       coalesce((select sum(extract(epoch from (coalesce(d.ended_at, now()) - greatest(d.started_at, coalesce(${since}::timestamptz, d.started_at)))))::bigint
@@ -222,7 +281,13 @@ export async function factionStats(db: DbExecutor, since: Date | null) {
         and d.started_at >= coalesce(${since}::timestamptz, '-infinity'::timestamptz)) as sessions,
       (select count(*)::int from duty_sessions d where d.faction_id = f.id and d.status = 'active') as on_duty
     from factions f order by f.sort_order`);
-  return rows.rows.map((r) => ({ factionId: r.faction_id, members: r.members, dutySeconds: Number(r.duty_seconds), sessions: r.sessions, onDuty: r.on_duty }));
+  return rows.rows.map((r) => ({
+    factionId: r.faction_id,
+    members: r.members,
+    dutySeconds: Number(r.duty_seconds),
+    sessions: r.sessions,
+    onDuty: r.on_duty,
+  }));
 }
 
 /** Für Listen: auf welche Fraktionen darf der Akteur zugreifen? */

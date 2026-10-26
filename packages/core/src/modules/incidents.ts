@@ -13,7 +13,14 @@ type Status = 'open' | 'investigating' | 'monitoring' | 'resolved';
 export async function createIncident(
   ctx: CoreContext,
   actor: Actor,
-  input: { title: string; description?: string; severity?: Severity; source?: string; dedupeKey?: string | null; assigneeId?: string | null },
+  input: {
+    title: string;
+    description?: string;
+    severity?: Severity;
+    source?: string;
+    dedupeKey?: string | null;
+    assigneeId?: string | null;
+  },
 ) {
   if (actor.kind !== 'system') requirePermission(actor, 'incidents:create');
   const now = ctx.now();
@@ -31,16 +38,42 @@ export async function createIncident(
           createdBy: actorId(actor),
         })
         .returning();
-      await addRecordEvent(tx, { recordType: 'incident', recordId: row!.id, type: 'created', actorId: actorId(actor), body: input.description ?? null, at: now });
-      await writeAudit(tx, actor, { action: 'incident.create', resourceType: 'incident', resourceId: row!.id, after: { title: row!.title, severity: row!.severity } }, now);
+      await addRecordEvent(tx, {
+        recordType: 'incident',
+        recordId: row!.id,
+        type: 'created',
+        actorId: actorId(actor),
+        body: input.description ?? null,
+        at: now,
+      });
+      await writeAudit(
+        tx,
+        actor,
+        {
+          action: 'incident.create',
+          resourceType: 'incident',
+          resourceId: row!.id,
+          after: { title: row!.title, severity: row!.severity },
+        },
+        now,
+      );
       return row!;
     });
-    ctx.realtime.publish('incidents', 'incident.created', { id: incident.id, number: incident.number, title: incident.title, severity: incident.severity });
+    ctx.realtime.publish('incidents', 'incident.created', {
+      id: incident.id,
+      number: incident.number,
+      title: incident.title,
+      severity: incident.severity,
+    });
     const settings = await getSetting(ctx.db, 'notifications');
     if (settings.alertChannelId) {
       await ctx.queue.enqueue('discord', 'message.send', {
         channelId: settings.alertChannelId,
-        embed: { title: `🚨 Vorfall #${incident.number} (${incident.severity.toUpperCase()})`, description: `${incident.title}\n${incident.description}`.slice(0, 3500), color: '#dc2626' },
+        embed: {
+          title: `🚨 Vorfall #${incident.number} (${incident.severity.toUpperCase()})`,
+          description: `${incident.title}\n${incident.description}`.slice(0, 3500),
+          color: '#dc2626',
+        },
       });
     }
     return { incident, deduplicated: false };
@@ -58,7 +91,10 @@ export async function createIncident(
 
 export async function getIncident(db: DbExecutor, idOrNumber: string) {
   const isNumber = /^\d+$/.test(idOrNumber);
-  const [row] = await db.select().from(incidents).where(isNumber ? eq(incidents.number, Number(idOrNumber)) : eq(incidents.id, idOrNumber));
+  const [row] = await db
+    .select()
+    .from(incidents)
+    .where(isNumber ? eq(incidents.number, Number(idOrNumber)) : eq(incidents.id, idOrNumber));
   if (!row) throw errors.notFound('Vorfall');
   return row;
 }
@@ -89,11 +125,26 @@ export async function updateIncident(
       })
       .where(eq(incidents.id, incident.id))
       .returning();
-    await addRecordEvent(tx, { recordType: 'incident', recordId: incident.id, type: update.comment && !update.status && !update.severity && update.assigneeId === undefined ? 'comment' : 'updated', actorId: actorId(actor), body: update.comment ?? null, data: update, at: now });
+    await addRecordEvent(tx, {
+      recordType: 'incident',
+      recordId: incident.id,
+      type:
+        update.comment && !update.status && !update.severity && update.assigneeId === undefined ? 'comment' : 'updated',
+      actorId: actorId(actor),
+      body: update.comment ?? null,
+      data: update,
+      at: now,
+    });
     await writeAudit(
       tx,
       actor,
-      { action: 'incident.update', resourceType: 'incident', resourceId: incident.id, before: { status: incident.status, severity: incident.severity, assigneeId: incident.assigneeId }, after: { status: updated!.status, severity: updated!.severity, assigneeId: updated!.assigneeId } },
+      {
+        action: 'incident.update',
+        resourceType: 'incident',
+        resourceId: incident.id,
+        before: { status: incident.status, severity: incident.severity, assigneeId: incident.assigneeId },
+        after: { status: updated!.status, severity: updated!.severity, assigneeId: updated!.assigneeId },
+      },
       now,
     );
     return updated!;
@@ -113,15 +164,31 @@ export async function resolveIncident(ctx: CoreContext, actor: Actor, idOrNumber
       .set({ status: 'resolved', resolution, resolvedAt: now, resolvedBy: actorId(actor) })
       .where(eq(incidents.id, incident.id))
       .returning();
-    await addRecordEvent(tx, { recordType: 'incident', recordId: incident.id, type: 'resolved', actorId: actorId(actor), body: resolution, at: now });
-    await writeAudit(tx, actor, { action: 'incident.resolve', resourceType: 'incident', resourceId: incident.id, reason: resolution }, now);
+    await addRecordEvent(tx, {
+      recordType: 'incident',
+      recordId: incident.id,
+      type: 'resolved',
+      actorId: actorId(actor),
+      body: resolution,
+      at: now,
+    });
+    await writeAudit(
+      tx,
+      actor,
+      { action: 'incident.resolve', resourceType: 'incident', resourceId: incident.id, reason: resolution },
+      now,
+    );
     return updated!;
   });
   ctx.realtime.publish('incidents', 'incident.resolved', { id: row.id });
   return row;
 }
 
-export async function listIncidents(db: DbExecutor, actor: Actor, filter: { status?: string[]; severity?: string; page: number; pageSize: number }) {
+export async function listIncidents(
+  db: DbExecutor,
+  actor: Actor,
+  filter: { status?: string[]; severity?: string; page: number; pageSize: number },
+) {
   requirePermission(actor, 'incidents:view');
   const where = and(
     filter.status?.length ? inArray(incidents.status, filter.status as never[]) : undefined,
@@ -134,11 +201,17 @@ export async function listIncidents(db: DbExecutor, actor: Actor, filter: { stat
     .orderBy(desc(incidents.createdAt))
     .limit(filter.pageSize)
     .offset((filter.page - 1) * filter.pageSize);
-  const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(incidents).where(where);
+  const [total] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(incidents)
+    .where(where);
   return { items, total: total?.count ?? 0, page: filter.page, pageSize: filter.pageSize };
 }
 
 export async function openIncidentCount(db: DbExecutor) {
-  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(incidents).where(sql`${incidents.status} <> 'resolved'`);
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(incidents)
+    .where(sql`${incidents.status} <> 'resolved'`);
   return row?.count ?? 0;
 }

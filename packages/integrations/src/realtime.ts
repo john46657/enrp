@@ -50,6 +50,8 @@ export class RealtimeHub implements RealtimePublisher {
 export class RedisRealtimePublisher implements RealtimePublisher {
   constructor(private readonly redis: Redis) {}
   publish(topic: RealtimeTopic, event: string, data: Record<string, unknown>): void {
-    void this.redis.publish(CHANNEL, JSON.stringify({ topic, event, data, at: new Date().toISOString() })).catch(() => {});
+    void this.redis
+      .publish(CHANNEL, JSON.stringify({ topic, event, data, at: new Date().toISOString() }))
+      .catch(() => {});
   }
 }

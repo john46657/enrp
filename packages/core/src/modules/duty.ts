@@ -58,15 +58,22 @@ export async function startDuty(
   const now = ctx.now();
   const settings = await getSetting(ctx.db, 'duty');
   await ctx.db.execute(sql`select pg_advisory_xact_lock(hashtext(${`duty:${input.robloxUserId}`}))`);
-  const [player] = await ctx.db.select({ id: robloxUsers.id }).from(robloxUsers).where(eq(robloxUsers.id, input.robloxUserId));
+  const [player] = await ctx.db
+    .select({ id: robloxUsers.id })
+    .from(robloxUsers)
+    .where(eq(robloxUsers.id, input.robloxUserId));
   if (!player) return { status: 'rejected', reason: 'unknown_player' };
   const membership = await getActiveMembership(ctx.db, input.robloxUserId);
   if (!membership) return { status: 'rejected', reason: 'not_member' };
   if (!membership.faction.hasDuty) return { status: 'rejected', reason: 'faction_without_duty' };
-  if (input.factionKey && input.factionKey !== membership.faction.key) return { status: 'rejected', reason: 'faction_mismatch' };
+  if (input.factionKey && input.factionKey !== membership.faction.key)
+    return { status: 'rejected', reason: 'faction_mismatch' };
 
   const flags: string[] = [];
-  if (input.reportedAt && Math.abs(input.reportedAt.getTime() - now.getTime()) > settings.clockSkewToleranceSeconds * 1000) {
+  if (
+    input.reportedAt &&
+    Math.abs(input.reportedAt.getTime() - now.getTime()) > settings.clockSkewToleranceSeconds * 1000
+  ) {
     flags.push('clock_skew');
   }
   const active = await getActiveDuty(ctx.db, input.robloxUserId);
@@ -80,7 +87,13 @@ export async function startDuty(
   }
   const [session] = await ctx.db
     .insert(dutySessions)
-    .values({ robloxUserId: input.robloxUserId, factionId: membership.faction.id, serverId: input.serverId ?? null, startedAt: now, flags })
+    .values({
+      robloxUserId: input.robloxUserId,
+      factionId: membership.faction.id,
+      serverId: input.serverId ?? null,
+      startedAt: now,
+      flags,
+    })
     .returning();
   return { status: 'started', sessionId: session!.id, flags };
 }
@@ -107,16 +120,25 @@ async function closeSession(
   return row ?? null;
 }
 
-export async function endDuty(ctx: TxContext, input: { robloxUserId: number; reportedAt?: Date | null; reason?: string }): Promise<DutyEndResult> {
+export async function endDuty(
+  ctx: TxContext,
+  input: { robloxUserId: number; reportedAt?: Date | null; reason?: string },
+): Promise<DutyEndResult> {
   const now = ctx.now();
   await ctx.db.execute(sql`select pg_advisory_xact_lock(hashtext(${`duty:${input.robloxUserId}`}))`);
   const active = await getActiveDuty(ctx.db, input.robloxUserId);
   if (!active) return { status: 'not_on_duty' };
   const settings = await getSetting(ctx.db, 'duty');
   const flags =
-    input.reportedAt && Math.abs(input.reportedAt.getTime() - now.getTime()) > settings.clockSkewToleranceSeconds * 1000 ? ['clock_skew'] : [];
+    input.reportedAt && Math.abs(input.reportedAt.getTime() - now.getTime()) > settings.clockSkewToleranceSeconds * 1000
+      ? ['clock_skew']
+      : [];
   const row = await closeSession(ctx.db, active.session.id, now, 'completed', input.reason ?? 'ended', flags);
-  return { status: 'ended', sessionId: active.session.id, durationSeconds: row?.durationSeconds ?? secondsBetween(active.session.startedAt, now) };
+  return {
+    status: 'ended',
+    sessionId: active.session.id,
+    durationSeconds: row?.durationSeconds ?? secondsBetween(active.session.startedAt, now),
+  };
 }
 
 /** Beendet eine laufende Session ohne Spielereignis (Fraktionswechsel, Spieler verlässt Server …). */
@@ -130,7 +152,9 @@ export async function endActiveDuty(ctx: TxContext, robloxUserId: number, reason
  * Worker: schließt Sessions auf Servern ohne Heartbeat (Ende = letzter Heartbeat) und
  * Sessions, die die Höchstdauer überschreiten (Ende = Beginn + Höchstdauer).
  */
-export async function closeStaleDutySessions(ctx: CoreContext): Promise<{ serverTimeout: number; maxDuration: number }> {
+export async function closeStaleDutySessions(
+  ctx: CoreContext,
+): Promise<{ serverTimeout: number; maxDuration: number }> {
   const now = ctx.now();
   const settings = await getSetting(ctx.db, 'duty');
   const staleBefore = new Date(now.getTime() - settings.serverTimeoutSeconds * 1000);
@@ -143,12 +167,18 @@ export async function closeStaleDutySessions(ctx: CoreContext): Promise<{ server
       .innerJoin(gameServers, eq(gameServers.id, dutySessions.serverId))
       .where(and(eq(dutySessions.status, 'active'), lt(gameServers.lastHeartbeatAt, staleBefore)));
     for (const s of stale) {
-      if (await closeSession(tx, s.id, s.lastHeartbeatAt, 'auto_closed', 'server_timeout', ['server_timeout'])) serverTimeout++;
+      if (await closeSession(tx, s.id, s.lastHeartbeatAt, 'auto_closed', 'server_timeout', ['server_timeout']))
+        serverTimeout++;
     }
     const tooLong = await tx
       .select({ id: dutySessions.id, startedAt: dutySessions.startedAt })
       .from(dutySessions)
-      .where(and(eq(dutySessions.status, 'active'), lt(dutySessions.startedAt, new Date(now.getTime() - settings.maxSessionHours * 3600_000))));
+      .where(
+        and(
+          eq(dutySessions.status, 'active'),
+          lt(dutySessions.startedAt, new Date(now.getTime() - settings.maxSessionHours * 3600_000)),
+        ),
+      );
     for (const s of tooLong) {
       const end = new Date(s.startedAt.getTime() + settings.maxSessionHours * 3600_000);
       if (await closeSession(tx, s.id, end, 'auto_closed', 'max_duration', ['max_duration'])) maxDuration++;
@@ -168,7 +198,8 @@ export async function correctDutySession(
   const [session] = await ctx.db.select().from(dutySessions).where(eq(dutySessions.id, sessionId));
   if (!session) throw errors.notFound('Dienstsession');
   requirePermission(actor, 'duty:edit', { factionId: session.factionId });
-  if (session.status === 'active' && !patch.invalidate) throw errors.invalidState('Laufende Sessions können nur ungültig gemacht werden.');
+  if (session.status === 'active' && !patch.invalidate)
+    throw errors.invalidState('Laufende Sessions können nur ungültig gemacht werden.');
   const startedAt = patch.startedAt ?? session.startedAt;
   const endedAt = patch.endedAt ?? session.endedAt;
   if (endedAt && endedAt < startedAt) throw errors.badRequest('Das Ende darf nicht vor dem Beginn liegen.');
@@ -178,10 +209,20 @@ export async function correctDutySession(
     throw errors.badRequest(`Eine Session darf höchstens ${settings.maxSessionHours} Stunden dauern.`);
   }
   return ctx.db.transaction(async (tx) => {
-    const before = { startedAt: session.startedAt, endedAt: session.endedAt, status: session.status, durationSeconds: session.durationSeconds };
+    const before = {
+      startedAt: session.startedAt,
+      endedAt: session.endedAt,
+      status: session.status,
+      durationSeconds: session.durationSeconds,
+    };
     const after = patch.invalidate
       ? { ...before, status: 'invalidated' as const, endedAt: session.endedAt ?? ctx.now() }
-      : { startedAt, endedAt, status: session.status, durationSeconds: endedAt ? secondsBetween(startedAt, endedAt) : null };
+      : {
+          startedAt,
+          endedAt,
+          status: session.status,
+          durationSeconds: endedAt ? secondsBetween(startedAt, endedAt) : null,
+        };
     const [row] = await tx
       .update(dutySessions)
       .set({
@@ -195,7 +236,19 @@ export async function correctDutySession(
       .where(eq(dutySessions.id, sessionId))
       .returning();
     await tx.insert(dutyCorrections).values({ sessionId, actorId: actorId(actor), reason, before, after });
-    await writeAudit(tx, actor, { action: patch.invalidate ? 'duty.invalidate' : 'duty.correct', resourceType: 'duty_session', resourceId: sessionId, reason, before, after }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      {
+        action: patch.invalidate ? 'duty.invalidate' : 'duty.correct',
+        resourceType: 'duty_session',
+        resourceId: sessionId,
+        reason,
+        before,
+        after,
+      },
+      ctx.now(),
+    );
     return row!;
   });
 }
@@ -213,7 +266,11 @@ function dutyWhere(filter: DutyFilter) {
   return and(
     sql`${dutySessions.status} <> 'invalidated'`,
     filter.robloxUserId ? eq(dutySessions.robloxUserId, filter.robloxUserId) : undefined,
-    Array.isArray(filter.factionIds) ? (filter.factionIds.length ? inArray(dutySessions.factionId, filter.factionIds) : sql`false`) : undefined,
+    Array.isArray(filter.factionIds)
+      ? filter.factionIds.length
+        ? inArray(dutySessions.factionId, filter.factionIds)
+        : sql`false`
+      : undefined,
     filter.since ? sql`coalesce(${dutySessions.endedAt}, now()) > ${filter.since}` : undefined,
   );
 }
@@ -233,7 +290,11 @@ export async function dutyTotals(db: DbExecutor, filter: DutyFilter) {
     .where(dutyWhere(filter))
     .groupBy(dutySessions.factionId, factions.key, factions.name);
   const perFaction = rows.map((r) => ({ ...r, seconds: Number(r.seconds) }));
-  return { totalSeconds: perFaction.reduce((a, r) => a + r.seconds, 0), sessions: perFaction.reduce((a, r) => a + r.sessions, 0), perFaction };
+  return {
+    totalSeconds: perFaction.reduce((a, r) => a + r.seconds, 0),
+    sessions: perFaction.reduce((a, r) => a + r.sessions, 0),
+    perFaction,
+  };
 }
 
 export async function dutyLeaderboard(db: DbExecutor, filter: DutyFilter & { limit?: number }) {
@@ -258,7 +319,11 @@ export async function listDutySessions(
 ) {
   const where = and(
     filter.robloxUserId ? eq(dutySessions.robloxUserId, filter.robloxUserId) : undefined,
-    Array.isArray(filter.factionIds) ? (filter.factionIds.length ? inArray(dutySessions.factionId, filter.factionIds) : sql`false`) : undefined,
+    Array.isArray(filter.factionIds)
+      ? filter.factionIds.length
+        ? inArray(dutySessions.factionId, filter.factionIds)
+        : sql`false`
+      : undefined,
     filter.status ? eq(dutySessions.status, filter.status as never) : undefined,
     filter.flagged ? sql`cardinality(${dutySessions.flags}) > 0` : undefined,
     filter.since ? sql`${dutySessions.startedAt} >= ${filter.since}` : undefined,
@@ -284,12 +349,19 @@ export async function listDutySessions(
     .orderBy(desc(dutySessions.startedAt))
     .limit(filter.pageSize)
     .offset((filter.page - 1) * filter.pageSize);
-  const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(dutySessions).where(where);
+  const [total] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(dutySessions)
+    .where(where);
   return { items, total: total?.count ?? 0, page: filter.page, pageSize: filter.pageSize };
 }
 
 export async function listCorrections(db: DbExecutor, sessionId: string) {
-  return db.select().from(dutyCorrections).where(eq(dutyCorrections.sessionId, sessionId)).orderBy(desc(dutyCorrections.createdAt));
+  return db
+    .select()
+    .from(dutyCorrections)
+    .where(eq(dutyCorrections.sessionId, sessionId))
+    .orderBy(desc(dutyCorrections.createdAt));
 }
 
 export async function onDutyCounts(db: DbExecutor) {

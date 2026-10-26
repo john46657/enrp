@@ -14,19 +14,29 @@ export function registerIdempotency(app: FastifyInstance) {
     if (!request.routeOptions.config.idempotent) return;
     const key = request.headers['idempotency-key'];
     if (key === undefined) return;
-    if (typeof key !== 'string' || !KEY_PATTERN.test(key)) throw new AppError('BAD_REQUEST', 'Ungültiger Idempotency-Key.');
+    if (typeof key !== 'string' || !KEY_PATTERN.test(key))
+      throw new AppError('BAD_REQUEST', 'Ungültiger Idempotency-Key.');
     const scope = `${actorId(request.actor)}:${request.method}:${request.routeOptions.url}`;
     const requestHash = sha256Hex(canonicalJson({ body: request.body ?? null, params: request.params ?? null }));
     const { db } = app.deps.core;
-    const inserted = await db.insert(idempotencyKeys).values({ scope, key, requestHash }).onConflictDoNothing().returning();
+    const inserted = await db
+      .insert(idempotencyKeys)
+      .values({ scope, key, requestHash })
+      .onConflictDoNothing()
+      .returning();
     if (inserted.length) {
       (request as { idempotency?: { scope: string; key: string } }).idempotency = { scope, key };
       return;
     }
-    const [existing] = await db.select().from(idempotencyKeys).where(and(eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key)));
+    const [existing] = await db
+      .select()
+      .from(idempotencyKeys)
+      .where(and(eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key)));
     if (!existing) throw new AppError('CONFLICT', 'Bitte erneut versuchen.');
-    if (existing.requestHash !== requestHash) throw new AppError('DUPLICATE_REQUEST', 'Dieser Idempotency-Key wurde bereits mit anderen Daten verwendet.');
-    if (existing.statusCode === null) throw new AppError('DUPLICATE_REQUEST', 'Diese Anfrage wird bereits verarbeitet.');
+    if (existing.requestHash !== requestHash)
+      throw new AppError('DUPLICATE_REQUEST', 'Dieser Idempotency-Key wurde bereits mit anderen Daten verwendet.');
+    if (existing.statusCode === null)
+      throw new AppError('DUPLICATE_REQUEST', 'Diese Anfrage wird bereits verarbeitet.');
     reply.header('idempotent-replay', 'true');
     return reply.status(existing.statusCode).send(existing.response);
   });
@@ -46,7 +56,10 @@ export function registerIdempotency(app: FastifyInstance) {
     } catch {
       response = null;
     }
-    await db.update(idempotencyKeys).set({ statusCode: reply.statusCode, response: response as never }).where(where);
+    await db
+      .update(idempotencyKeys)
+      .set({ statusCode: reply.statusCode, response: response as never })
+      .where(where);
     return payload;
   });
 }

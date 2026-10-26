@@ -10,7 +10,14 @@ export async function recordServiceHeartbeat(
 ) {
   await db
     .insert(serviceHeartbeats)
-    .values({ service: input.service, instanceId: input.instanceId, version: input.version ?? null, info: input.info ?? null, lastSeenAt: now, startedAt: input.startedAt ?? now })
+    .values({
+      service: input.service,
+      instanceId: input.instanceId,
+      version: input.version ?? null,
+      info: input.info ?? null,
+      lastSeenAt: now,
+      startedAt: input.startedAt ?? now,
+    })
     .onConflictDoUpdate({
       target: [serviceHeartbeats.service, serviceHeartbeats.instanceId],
       set: { lastSeenAt: now, version: input.version ?? null, info: input.info ?? null },
@@ -18,7 +25,10 @@ export async function recordServiceHeartbeat(
 }
 
 export async function serviceStatuses(db: DbExecutor, now: Date) {
-  const rows = await db.select().from(serviceHeartbeats).where(sql`${serviceHeartbeats.lastSeenAt} > ${new Date(now.getTime() - 24 * 3600_000)}`);
+  const rows = await db
+    .select()
+    .from(serviceHeartbeats)
+    .where(sql`${serviceHeartbeats.lastSeenAt} > ${new Date(now.getTime() - 24 * 3600_000)}`);
   const byService = new Map<string, typeof rows>();
   for (const r of rows) byService.set(r.service, [...(byService.get(r.service) ?? []), r]);
   return ['api', 'bot', 'worker'].map((service) => {
@@ -27,7 +37,11 @@ export async function serviceStatuses(db: DbExecutor, now: Date) {
     const ageSeconds = latest ? Math.round((now.getTime() - latest.lastSeenAt.getTime()) / 1000) : null;
     return {
       service,
-      status: !latest ? ('unknown' as const) : ageSeconds! <= HEARTBEAT_STALE_SECONDS ? ('up' as const) : ('down' as const),
+      status: !latest
+        ? ('unknown' as const)
+        : ageSeconds! <= HEARTBEAT_STALE_SECONDS
+          ? ('up' as const)
+          : ('down' as const),
       lastSeenAt: latest?.lastSeenAt ?? null,
       ageSeconds,
       version: latest?.version ?? null,
@@ -37,15 +51,32 @@ export async function serviceStatuses(db: DbExecutor, now: Date) {
   });
 }
 
-export async function recordJobStart(db: DbExecutor, input: { queue: string; name: string; jobId?: string; attempts: number }, now: Date) {
-  const [row] = await db.insert(jobRuns).values({ ...input, status: 'running', startedAt: now }).returning({ id: jobRuns.id });
+export async function recordJobStart(
+  db: DbExecutor,
+  input: { queue: string; name: string; jobId?: string; attempts: number },
+  now: Date,
+) {
+  const [row] = await db
+    .insert(jobRuns)
+    .values({ ...input, status: 'running', startedAt: now })
+    .returning({ id: jobRuns.id });
   return row!.id;
 }
 
-export async function recordJobEnd(db: DbExecutor, id: string, input: { status: 'succeeded' | 'failed'; error?: string; result?: unknown }, now: Date) {
+export async function recordJobEnd(
+  db: DbExecutor,
+  id: string,
+  input: { status: 'succeeded' | 'failed'; error?: string; result?: unknown },
+  now: Date,
+) {
   await db
     .update(jobRuns)
-    .set({ status: input.status, error: input.error?.slice(0, 2000) ?? null, result: (input.result ?? null) as never, finishedAt: now })
+    .set({
+      status: input.status,
+      error: input.error?.slice(0, 2000) ?? null,
+      result: (input.result ?? null) as never,
+      finishedAt: now,
+    })
     .where(sql`${jobRuns.id} = ${id}`);
 }
 

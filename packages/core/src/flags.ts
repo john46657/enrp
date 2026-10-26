@@ -80,7 +80,12 @@ export async function setFlag(
       tx,
       actor,
       {
-        action: input.key === 'kill_switch' ? (input.enabled ? 'killswitch.activate' : 'killswitch.deactivate') : 'feature_flag.update',
+        action:
+          input.key === 'kill_switch'
+            ? input.enabled
+              ? 'killswitch.activate'
+              : 'killswitch.deactivate'
+            : 'feature_flag.update',
         resourceType: 'feature_flag',
         resourceId: input.key,
         reason: input.reason,

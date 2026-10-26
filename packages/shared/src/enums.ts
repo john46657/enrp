@@ -30,7 +30,14 @@ export type ApprovalStatus = (typeof APPROVAL_STATUS)[number];
 export const RELEASE_STATUS = ['prepared', 'approved', 'deploying', 'deployed', 'failed', 'rolled_back'] as const;
 export const BACKUP_STATUS = ['running', 'verifying', 'succeeded', 'failed'] as const;
 export const PRIVACY_REQUEST_TYPES = ['export', 'deletion'] as const;
-export const PRIVACY_REQUEST_STATUS = ['pending', 'awaiting_approval', 'processing', 'completed', 'rejected', 'failed'] as const;
+export const PRIVACY_REQUEST_STATUS = [
+  'pending',
+  'awaiting_approval',
+  'processing',
+  'completed',
+  'rejected',
+  'failed',
+] as const;
 export const AUTOMATION_TRIGGERS = [
   'backup_failed',
   'service_down',

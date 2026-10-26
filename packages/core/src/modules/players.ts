@@ -43,12 +43,17 @@ async function resolveRef(db: DbExecutor, ref: PlayerRef) {
  */
 export async function getPlayerProfile(db: DbExecutor, actor: Actor, ref: PlayerRef, now = new Date()) {
   const resolved = await resolveRef(db, ref);
-  const self = actor.kind === 'user' && resolved.discordUserId !== null && actor.discordUserId === resolved.discordUserId;
+  const self =
+    actor.kind === 'user' && resolved.discordUserId !== null && actor.discordUserId === resolved.discordUserId;
   if (!self) requirePermission(actor, 'players:view');
   const canPrivate = hasPermission(actor, 'player_private:view');
 
-  const [roblox] = resolved.robloxUserId ? await db.select().from(robloxUsers).where(eq(robloxUsers.id, resolved.robloxUserId)) : [];
-  const [discord] = resolved.discordUserId ? await db.select().from(discordUsers).where(eq(discordUsers.id, resolved.discordUserId)) : [];
+  const [roblox] = resolved.robloxUserId
+    ? await db.select().from(robloxUsers).where(eq(robloxUsers.id, resolved.robloxUserId))
+    : [];
+  const [discord] = resolved.discordUserId
+    ? await db.select().from(discordUsers).where(eq(discordUsers.id, resolved.discordUserId))
+    : [];
   if (!roblox && !discord) throw errors.notFound('Spieler');
 
   const membership = roblox ? await getActiveMembership(db, roblox.id) : null;
@@ -70,11 +75,22 @@ export async function getPlayerProfile(db: DbExecutor, actor: Actor, ref: Player
     : [];
 
   const profile = {
-    roblox: roblox ? { id: roblox.id, username: roblox.username, displayName: roblox.displayName, lastSeenAt: roblox.lastSeenAt } : null,
+    roblox: roblox
+      ? { id: roblox.id, username: roblox.username, displayName: roblox.displayName, lastSeenAt: roblox.lastSeenAt }
+      : null,
     verified: Boolean(resolved.link),
     verifiedAt: resolved.link?.verifiedAt ?? null,
-    faction: membership ? { key: membership.faction.key, name: membership.faction.name, color: membership.faction.color, since: membership.membership.joinedAt } : null,
-    playtimeSeconds: (roblox?.totalPlaytimeSeconds ?? 0) + (openPlay ? Math.max(0, Math.round((now.getTime() - openPlay.joinedAt.getTime()) / 1000)) : 0),
+    faction: membership
+      ? {
+          key: membership.faction.key,
+          name: membership.faction.name,
+          color: membership.faction.color,
+          since: membership.membership.joinedAt,
+        }
+      : null,
+    playtimeSeconds:
+      (roblox?.totalPlaytimeSeconds ?? 0) +
+      (openPlay ? Math.max(0, Math.round((now.getTime() - openPlay.joinedAt.getTime()) / 1000)) : 0),
     online: Boolean(openPlay),
     duty: duty && {
       onDuty: activeDuty ? { factionKey: activeDuty.faction.key, since: activeDuty.session.startedAt } : null,
@@ -82,9 +98,16 @@ export async function getPlayerProfile(db: DbExecutor, actor: Actor, ref: Player
       sessions: duty.total.sessions,
       weekSeconds: duty.week,
       monthSeconds: duty.month,
-      perFaction: duty.total.perFaction.map((f) => ({ factionKey: f.factionKey, factionName: f.factionName, seconds: f.seconds })),
+      perFaction: duty.total.perFaction.map((f) => ({
+        factionKey: f.factionKey,
+        factionName: f.factionName,
+        seconds: f.seconds,
+      })),
     },
-    discord: discord && (canPrivate || self) ? { id: discord.id, username: discord.username, globalName: discord.globalName } : null,
+    discord:
+      discord && (canPrivate || self)
+        ? { id: discord.id, username: discord.username, globalName: discord.globalName }
+        : null,
     private: null as null | Awaited<ReturnType<typeof loadPrivate>>,
     canViewPrivate: canPrivate,
   };
@@ -97,7 +120,12 @@ async function loadPrivate(db: DbExecutor, discordUserId: string | null, robloxU
     discordUserId ? eq(moderationActions.targetDiscordId, discordUserId) : undefined,
     robloxUserId ? eq(moderationActions.targetRobloxId, robloxUserId) : undefined,
   );
-  const moderation = await db.select().from(moderationActions).where(subjectCondition).orderBy(desc(moderationActions.createdAt)).limit(50);
+  const moderation = await db
+    .select()
+    .from(moderationActions)
+    .where(subjectCondition)
+    .orderBy(desc(moderationActions.createdAt))
+    .limit(50);
   const relatedReports = await db
     .select()
     .from(reports)
@@ -112,7 +140,12 @@ async function loadPrivate(db: DbExecutor, discordUserId: string | null, robloxU
   const history = await profileHistory(db, discordUserId, robloxUserId, 50);
   const factionHistory = robloxUserId
     ? await db
-        .select({ factionName: factions.name, joinedAt: factionMemberships.joinedAt, endedAt: factionMemberships.endedAt, endReason: factionMemberships.endReason })
+        .select({
+          factionName: factions.name,
+          joinedAt: factionMemberships.joinedAt,
+          endedAt: factionMemberships.endedAt,
+          endReason: factionMemberships.endReason,
+        })
         .from(factionMemberships)
         .innerJoin(factions, eq(factions.id, factionMemberships.factionId))
         .where(eq(factionMemberships.robloxUserId, robloxUserId))
@@ -121,7 +154,12 @@ async function loadPrivate(db: DbExecutor, discordUserId: string | null, robloxU
   return { moderation, reports: relatedReports, history, factionHistory };
 }
 
-export async function profileHistory(db: DbExecutor, discordUserId: string | null, robloxUserId: number | null, limit = 100) {
+export async function profileHistory(
+  db: DbExecutor,
+  discordUserId: string | null,
+  robloxUserId: number | null,
+  limit = 100,
+) {
   if (!discordUserId && !robloxUserId) return [];
   return db
     .select()
@@ -146,7 +184,14 @@ export async function getProfileHistory(db: DbExecutor, actor: Actor, ref: Playe
 export async function searchPlayers(
   db: DbExecutor,
   actor: Actor,
-  filter: { q?: string; factionKey?: string; verified?: boolean; page: number; pageSize: number; sort?: 'playtime' | 'name' | 'lastSeen' },
+  filter: {
+    q?: string;
+    factionKey?: string;
+    verified?: boolean;
+    page: number;
+    pageSize: number;
+    sort?: 'playtime' | 'name' | 'lastSeen';
+  },
 ) {
   requirePermission(actor, 'players:view');
   const q = filter.q?.trim();
@@ -159,10 +204,18 @@ export async function searchPlayers(
         )
       : undefined,
     filter.factionKey ? eq(factions.key, filter.factionKey) : undefined,
-    filter.verified === true ? sql`${accountLinks.id} is not null` : filter.verified === false ? sql`${accountLinks.id} is null` : undefined,
+    filter.verified === true
+      ? sql`${accountLinks.id} is not null`
+      : filter.verified === false
+        ? sql`${accountLinks.id} is null`
+        : undefined,
   );
   const order =
-    filter.sort === 'name' ? robloxUsers.username : filter.sort === 'lastSeen' ? desc(robloxUsers.lastSeenAt) : desc(robloxUsers.totalPlaytimeSeconds);
+    filter.sort === 'name'
+      ? robloxUsers.username
+      : filter.sort === 'lastSeen'
+        ? desc(robloxUsers.lastSeenAt)
+        : desc(robloxUsers.totalPlaytimeSeconds);
   const base = () =>
     db
       .select({
@@ -178,7 +231,10 @@ export async function searchPlayers(
       })
       .from(robloxUsers)
       .leftJoin(accountLinks, and(eq(accountLinks.robloxUserId, robloxUsers.id), eq(accountLinks.status, 'active')))
-      .leftJoin(factionMemberships, and(eq(factionMemberships.robloxUserId, robloxUsers.id), eq(factionMemberships.status, 'active')))
+      .leftJoin(
+        factionMemberships,
+        and(eq(factionMemberships.robloxUserId, robloxUsers.id), eq(factionMemberships.status, 'active')),
+      )
       .leftJoin(factions, eq(factions.id, factionMemberships.factionId));
   const items = await base()
     .where(where)
@@ -189,7 +245,10 @@ export async function searchPlayers(
     .select({ count: sql<number>`count(*)::int` })
     .from(robloxUsers)
     .leftJoin(accountLinks, and(eq(accountLinks.robloxUserId, robloxUsers.id), eq(accountLinks.status, 'active')))
-    .leftJoin(factionMemberships, and(eq(factionMemberships.robloxUserId, robloxUsers.id), eq(factionMemberships.status, 'active')))
+    .leftJoin(
+      factionMemberships,
+      and(eq(factionMemberships.robloxUserId, robloxUsers.id), eq(factionMemberships.status, 'active')),
+    )
     .leftJoin(factions, eq(factions.id, factionMemberships.factionId))
     .where(where);
   const canPrivate = hasPermission(actor, 'player_private:view');
@@ -213,6 +272,9 @@ export async function playtimeLeaderboard(db: DbExecutor, limit = 10) {
 }
 
 export async function findRobloxUserByName(db: DbExecutor, username: string) {
-  const [row] = await db.select().from(robloxUsers).where(sql`lower(${robloxUsers.username}) = lower(${username})`);
+  const [row] = await db
+    .select()
+    .from(robloxUsers)
+    .where(sql`lower(${robloxUsers.username}) = lower(${username})`);
   return row ?? null;
 }

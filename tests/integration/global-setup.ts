@@ -8,9 +8,13 @@ export default async function setup() {
   try {
     await client.connect();
   } catch (err) {
-    throw new Error(`Testdatenbank nicht erreichbar (${(err as Error).message}). Setze TEST_DATABASE_URL oder starte PostgreSQL (docker compose up -d postgres).`);
+    throw new Error(
+      `Testdatenbank nicht erreichbar (${(err as Error).message}). Setze TEST_DATABASE_URL oder starte PostgreSQL (docker compose up -d postgres).`,
+    );
   }
-  await client.query('drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;');
+  await client.query(
+    'drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;',
+  );
   await client.end();
   await runMigrations(url);
 }

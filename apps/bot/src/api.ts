@@ -11,7 +11,10 @@ export function memberRoleIds(interaction: Interaction): string[] {
 
 /** API-Client im Namen der handelnden Person. Die API prüft alle Rechte selbst. */
 export function createApiFactory(env: BotEnv) {
-  const service = createApiClient({ baseUrl: env.API_URL, headers: () => ({ authorization: `Bearer ${env.BOT_API_TOKEN}` }) });
+  const service = createApiClient({
+    baseUrl: env.API_URL,
+    headers: () => ({ authorization: `Bearer ${env.BOT_API_TOKEN}` }),
+  });
   return {
     service,
     forInteraction(interaction: Interaction): ApiClient {

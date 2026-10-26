@@ -1,6 +1,26 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, jsonb, pgEnum, pgTable, primaryKey, smallint, text, uniqueIndex, uuid, check } from 'drizzle-orm/pg-core';
-import { ANNOUNCEMENT_STATUS, CODE_STATUS, GIVEAWAY_STATUS, MAINTENANCE_STATUS, POLL_STATUS, SUGGESTION_STATUS } from '@enrp/shared';
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  smallint,
+  text,
+  uniqueIndex,
+  uuid,
+  check,
+} from 'drizzle-orm/pg-core';
+import {
+  ANNOUNCEMENT_STATUS,
+  CODE_STATUS,
+  GIVEAWAY_STATUS,
+  MAINTENANCE_STATUS,
+  POLL_STATUS,
+  SUGGESTION_STATUS,
+} from '@enrp/shared';
 import { createdAt, id, robloxId, ts, updatedAt } from './_helpers';
 
 export const suggestionStatus = pgEnum('suggestion_status', SUGGESTION_STATUS);
@@ -34,7 +54,10 @@ export const suggestionVotes = pgTable(
     value: smallint('value').notNull(),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.suggestionId, t.discordUserId] }), check('suggestion_votes_value_chk', sql`${t.value} in (-1, 1)`)],
+  (t) => [
+    primaryKey({ columns: [t.suggestionId, t.discordUserId] }),
+    check('suggestion_votes_value_chk', sql`${t.value} in (-1, 1)`),
+  ],
 );
 
 export const pollStatus = pgEnum('poll_status', POLL_STATUS);
@@ -121,7 +144,10 @@ export const announcements = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('announcements_status_idx').on(t.status, t.publishAt), index('announcements_ingame_idx').on(t.inGame, t.publishedAt)],
+  (t) => [
+    index('announcements_status_idx').on(t.status, t.publishAt),
+    index('announcements_ingame_idx').on(t.inGame, t.publishedAt),
+  ],
 );
 
 export const maintenanceStatus = pgEnum('maintenance_status', MAINTENANCE_STATUS);
@@ -154,7 +180,11 @@ export const ruleSets = pgTable(
     createdBy: text('created_by').notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('rule_sets_one_published_uq').on(t.status).where(sql`${t.status} = 'published'`)],
+  (t) => [
+    uniqueIndex('rule_sets_one_published_uq')
+      .on(t.status)
+      .where(sql`${t.status} = 'published'`),
+  ],
 );
 
 export const ruleAcceptances = pgTable(

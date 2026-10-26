@@ -13,7 +13,10 @@ import {
   type Subject,
 } from './index';
 
-const subject = (...permissions: string[]): Subject => ({ isOwner: false, grants: permissions.map((permission) => ({ permission })) });
+const subject = (...permissions: string[]): Subject => ({
+  isOwner: false,
+  grants: permissions.map((permission) => ({ permission })),
+});
 const POLICE = 'faction-polizei';
 const FIRE = 'faction-feuerwehr';
 
@@ -69,13 +72,25 @@ describe('covers / checkGrantChange (Schutz gegen Rechteausweitung)', () => {
 
   it('kritische Rechte brauchen eine Freigabe – auch beim Entfernen', () => {
     const lead = subject('permissions:edit', 'backups:approve');
-    expect(checkGrantChange(lead, [{ permission: 'backups:approve' }])).toMatchObject({ allowed: true, requiresApproval: true });
-    expect(checkGrantChange(lead, [], [{ permission: 'backups:approve' }])).toMatchObject({ allowed: true, requiresApproval: true });
-    expect(checkGrantChange(lead, [{ permission: 'tickets:view' }].slice(0, 0))).toMatchObject({ requiresApproval: false });
+    expect(checkGrantChange(lead, [{ permission: 'backups:approve' }])).toMatchObject({
+      allowed: true,
+      requiresApproval: true,
+    });
+    expect(checkGrantChange(lead, [], [{ permission: 'backups:approve' }])).toMatchObject({
+      allowed: true,
+      requiresApproval: true,
+    });
+    expect(checkGrantChange(lead, [{ permission: 'tickets:view' }].slice(0, 0))).toMatchObject({
+      requiresApproval: false,
+    });
   });
 
   it('bereits vorhandene Zuweisungen werden nicht erneut geprüft', () => {
-    const result = checkGrantChange(admin, [{ permission: 'backups:approve' }, { permission: 'tickets:view' }], [{ permission: 'backups:approve' }]);
+    const result = checkGrantChange(
+      admin,
+      [{ permission: 'backups:approve' }, { permission: 'tickets:view' }],
+      [{ permission: 'backups:approve' }],
+    );
     expect(result.allowed).toBe(true);
   });
 
@@ -100,16 +115,26 @@ describe('resolveCommandAccess', () => {
   });
 
   it('Deny-Override schlägt Berechtigung, Allow-Override öffnet Befehl', () => {
-    expect(resolveCommandAccess('mod warn', mod, ['r1'], [{ command: 'mod', discordRoleId: 'r1', effect: 'deny' }]).allowed).toBe(false);
+    expect(
+      resolveCommandAccess('mod warn', mod, ['r1'], [{ command: 'mod', discordRoleId: 'r1', effect: 'deny' }]).allowed,
+    ).toBe(false);
     expect(
       resolveCommandAccess('mod unban', mod, ['r1'], [{ command: 'mod unban', discordRoleId: 'r1', effect: 'allow' }]),
     ).toMatchObject({ allowed: true, source: 'override-allow' });
     // Override einer Rolle, die das Mitglied nicht hat, wirkt nicht
-    expect(resolveCommandAccess('mod unban', mod, ['r2'], [{ command: 'mod unban', discordRoleId: 'r1', effect: 'allow' }]).allowed).toBe(false);
+    expect(
+      resolveCommandAccess('mod unban', mod, ['r2'], [{ command: 'mod unban', discordRoleId: 'r1', effect: 'allow' }])
+        .allowed,
+    ).toBe(false);
   });
 
   it('gesperrte Befehle lassen sich nicht per Override öffnen', () => {
-    const result = resolveCommandAccess('permissions grant', subject(), ['r1'], [{ command: 'permissions', discordRoleId: 'r1', effect: 'allow' }]);
+    const result = resolveCommandAccess(
+      'permissions grant',
+      subject(),
+      ['r1'],
+      [{ command: 'permissions', discordRoleId: 'r1', effect: 'allow' }],
+    );
     expect(result.allowed).toBe(false);
   });
 
@@ -124,7 +149,8 @@ describe('Katalogkonsistenz', () => {
       if (permission) expect(isPermissionKey(permission), command).toBe(true);
     }
     for (const role of DEFAULT_ROLES) {
-      for (const grant of role.grants) expect(isPermissionPattern(grant.permission), `${role.key}: ${grant.permission}`).toBe(true);
+      for (const grant of role.grants)
+        expect(isPermissionPattern(grant.permission), `${role.key}: ${grant.permission}`).toBe(true);
     }
     expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length);
   });

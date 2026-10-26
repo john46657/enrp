@@ -24,7 +24,11 @@ export const REDACT_PATHS = [
   '*.apiKey',
 ];
 
-export function createLogger(name: string, level: string = process.env.LOG_LEVEL ?? 'info', options: LoggerOptions = {}): Logger {
+export function createLogger(
+  name: string,
+  level: string = process.env.LOG_LEVEL ?? 'info',
+  options: LoggerOptions = {},
+): Logger {
   return pino({
     name,
     level,

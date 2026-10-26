@@ -31,7 +31,12 @@ export interface OAuthClients {
   };
 }
 
-async function postForm(fetchImpl: typeof fetch, url: string, form: Record<string, string>, headers: Record<string, string> = {}) {
+async function postForm(
+  fetchImpl: typeof fetch,
+  url: string,
+  form: Record<string, string>,
+  headers: Record<string, string> = {},
+) {
   const res = await fetchImpl(url, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json', ...headers },
@@ -43,7 +48,10 @@ async function postForm(fetchImpl: typeof fetch, url: string, form: Record<strin
 }
 
 async function getJson(fetchImpl: typeof fetch, url: string, accessToken: string) {
-  const res = await fetchImpl(url, { headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+  const res = await fetchImpl(url, {
+    headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!res.ok) throw new AppError('UPSTREAM_UNAVAILABLE', `Profil konnte nicht geladen werden (${res.status}).`);
   return (await res.json()) as Record<string, unknown>;
 }
@@ -54,10 +62,18 @@ async function getJson(fetchImpl: typeof fetch, url: string, accessToken: string
  * widerrufen und nie gespeichert.
  */
 export function createOAuthClients(
-  config: { discordClientId?: string; discordClientSecret?: string; robloxClientId?: string; robloxClientSecret?: string },
+  config: {
+    discordClientId?: string;
+    discordClientSecret?: string;
+    robloxClientId?: string;
+    robloxClientSecret?: string;
+  },
   fetchImpl: typeof fetch = fetch,
 ): OAuthClients {
-  const discordAuth = config.discordClientId && config.discordClientSecret ? `Basic ${Buffer.from(`${config.discordClientId}:${config.discordClientSecret}`).toString('base64')}` : '';
+  const discordAuth =
+    config.discordClientId && config.discordClientSecret
+      ? `Basic ${Buffer.from(`${config.discordClientId}:${config.discordClientSecret}`).toString('base64')}`
+      : '';
   return {
     discord: {
       configured: Boolean(discordAuth),
@@ -76,16 +92,32 @@ export function createOAuthClients(
         return url.toString();
       },
       async exchange({ code, verifier, redirectUri }) {
-        const r = await postForm(fetchImpl, 'https://discord.com/api/oauth2/token', { grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: verifier }, { authorization: discordAuth });
-        if (!r.ok || typeof r.data.access_token !== 'string') throw new AppError('UPSTREAM_UNAVAILABLE', 'Discord-Anmeldung fehlgeschlagen.');
+        const r = await postForm(
+          fetchImpl,
+          'https://discord.com/api/oauth2/token',
+          { grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: verifier },
+          { authorization: discordAuth },
+        );
+        if (!r.ok || typeof r.data.access_token !== 'string')
+          throw new AppError('UPSTREAM_UNAVAILABLE', 'Discord-Anmeldung fehlgeschlagen.');
         return r.data.access_token;
       },
       async fetchUser(accessToken) {
         const u = await getJson(fetchImpl, 'https://discord.com/api/v10/users/@me', accessToken);
-        return { id: String(u.id), username: String(u.username), globalName: (u.global_name as string | null) ?? null, avatarHash: (u.avatar as string | null) ?? null };
+        return {
+          id: String(u.id),
+          username: String(u.username),
+          globalName: (u.global_name as string | null) ?? null,
+          avatarHash: (u.avatar as string | null) ?? null,
+        };
       },
       async revoke(accessToken) {
-        await postForm(fetchImpl, 'https://discord.com/api/oauth2/token/revoke', { token: accessToken, token_type_hint: 'access_token' }, { authorization: discordAuth }).catch(() => undefined);
+        await postForm(
+          fetchImpl,
+          'https://discord.com/api/oauth2/token/revoke',
+          { token: accessToken, token_type_hint: 'access_token' },
+          { authorization: discordAuth },
+        ).catch(() => undefined);
       },
     },
     roblox: {
@@ -113,13 +145,15 @@ export function createOAuthClients(
           client_id: config.robloxClientId ?? '',
           client_secret: config.robloxClientSecret ?? '',
         });
-        if (!r.ok || typeof r.data.access_token !== 'string') throw new AppError('UPSTREAM_UNAVAILABLE', 'Roblox-Anmeldung fehlgeschlagen.');
+        if (!r.ok || typeof r.data.access_token !== 'string')
+          throw new AppError('UPSTREAM_UNAVAILABLE', 'Roblox-Anmeldung fehlgeschlagen.');
         return r.data.access_token;
       },
       async fetchUser(accessToken) {
         const u = await getJson(fetchImpl, 'https://apis.roblox.com/oauth/v1/userinfo', accessToken);
         const id = Number(u.sub);
-        if (!Number.isSafeInteger(id) || id <= 0) throw new AppError('UPSTREAM_UNAVAILABLE', 'Ungültige Roblox-Antwort.');
+        if (!Number.isSafeInteger(id) || id <= 0)
+          throw new AppError('UPSTREAM_UNAVAILABLE', 'Ungültige Roblox-Antwort.');
         return {
           id,
           username: String(u.preferred_username ?? u.nickname ?? id),

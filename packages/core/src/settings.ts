@@ -12,7 +12,10 @@ export const SETTING_DEFINITIONS = {
     critical: false,
     schema: z.object({
       enabled: z.boolean(),
-      channelId: z.string().regex(/^\d{15,22}$/).nullable(),
+      channelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
       title: z.string().max(200),
       message: z.string().max(2000),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -29,13 +32,34 @@ export const SETTING_DEFINITIONS = {
     label: 'Benachrichtigungskanäle',
     critical: false,
     schema: z.object({
-      ticketChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
-      reportChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
-      moderationLogChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
-      alertChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
-      suggestionChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
-      announcementChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
-      auditChannelId: z.string().regex(/^\d{15,22}$/).nullable(),
+      ticketChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      reportChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      moderationLogChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      alertChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      suggestionChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      announcementChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      auditChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
     }),
     default: {
       ticketChannelId: null,
@@ -51,8 +75,15 @@ export const SETTING_DEFINITIONS = {
     label: 'Verifizierung',
     critical: true,
     schema: z.object({
-      verifiedRoleId: z.string().regex(/^\d{15,22}$/).nullable(),
-      unlinkCooldownHours: z.number().int().min(0).max(24 * 90),
+      verifiedRoleId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      unlinkCooldownHours: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 90),
       allowSelfUnlink: z.boolean(),
     }),
     default: { verifiedRoleId: null, unlinkCooldownHours: 24, allowSelfUnlink: true },
@@ -165,8 +196,26 @@ export async function updateSetting<K extends SettingKey>(
       .insert(settings)
       .values({ key, value: parsed.data, updatedBy: actorId(actor) })
       .onConflictDoUpdate({ target: settings.key, set: { value: parsed.data, updatedBy: actorId(actor) } });
-    const version = await recordConfigVersion(tx, { scope: `setting:${key}`, value: parsed.data, previous, actorId: actorId(actor), reason });
-    await writeAudit(tx, actor, { action: 'settings.update', resourceType: 'setting', resourceId: key, reason, before: previous, after: parsed.data }, ctx.now());
+    const version = await recordConfigVersion(tx, {
+      scope: `setting:${key}`,
+      value: parsed.data,
+      previous,
+      actorId: actorId(actor),
+      reason,
+    });
+    await writeAudit(
+      tx,
+      actor,
+      {
+        action: 'settings.update',
+        resourceType: 'setting',
+        resourceId: key,
+        reason,
+        before: previous,
+        after: parsed.data,
+      },
+      ctx.now(),
+    );
     return { value: parsed.data as SettingValue<K>, version };
   });
 }

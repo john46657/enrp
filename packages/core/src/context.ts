@@ -119,8 +119,14 @@ export interface TxContext extends Omit<CoreContext, 'db'> {
 export const noopRealtime: RealtimePublisher = { publish: () => {} };
 
 export class MemoryQueue implements JobQueue {
-  readonly jobs: Array<{ queue: QueueName; name: string; data: Record<string, unknown>; options?: EnqueueOptions }> = [];
-  async enqueue(queue: QueueName, name: string, data: Record<string, unknown>, options?: EnqueueOptions): Promise<void> {
+  readonly jobs: Array<{ queue: QueueName; name: string; data: Record<string, unknown>; options?: EnqueueOptions }> =
+    [];
+  async enqueue(
+    queue: QueueName,
+    name: string,
+    data: Record<string, unknown>,
+    options?: EnqueueOptions,
+  ): Promise<void> {
     if (options?.jobId && this.jobs.some((j) => j.options?.jobId === options.jobId)) return;
     this.jobs.push({ queue, name, data, options });
   }

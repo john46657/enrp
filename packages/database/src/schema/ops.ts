@@ -1,5 +1,19 @@
 import { sql } from 'drizzle-orm';
-import { bigint, bigserial, boolean, check, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  bigserial,
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import {
   ACTOR_TYPES,
   APPROVAL_STATUS,
@@ -89,7 +103,9 @@ export const incidents = pgTable(
   },
   (t) => [
     index('incidents_status_idx').on(t.status, t.severity),
-    uniqueIndex('incidents_open_dedupe_uq').on(t.dedupeKey).where(sql`${t.status} <> 'resolved' and ${t.dedupeKey} is not null`),
+    uniqueIndex('incidents_open_dedupe_uq')
+      .on(t.dedupeKey)
+      .where(sql`${t.status} <> 'resolved' and ${t.dedupeKey} is not null`),
   ],
 );
 
@@ -321,7 +337,9 @@ export const privacyRequests = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [check('privacy_requests_subject_chk', sql`${t.subjectDiscordId} is not null or ${t.subjectRobloxId} is not null`)],
+  (t) => [
+    check('privacy_requests_subject_chk', sql`${t.subjectDiscordId} is not null or ${t.subjectRobloxId} is not null`),
+  ],
 );
 
 /** Lebenszeichen von Bot, Worker und API-Instanzen. */

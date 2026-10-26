@@ -86,7 +86,12 @@ export interface GrantChangeCheck {
  */
 export function checkGrantChange(actor: Subject, nextGrants: Grant[], previousGrants: Grant[] = []): GrantChangeCheck {
   if (!can(actor, 'permissions:edit')) {
-    return { allowed: false, requiresApproval: false, exceeding: [], reason: 'Dir fehlt die Berechtigung permissions:edit.' };
+    return {
+      allowed: false,
+      requiresApproval: false,
+      exceeding: [],
+      reason: 'Dir fehlt die Berechtigung permissions:edit.',
+    };
   }
   const previousKeys = new Set(previousGrants.map(grantKey));
   const added = nextGrants.filter((g) => !previousKeys.has(grantKey(g)));

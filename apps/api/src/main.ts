@@ -18,7 +18,13 @@ const instanceId = `${process.env.HOSTNAME ?? 'local'}-${randomUUID().slice(0, 8
 const startedAt = new Date();
 
 async function reportAlive() {
-  await monitoring.recordServiceHeartbeat(deps.core.db, { service: 'api', instanceId, version: env.APP_VERSION, startedAt }, new Date()).catch((err) => app.log.warn({ err }, 'Heartbeat fehlgeschlagen'));
+  await monitoring
+    .recordServiceHeartbeat(
+      deps.core.db,
+      { service: 'api', instanceId, version: env.APP_VERSION, startedAt },
+      new Date(),
+    )
+    .catch((err) => app.log.warn({ err }, 'Heartbeat fehlgeschlagen'));
 }
 
 // Nicht geheime Konfiguration für /env compare melden (Schlüssel: gesetzt ja/nein, keine Werte).

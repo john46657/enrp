@@ -11,4 +11,7 @@ export const csvList = z
   .optional()
   .transform((v) => (v ? v.split(',').filter(Boolean) : undefined));
 export const isoDate = z.iso.datetime().transform((v) => new Date(v));
-export const boolQuery = z.enum(['true', 'false']).optional().transform((v) => (v === undefined ? undefined : v === 'true'));
+export const boolQuery = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v === 'true'));

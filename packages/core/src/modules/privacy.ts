@@ -45,7 +45,10 @@ export interface DataSubject {
 }
 
 /** Ergänzt die jeweils andere Kennung über eine aktive Verknüpfung. */
-async function resolveSubject(db: DbExecutor, subject: DataSubject): Promise<{ discordUserId: string | null; robloxUserId: number | null }> {
+async function resolveSubject(
+  db: DbExecutor,
+  subject: DataSubject,
+): Promise<{ discordUserId: string | null; robloxUserId: number | null }> {
   let discordUserId = subject.discordUserId ?? null;
   let robloxUserId = subject.robloxUserId ?? null;
   if (!discordUserId && !robloxUserId) throw errors.badRequest('Discord- oder Roblox-ID angeben.');
@@ -55,7 +58,10 @@ async function resolveSubject(db: DbExecutor, subject: DataSubject): Promise<{ d
     .where(
       and(
         eq(accountLinks.status, 'active'),
-        or(discordUserId ? eq(accountLinks.discordUserId, discordUserId) : undefined, robloxUserId ? eq(accountLinks.robloxUserId, robloxUserId) : undefined),
+        or(
+          discordUserId ? eq(accountLinks.discordUserId, discordUserId) : undefined,
+          robloxUserId ? eq(accountLinks.robloxUserId, robloxUserId) : undefined,
+        ),
       ),
     );
   discordUserId ??= link?.discordUserId ?? null;
@@ -95,7 +101,9 @@ export async function inspectSubject(db: DbExecutor, actor: Actor, input: DataSu
       moderationActions: await count(moderationActions, sql`target_discord_id = ${d} or target_roblox_id = ${r}`),
       appeals: await count(appeals, sql`appellant_discord_id = ${d}`),
       suggestions: await count(suggestions, sql`author_discord_id = ${d}`),
-      votes: (await count(pollVotes, sql`discord_user_id = ${d}`)) + (await count(suggestionVotes, sql`discord_user_id = ${d}`)),
+      votes:
+        (await count(pollVotes, sql`discord_user_id = ${d}`)) +
+        (await count(suggestionVotes, sql`discord_user_id = ${d}`)),
       giveawayEntries: await count(giveawayEntries, sql`discord_user_id = ${d}`),
       ruleAcceptances: await count(ruleAcceptances, sql`discord_user_id = ${d}`),
       codeRedemptions: await count(codeRedemptions, sql`roblox_user_id = ${r}`),
@@ -111,19 +119,36 @@ async function collectExport(db: DbExecutor, s: { discordUserId: string | null; 
     generatedAt: new Date().toISOString(),
     discordAccount: await db.select().from(discordUsers).where(eq(discordUsers.id, d)),
     robloxAccount: await db.select().from(robloxUsers).where(eq(robloxUsers.id, r)),
-    accountLinks: await db.select().from(accountLinks).where(or(eq(accountLinks.discordUserId, d), eq(accountLinks.robloxUserId, r))),
+    accountLinks: await db
+      .select()
+      .from(accountLinks)
+      .where(or(eq(accountLinks.discordUserId, d), eq(accountLinks.robloxUserId, r))),
     verifications: await db.select().from(verifications).where(eq(verifications.discordUserId, d)),
-    profileHistory: await db.select().from(profileEvents).where(or(eq(profileEvents.discordUserId, d), eq(profileEvents.robloxUserId, r))),
+    profileHistory: await db
+      .select()
+      .from(profileEvents)
+      .where(or(eq(profileEvents.discordUserId, d), eq(profileEvents.robloxUserId, r))),
     playSessions: await db.select().from(playSessions).where(eq(playSessions.robloxUserId, r)),
     dutySessions: await db.select().from(dutySessions).where(eq(dutySessions.robloxUserId, r)),
     factionMemberships: await db.select().from(factionMemberships).where(eq(factionMemberships.robloxUserId, r)),
     vehicleAssignments: await db.select().from(vehicleAssignments).where(eq(vehicleAssignments.robloxUserId, r)),
     tickets: await db.select().from(tickets).where(eq(tickets.creatorDiscordId, d)),
     // Interne Teamnotizen sind nicht Teil der Auskunft über eigene Beiträge.
-    ownMessages: await db.select().from(recordEvents).where(and(eq(recordEvents.actorId, d), eq(recordEvents.internal, false))),
+    ownMessages: await db
+      .select()
+      .from(recordEvents)
+      .where(and(eq(recordEvents.actorId, d), eq(recordEvents.internal, false))),
     reportsFiled: await db.select().from(reports).where(eq(reports.reporterDiscordId, d)),
     moderationActions: await db
-      .select({ number: moderationActions.number, type: moderationActions.type, platform: moderationActions.platform, reason: moderationActions.reason, status: moderationActions.status, createdAt: moderationActions.createdAt, expiresAt: moderationActions.expiresAt })
+      .select({
+        number: moderationActions.number,
+        type: moderationActions.type,
+        platform: moderationActions.platform,
+        reason: moderationActions.reason,
+        status: moderationActions.status,
+        createdAt: moderationActions.createdAt,
+        expiresAt: moderationActions.expiresAt,
+      })
       .from(moderationActions)
       .where(or(eq(moderationActions.targetDiscordId, d), eq(moderationActions.targetRobloxId, r))),
     appeals: await db.select().from(appeals).where(eq(appeals.appellantDiscordId, d)),
@@ -158,7 +183,18 @@ export async function exportSubject(ctx: CoreContext, actor: Actor, input: DataS
         expiresAt: new Date(now.getTime() + retention.privacyExportDays * 86400_000),
       })
       .returning({ id: privacyRequests.id, number: privacyRequests.number, expiresAt: privacyRequests.expiresAt });
-    await writeAudit(tx, actor, { action: 'privacy.export', resourceType: 'privacy_request', resourceId: row!.id, reason: input.reason, metadata: s }, now);
+    await writeAudit(
+      tx,
+      actor,
+      {
+        action: 'privacy.export',
+        resourceType: 'privacy_request',
+        resourceId: row!.id,
+        reason: input.reason,
+        metadata: s,
+      },
+      now,
+    );
     return row!;
   });
 }
@@ -187,8 +223,21 @@ export async function requestDeletion(ctx: CoreContext, actor: Actor, input: Dat
     reason: input.reason,
     ttlHours: 72,
   });
-  await ctx.db.update(privacyRequests).set({ approvalRequestId: approval.id }).where(eq(privacyRequests.id, request!.id));
-  await writeAudit(ctx.db, actor, { action: 'privacy.deletion.request', resourceType: 'privacy_request', resourceId: request!.id, reason: input.reason }, ctx.now());
+  await ctx.db
+    .update(privacyRequests)
+    .set({ approvalRequestId: approval.id })
+    .where(eq(privacyRequests.id, request!.id));
+  await writeAudit(
+    ctx.db,
+    actor,
+    {
+      action: 'privacy.deletion.request',
+      resourceType: 'privacy_request',
+      resourceId: request!.id,
+      reason: input.reason,
+    },
+    ctx.now(),
+  );
   return { request: request!, approval, preview: request!.preview };
 }
 
@@ -208,29 +257,115 @@ async function executeDeletion(ctx: TxContext, requestId: string) {
   const track = async (name: string, p: Promise<unknown[]>) => {
     counts[name] = (await p).length;
   };
-  await track('verifications', db.delete(verifications).where(eq(verifications.discordUserId, d)).returning({ id: verifications.id }));
-  await track('oauthStates', db.delete(oauthStates).where(eq(oauthStates.discordUserId, d)).returning({ id: oauthStates.stateHash }));
-  await track('sessions', db.delete(adminSessions).where(eq(adminSessions.discordUserId, d)).returning({ id: adminSessions.id }));
-  await track('memberRoleCache', db.delete(memberRoleCache).where(eq(memberRoleCache.discordUserId, d)).returning({ id: memberRoleCache.discordUserId }));
-  await track('profileEvents', db.delete(profileEvents).where(or(eq(profileEvents.discordUserId, d), eq(profileEvents.robloxUserId, r))).returning({ id: profileEvents.id }));
-  await track('pollVotes', db.delete(pollVotes).where(eq(pollVotes.discordUserId, d)).returning({ id: pollVotes.pollId }));
-  await track('suggestionVotes', db.delete(suggestionVotes).where(eq(suggestionVotes.discordUserId, d)).returning({ id: suggestionVotes.suggestionId }));
-  await track('giveawayEntries', db.delete(giveawayEntries).where(eq(giveawayEntries.discordUserId, d)).returning({ id: giveawayEntries.giveawayId }));
-  await track('ruleAcceptances', db.delete(ruleAcceptances).where(eq(ruleAcceptances.discordUserId, d)).returning({ id: ruleAcceptances.ruleSetId }));
-  await track('codeRedemptions', db.delete(codeRedemptions).where(eq(codeRedemptions.robloxUserId, r)).returning({ id: codeRedemptions.id }));
+  await track(
+    'verifications',
+    db.delete(verifications).where(eq(verifications.discordUserId, d)).returning({ id: verifications.id }),
+  );
+  await track(
+    'oauthStates',
+    db.delete(oauthStates).where(eq(oauthStates.discordUserId, d)).returning({ id: oauthStates.stateHash }),
+  );
+  await track(
+    'sessions',
+    db.delete(adminSessions).where(eq(adminSessions.discordUserId, d)).returning({ id: adminSessions.id }),
+  );
+  await track(
+    'memberRoleCache',
+    db
+      .delete(memberRoleCache)
+      .where(eq(memberRoleCache.discordUserId, d))
+      .returning({ id: memberRoleCache.discordUserId }),
+  );
+  await track(
+    'profileEvents',
+    db
+      .delete(profileEvents)
+      .where(or(eq(profileEvents.discordUserId, d), eq(profileEvents.robloxUserId, r)))
+      .returning({ id: profileEvents.id }),
+  );
+  await track(
+    'pollVotes',
+    db.delete(pollVotes).where(eq(pollVotes.discordUserId, d)).returning({ id: pollVotes.pollId }),
+  );
+  await track(
+    'suggestionVotes',
+    db
+      .delete(suggestionVotes)
+      .where(eq(suggestionVotes.discordUserId, d))
+      .returning({ id: suggestionVotes.suggestionId }),
+  );
+  await track(
+    'giveawayEntries',
+    db
+      .delete(giveawayEntries)
+      .where(eq(giveawayEntries.discordUserId, d))
+      .returning({ id: giveawayEntries.giveawayId }),
+  );
+  await track(
+    'ruleAcceptances',
+    db.delete(ruleAcceptances).where(eq(ruleAcceptances.discordUserId, d)).returning({ id: ruleAcceptances.ruleSetId }),
+  );
+  await track(
+    'codeRedemptions',
+    db.delete(codeRedemptions).where(eq(codeRedemptions.robloxUserId, r)).returning({ id: codeRedemptions.id }),
+  );
   // Pseudonymisieren: Inhalte bleiben für die Nachvollziehbarkeit von Tickets/Reports erhalten, der Personenbezug nicht.
-  await track('ticketsAnonymized', db.update(tickets).set({ creatorDiscordId: placeholder }).where(eq(tickets.creatorDiscordId, d)).returning({ id: tickets.id }));
+  await track(
+    'ticketsAnonymized',
+    db
+      .update(tickets)
+      .set({ creatorDiscordId: placeholder })
+      .where(eq(tickets.creatorDiscordId, d))
+      .returning({ id: tickets.id }),
+  );
   await track(
     'messagesAnonymized',
-    db.update(recordEvents).set({ actorId: placeholder, body: sql`case when ${recordEvents.internal} then ${recordEvents.body} else '[gelöscht]' end` }).where(eq(recordEvents.actorId, d)).returning({ id: recordEvents.id }),
+    db
+      .update(recordEvents)
+      .set({
+        actorId: placeholder,
+        body: sql`case when ${recordEvents.internal} then ${recordEvents.body} else '[gelöscht]' end`,
+      })
+      .where(eq(recordEvents.actorId, d))
+      .returning({ id: recordEvents.id }),
   );
-  await track('reportsAnonymized', db.update(reports).set({ reporterDiscordId: placeholder }).where(eq(reports.reporterDiscordId, d)).returning({ id: reports.id }));
-  await track('suggestionsAnonymized', db.update(suggestions).set({ authorDiscordId: placeholder }).where(eq(suggestions.authorDiscordId, d)).returning({ id: suggestions.id }));
+  await track(
+    'reportsAnonymized',
+    db
+      .update(reports)
+      .set({ reporterDiscordId: placeholder })
+      .where(eq(reports.reporterDiscordId, d))
+      .returning({ id: reports.id }),
+  );
+  await track(
+    'suggestionsAnonymized',
+    db
+      .update(suggestions)
+      .set({ authorDiscordId: placeholder })
+      .where(eq(suggestions.authorDiscordId, d))
+      .returning({ id: suggestions.id }),
+  );
   // Kaskadiert: Verknüpfungen, Spiel-/Dienstsessions, Mitgliedschaften, Fahrzeugzuweisungen.
   await track('robloxAccount', db.delete(robloxUsers).where(eq(robloxUsers.id, r)).returning({ id: robloxUsers.id }));
-  await track('discordAccount', db.delete(discordUsers).where(eq(discordUsers.id, d)).returning({ id: discordUsers.id }));
-  await db.update(privacyRequests).set({ status: 'completed', completedAt: ctx.now(), result: { counts } }).where(eq(privacyRequests.id, requestId));
-  await writeAudit(db, systemActor('privacy'), { action: 'privacy.deletion.execute', resourceType: 'privacy_request', resourceId: requestId, metadata: { counts } }, ctx.now());
+  await track(
+    'discordAccount',
+    db.delete(discordUsers).where(eq(discordUsers.id, d)).returning({ id: discordUsers.id }),
+  );
+  await db
+    .update(privacyRequests)
+    .set({ status: 'completed', completedAt: ctx.now(), result: { counts } })
+    .where(eq(privacyRequests.id, requestId));
+  await writeAudit(
+    db,
+    systemActor('privacy'),
+    {
+      action: 'privacy.deletion.execute',
+      resourceType: 'privacy_request',
+      resourceId: requestId,
+      metadata: { counts },
+    },
+    ctx.now(),
+  );
   return { counts };
 }
 
@@ -265,9 +400,18 @@ export async function listPrivacyRequests(db: DbExecutor, actor: Actor, limit = 
 /** Lädt den Inhalt einer Datenauskunft (nur solange sie nicht abgelaufen ist). */
 export async function getPrivacyExport(ctx: CoreContext, actor: Actor, id: string) {
   requirePermission(actor, 'privacy:export');
-  const [row] = await ctx.db.select().from(privacyRequests).where(and(eq(privacyRequests.id, id), eq(privacyRequests.type, 'export')));
+  const [row] = await ctx.db
+    .select()
+    .from(privacyRequests)
+    .where(and(eq(privacyRequests.id, id), eq(privacyRequests.type, 'export')));
   if (!row) throw errors.notFound('Datenauskunft');
-  if (!row.result || (row.expiresAt && row.expiresAt <= ctx.now())) throw errors.invalidState('Die Datenauskunft ist abgelaufen.');
-  await writeAudit(ctx.db, actor, { action: 'privacy.export.download', resourceType: 'privacy_request', resourceId: id }, ctx.now());
+  if (!row.result || (row.expiresAt && row.expiresAt <= ctx.now()))
+    throw errors.invalidState('Die Datenauskunft ist abgelaufen.');
+  await writeAudit(
+    ctx.db,
+    actor,
+    { action: 'privacy.export.download', resourceType: 'privacy_request', resourceId: id },
+    ctx.now(),
+  );
   return row.result;
 }

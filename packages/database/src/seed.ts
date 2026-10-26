@@ -19,13 +19,21 @@ export async function seedDatabase(db: Database): Promise<{ roles: number; facti
     for (const role of DEFAULT_ROLES) {
       const [created] = await tx
         .insert(appRoles)
-        .values({ key: role.key, name: role.name, description: role.description, priority: role.priority, isSystem: role.key === 'owner' })
+        .values({
+          key: role.key,
+          name: role.name,
+          description: role.description,
+          priority: role.priority,
+          isSystem: role.key === 'owner',
+        })
         .onConflictDoNothing({ target: appRoles.key })
         .returning();
       if (!created) continue;
       roles++;
       if (role.grants.length) {
-        await tx.insert(rolePermissions).values(role.grants.map((g) => ({ roleId: created.id, permission: g.permission })));
+        await tx
+          .insert(rolePermissions)
+          .values(role.grants.map((g) => ({ roleId: created.id, permission: g.permission })));
       }
     }
 

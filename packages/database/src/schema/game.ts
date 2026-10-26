@@ -43,7 +43,9 @@ export const factionMemberships = pgTable(
     endReason: text('end_reason'),
   },
   (t) => [
-    uniqueIndex('faction_memberships_active_uq').on(t.robloxUserId).where(sql`${t.status} = 'active'`),
+    uniqueIndex('faction_memberships_active_uq')
+      .on(t.robloxUserId)
+      .where(sql`${t.status} = 'active'`),
     index('faction_memberships_faction_idx').on(t.factionId, t.status),
   ],
 );
@@ -92,12 +94,17 @@ export const dutySessions = pgTable(
     durationSeconds: integer('duration_seconds'),
     endReason: text('end_reason'),
     /** Auffälligkeiten (z. B. Zeitabweichung, Doppelstart, Server-Timeout). */
-    flags: text('flags').array().notNull().default(sql`'{}'::text[]`),
+    flags: text('flags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex('duty_sessions_active_uq').on(t.robloxUserId).where(sql`${t.status} = 'active'`),
+    uniqueIndex('duty_sessions_active_uq')
+      .on(t.robloxUserId)
+      .where(sql`${t.status} = 'active'`),
     index('duty_sessions_user_idx').on(t.robloxUserId, t.startedAt),
     index('duty_sessions_faction_idx').on(t.factionId, t.startedAt),
     check('duty_sessions_end_chk', sql`${t.endedAt} is null or ${t.endedAt} >= ${t.startedAt}`),
@@ -166,7 +173,9 @@ export const vehicleAssignments = pgTable(
     unassignReason: text('unassign_reason'),
   },
   (t) => [
-    uniqueIndex('vehicle_assignments_active_uq').on(t.vehicleId, t.robloxUserId).where(sql`${t.unassignedAt} is null`),
+    uniqueIndex('vehicle_assignments_active_uq')
+      .on(t.vehicleId, t.robloxUserId)
+      .where(sql`${t.unassignedAt} is null`),
     index('vehicle_assignments_user_idx').on(t.robloxUserId),
   ],
 );
@@ -186,5 +195,8 @@ export const gameEvents = pgTable(
     error: text('error'),
     receivedAt: ts('received_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('game_events_idem_uq').on(t.apiKeyId, t.idempotencyKey), index('game_events_received_idx').on(t.receivedAt)],
+  (t) => [
+    uniqueIndex('game_events_idem_uq').on(t.apiKeyId, t.idempotencyKey),
+    index('game_events_received_idx').on(t.receivedAt),
+  ],
 );

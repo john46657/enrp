@@ -5,3 +5,4 @@ coverage
 packages/database/drizzle
 apps/bot/legacy
 roblox
+*.md

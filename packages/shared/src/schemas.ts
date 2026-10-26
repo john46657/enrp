@@ -9,6 +9,7 @@ export const reason = z
   .trim()
   .min(3, 'Bitte gib eine Begründung an (mindestens 3 Zeichen).')
   .max(1000)
+  // eslint-disable-next-line no-control-regex -- Steuerzeichen sollen gezielt abgelehnt werden
   .refine((v) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(v), 'Ungültige Zeichen');
 
 export const paginationQuery = z.object({

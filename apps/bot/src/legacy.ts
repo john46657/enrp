@@ -65,18 +65,28 @@ export function loadLegacy(logger: Logger): LegacyBridge {
   return {
     commands,
     async onReady(client) {
-      for (const guild of client.guilds.cache.values()) await tickets.refreshPanels(guild).catch((err: Error) => logger.warn({ err: err.message }, 'Ticketpanel'));
+      for (const guild of client.guilds.cache.values())
+        await tickets.refreshPanels(guild).catch((err: Error) => logger.warn({ err: err.message }, 'Ticketpanel'));
       tickets.startTicketWatcher(client);
       appStore.resetProgress();
       for (const problem of appStore.types().flatMap(validateType)) logger.warn(`Bewerbung: ${problem}`);
-      for (const guild of client.guilds.cache.values()) await appMessages.refreshPanels(guild).catch((err: Error) => logger.warn({ err: err.message }, 'Bewerbungspanel'));
-      setInterval(() => sweep(client).catch((err: Error) => logger.error({ err: err.message }, 'Bewerbungen')), 60_000).unref();
+      for (const guild of client.guilds.cache.values())
+        await appMessages
+          .refreshPanels(guild)
+          .catch((err: Error) => logger.warn({ err: err.message }, 'Bewerbungspanel'));
+      setInterval(
+        () => sweep(client).catch((err: Error) => logger.error({ err: err.message }, 'Bewerbungen')),
+        60_000,
+      ).unref();
     },
     onMessage: (message) => messageEvent.execute(message),
     onMemberAdd: (member) => memberAdd.execute(member),
     async autoRole(member) {
       const config = require('./config.json');
-      if (config.roles?.autoRole) await member.roles.add(config.roles.autoRole, 'Auto-Rolle').catch((err: Error) => logger.warn({ err: err.message }, 'Auto-Rolle'));
+      if (config.roles?.autoRole)
+        await member.roles
+          .add(config.roles.autoRole, 'Auto-Rolle')
+          .catch((err: Error) => logger.warn({ err: err.message }, 'Auto-Rolle'));
     },
     onMemberRemove: (member) => memberRemove.execute(member),
     setTicketHooks(hooks) {

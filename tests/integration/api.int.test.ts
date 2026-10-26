@@ -24,7 +24,9 @@ describe('API: Grundlagen', () => {
     expect(Object.keys(spec.json().paths).length).toBeGreaterThan(80);
     // Metriken nur mit Token
     expect((await app.inject('/metrics')).statusCode).toBe(404);
-    expect((await app.inject({ url: '/metrics', headers: { authorization: 'Bearer metrics-token' } })).body).toContain('enrp_api_requests_total');
+    expect((await app.inject({ url: '/metrics', headers: { authorization: 'Bearer metrics-token' } })).body).toContain(
+      'enrp_api_requests_total',
+    );
     await app.close();
   });
 
@@ -44,10 +46,20 @@ describe('API: Grundlagen', () => {
 
   it('Validierung liefert verständliche Fehler ohne Interna; Request-Größe ist begrenzt', async () => {
     const { app } = await createTestApp();
-    const res = await app.inject({ method: 'POST', url: '/api/v1/reports', headers: botHeaders(USER), payload: { description: '' } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/reports',
+      headers: botHeaders(USER),
+      payload: { description: '' },
+    });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('VALIDATION_FAILED');
-    const big = await app.inject({ method: 'POST', url: '/api/v1/reports', headers: { ...botHeaders(USER), 'content-type': 'application/json' }, payload: JSON.stringify({ description: 'x'.repeat(400_000) }) });
+    const big = await app.inject({
+      method: 'POST',
+      url: '/api/v1/reports',
+      headers: { ...botHeaders(USER), 'content-type': 'application/json' },
+      payload: JSON.stringify({ description: 'x'.repeat(400_000) }),
+    });
     expect(big.statusCode).toBe(413);
     await app.close();
   });
@@ -60,7 +72,12 @@ describe('API: Grundlagen', () => {
     expect(first.statusCode).toBe(200);
     expect(second.json().number).toBe(first.json().number);
     expect(second.headers['idempotent-replay']).toBe('true');
-    const conflict = await app.inject({ method: 'POST', url: '/api/v1/tickets', headers, payload: { subject: 'Anders' } });
+    const conflict = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tickets',
+      headers,
+      payload: { subject: 'Anders' },
+    });
     expect(conflict.statusCode).toBe(409);
     const list = await app.inject({ url: '/api/v1/tickets', headers: botHeaders(USER) });
     expect(list.json().total).toBe(1);
@@ -85,17 +102,26 @@ describe('API: Dashboard-Login mit Sitzung und CSRF', () => {
     const binding = cookiesOf(start).enrp_oauth!;
 
     // Ohne Browser-Bindung (anderer Browser) schlägt der Callback fehl.
-    const csrfAttempt = await app.inject({ url: `/api/v1/auth/discord/callback?code=c1&state=${state}`, cookies: { enrp_oauth: 'falsch' } });
+    const csrfAttempt = await app.inject({
+      url: `/api/v1/auth/discord/callback?code=c1&state=${state}`,
+      cookies: { enrp_oauth: 'falsch' },
+    });
     expect(csrfAttempt.headers.location).toContain('/login?error=');
 
     const start2 = await app.inject('/api/v1/auth/discord/login?redirect=/players');
     const state2 = new URL(start2.headers.location as string).searchParams.get('state')!;
-    const callback = await app.inject({ url: `/api/v1/auth/discord/callback?code=c2&state=${state2}`, cookies: { enrp_oauth: cookiesOf(start2).enrp_oauth! } });
+    const callback = await app.inject({
+      url: `/api/v1/auth/discord/callback?code=c2&state=${state2}`,
+      cookies: { enrp_oauth: cookiesOf(start2).enrp_oauth! },
+    });
     expect(callback.headers.location).toBe('http://localhost:3000/players');
     const session = cookiesOf(callback).enrp_session!;
     expect(session).toBeTruthy();
     // State ist verbraucht (Replay-Schutz)
-    const replay = await app.inject({ url: `/api/v1/auth/discord/callback?code=c2&state=${state2}`, cookies: { enrp_oauth: cookiesOf(start2).enrp_oauth! } });
+    const replay = await app.inject({
+      url: `/api/v1/auth/discord/callback?code=c2&state=${state2}`,
+      cookies: { enrp_oauth: cookiesOf(start2).enrp_oauth! },
+    });
     expect(replay.headers.location).toContain('error=');
     expect(binding).toBeTruthy();
 
@@ -104,15 +130,37 @@ describe('API: Dashboard-Login mit Sitzung und CSRF', () => {
     expect(me.json().permissions).toContain('moderation:create');
     const csrf = me.json().csrfToken;
 
-    const noCsrf = await app.inject({ method: 'POST', url: '/api/v1/tickets', cookies: { enrp_session: session }, payload: { subject: 'x' } });
+    const noCsrf = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tickets',
+      cookies: { enrp_session: session },
+      payload: { subject: 'x' },
+    });
     expect(noCsrf.statusCode).toBe(403);
     expect(noCsrf.json().error.code).toBe('CSRF_FAILED');
-    const wrongOrigin = await app.inject({ method: 'POST', url: '/api/v1/tickets', cookies: { enrp_session: session }, headers: { 'x-csrf-token': csrf, origin: 'https://evil.example' }, payload: { subject: 'x' } });
+    const wrongOrigin = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tickets',
+      cookies: { enrp_session: session },
+      headers: { 'x-csrf-token': csrf, origin: 'https://evil.example' },
+      payload: { subject: 'x' },
+    });
     expect(wrongOrigin.statusCode).toBe(403);
-    const ok = await app.inject({ method: 'POST', url: '/api/v1/tickets', cookies: { enrp_session: session }, headers: { 'x-csrf-token': csrf, origin: 'http://localhost:3000' }, payload: { subject: 'Echt' } });
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tickets',
+      cookies: { enrp_session: session },
+      headers: { 'x-csrf-token': csrf, origin: 'http://localhost:3000' },
+      payload: { subject: 'Echt' },
+    });
     expect(ok.statusCode).toBe(200);
 
-    await app.inject({ method: 'POST', url: '/api/v1/auth/logout', cookies: { enrp_session: session }, headers: { 'x-csrf-token': csrf } });
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      cookies: { enrp_session: session },
+      headers: { 'x-csrf-token': csrf },
+    });
     expect((await app.inject({ url: '/api/v1/auth/me', cookies: { enrp_session: session } })).statusCode).toBe(401);
     const logins = await ctx.db.select().from(auditEvents).where(eq(auditEvents.action, 'auth.login'));
     expect(logins).toHaveLength(1);
@@ -124,7 +172,10 @@ describe('API: Dashboard-Login mit Sitzung und CSRF', () => {
     const { app } = await createTestApp(createTestContext(), oauthFetch.impl);
     const start = await app.inject('/api/v1/auth/discord/login');
     const state = new URL(start.headers.location as string).searchParams.get('state')!;
-    const cb = await app.inject({ url: `/api/v1/auth/discord/callback?code=c&state=${state}`, cookies: { enrp_oauth: cookiesOf(start).enrp_oauth! } });
+    const cb = await app.inject({
+      url: `/api/v1/auth/discord/callback?code=c&state=${state}`,
+      cookies: { enrp_oauth: cookiesOf(start).enrp_oauth! },
+    });
     expect(cb.headers.location).toContain('error=kein_zugriff');
     expect(cookiesOf(cb).enrp_session).toBeUndefined();
     await app.close();
@@ -143,11 +194,17 @@ describe('API: Roblox-Verifizierung (Ende-zu-Ende mit OAuth-Attrappen)', () => {
     expect(begin.statusCode).toBe(302);
     const bind = cookiesOf(begin).enrp_vbind!;
     const discordState = new URL(begin.headers.location as string).searchParams.get('state')!;
-    const discordCb = await app.inject({ url: `/api/v1/verification/discord/callback?code=d1&state=${discordState}`, cookies: { enrp_vbind: bind } });
+    const discordCb = await app.inject({
+      url: `/api/v1/verification/discord/callback?code=d1&state=${discordState}`,
+      cookies: { enrp_vbind: bind },
+    });
     const robloxUrl = new URL(discordCb.headers.location as string);
     expect(robloxUrl.host).toBe('apis.roblox.com');
     expect(robloxUrl.searchParams.get('scope')).toBe('openid profile');
-    const robloxCb = await app.inject({ url: `/api/v1/verification/roblox/callback?code=r1&state=${robloxUrl.searchParams.get('state')}`, cookies: { enrp_vbind: bind } });
+    const robloxCb = await app.inject({
+      url: `/api/v1/verification/roblox/callback?code=r1&state=${robloxUrl.searchParams.get('state')}`,
+      cookies: { enrp_vbind: bind },
+    });
     expect(robloxCb.statusCode).toBe(200);
     expect(robloxCb.body).toContain('RPHeld');
     expect(robloxCb.headers['content-security-policy']).toContain("default-src 'none'");
@@ -172,7 +229,10 @@ describe('API: Roblox-Verifizierung (Ende-zu-Ende mit OAuth-Attrappen)', () => {
     const url = new URL(start.json().url);
     const begin = await app.inject(url.pathname + url.search);
     const discordState = new URL(begin.headers.location as string).searchParams.get('state')!;
-    const cb = await app.inject({ url: `/api/v1/verification/discord/callback?code=d&state=${discordState}`, cookies: { enrp_vbind: cookiesOf(begin).enrp_vbind! } });
+    const cb = await app.inject({
+      url: `/api/v1/verification/discord/callback?code=d&state=${discordState}`,
+      cookies: { enrp_vbind: cookiesOf(begin).enrp_vbind! },
+    });
     expect(cb.statusCode).toBe(403);
     expect(cb.body).toContain('Falsches Discord-Konto');
     expect(await ctx.db.select().from(accountLinks)).toHaveLength(0);
@@ -185,19 +245,43 @@ describe('API: Roblox-Spielserver', () => {
     const ctx = createTestContext();
     const { app } = await createTestApp(ctx);
     const { key } = await game.createRobloxApiKey(ctx, await owner(ctx), { name: 'Live' }, 'Einrichtung');
-    const headers = (nonce: string) => ({ authorization: `Bearer ${key}`, 'x-roblox-timestamp': String(Math.floor(ctx.now().getTime() / 1000)), 'x-roblox-nonce': nonce });
+    const headers = (nonce: string) => ({
+      authorization: `Bearer ${key}`,
+      'x-roblox-timestamp': String(Math.floor(ctx.now().getTime() / 1000)),
+      'x-roblox-nonce': nonce,
+    });
     const payload = { jobId: 'job-a', placeId: '1', players: [{ userId: 10, username: 'Spieler10' }] };
-    const ok = await app.inject({ method: 'POST', url: '/api/v1/game/heartbeat', headers: headers('nonce-aaaaaaaaaaaaaaaa'), payload });
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/v1/game/heartbeat',
+      headers: headers('nonce-aaaaaaaaaaaaaaaa'),
+      payload,
+    });
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ killSwitch: false, maintenance: { active: false } });
-    const replay = await app.inject({ method: 'POST', url: '/api/v1/game/heartbeat', headers: headers('nonce-aaaaaaaaaaaaaaaa'), payload });
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/api/v1/game/heartbeat',
+      headers: headers('nonce-aaaaaaaaaaaaaaaa'),
+      payload,
+    });
     expect(replay.statusCode).toBe(409);
     expect(replay.json().error.code).toBe('REPLAY_DETECTED');
     const noKey = await app.inject({ method: 'POST', url: '/api/v1/game/heartbeat', payload });
     expect(noKey.statusCode).toBe(401);
-    const invalid = await app.inject({ method: 'POST', url: '/api/v1/game/events', headers: headers('nonce-bbbbbbbbbbbbbbbb'), payload: { jobId: 'job-a', events: [{ id: 'x', type: 'hack', data: {} }] } });
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/v1/game/events',
+      headers: headers('nonce-bbbbbbbbbbbbbbbb'),
+      payload: { jobId: 'job-a', events: [{ id: 'x', type: 'hack', data: {} }] },
+    });
     expect(invalid.statusCode).toBe(400);
-    const redeemNoKey = await app.inject({ method: 'POST', url: '/api/v1/game/redeem', headers: headers('nonce-cccccccccccccccc'), payload: { jobId: 'job-a', userId: 10, code: 'ABCD' } });
+    const redeemNoKey = await app.inject({
+      method: 'POST',
+      url: '/api/v1/game/redeem',
+      headers: headers('nonce-cccccccccccccccc'),
+      payload: { jobId: 'job-a', userId: 10, code: 'ABCD' },
+    });
     expect(redeemNoKey.statusCode).toBe(400);
     await app.close();
   });

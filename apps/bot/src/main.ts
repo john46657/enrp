@@ -38,7 +38,9 @@ const client = new Client({
 const commands = new Map<string, BotCommand>();
 const components = new Map<string, NonNullable<BotCommand['components']>[string]>();
 for (const command of COMMANDS) {
-  (command.data as { setContexts: (...c: InteractionContextType[]) => unknown }).setContexts(InteractionContextType.Guild);
+  (command.data as { setContexts: (...c: InteractionContextType[]) => unknown }).setContexts(
+    InteractionContextType.Guild,
+  );
   commands.set(command.data.name, command);
   for (const [prefix, handler] of Object.entries(command.components ?? {})) components.set(prefix, handler);
 }
@@ -72,14 +74,20 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
   const command = commands.get(interaction.commandName);
   if (!command) return;
   const key = commandKey(interaction);
-  if (botConfig?.bot.disabledCommands.includes(interaction.commandName) || botConfig?.bot.disabledCommands.includes(key)) {
+  if (
+    botConfig?.bot.disabledCommands.includes(interaction.commandName) ||
+    botConfig?.bot.disabledCommands.includes(key)
+  ) {
     return interaction.reply({ content: '⏸️ Dieser Befehl ist derzeit deaktiviert.', flags: MessageFlags.Ephemeral });
   }
   const defer = command.defer ?? 'ephemeral';
   if (defer) await interaction.deferReply(defer === 'ephemeral' ? { flags: MessageFlags.Ephemeral } : {});
   const api = apis.forInteraction(interaction);
   // Vorabprüfung inkl. Rollen-Overrides (/permissions grant|revoke). Die API prüft zusätzlich jede Aktion.
-  const access = await api.post<{ allowed: boolean; permission: string | null; source: string }>('/api/v1/permissions/check', { command: key });
+  const access = await api.post<{ allowed: boolean; permission: string | null; source: string }>(
+    '/api/v1/permissions/check',
+    { command: key },
+  );
   if (!access.allowed) {
     const text = `⛔ Du darfst \`/${key}\` nicht verwenden${access.permission ? ` (benötigt \`${access.permission}\`)` : ''}.`;
     return defer ? interaction.editReply(text) : interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
@@ -97,7 +105,11 @@ async function handleComponent(interaction: Interaction) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  const label = interaction.isChatInputCommand() ? `/${interaction.commandName}` : 'customId' in interaction ? interaction.customId : interaction.type;
+  const label = interaction.isChatInputCommand()
+    ? `/${interaction.commandName}`
+    : 'customId' in interaction
+      ? interaction.customId
+      : interaction.type;
   try {
     if (interaction.isChatInputCommand()) await handleCommand(interaction);
     else await handleComponent(interaction);
@@ -106,7 +118,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!(err as { status?: number }).status) logger.error({ err, label }, 'Interaktion fehlgeschlagen');
     if (!interaction.isRepliable()) return;
     const content = `❌ ${message}`;
-    await (interaction.deferred || interaction.replied ? interaction.editReply({ content, embeds: [], components: [] }) : interaction.reply({ content, flags: MessageFlags.Ephemeral })).catch(() => {});
+    await (
+      interaction.deferred || interaction.replied
+        ? interaction.editReply({ content, embeds: [], components: [] })
+        : interaction.reply({ content, flags: MessageFlags.Ephemeral })
+    ).catch(() => {});
   }
 });
 
@@ -127,7 +143,14 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
       if (channel?.isTextBased()) {
         await channel.send({
           content: member.toString(),
-          embeds: [{ title: welcome.title, description: text, color: parseInt(welcome.color.slice(1), 16) || COLORS.primary, thumbnail: { url: member.displayAvatarURL({ size: 256 }) } }],
+          embeds: [
+            {
+              title: welcome.title,
+              description: text,
+              color: parseInt(welcome.color.slice(1), 16) || COLORS.primary,
+              thumbnail: { url: member.displayAvatarURL({ size: 256 }) },
+            },
+          ],
           allowedMentions: { users: [member.id] },
         });
       }
@@ -153,9 +176,23 @@ client.once(Events.ClientReady, async (ready) => {
 
   // Ticketpanel-Ereignisse in die Datenbank spiegeln (Dashboard).
   legacy?.setTicketHooks({
-    open: (p) => apis.service.post('/api/v1/tickets/sync', { event: 'open', channelId: p.channelId, creatorId: p.creatorId, subject: p.subject, category: p.category }),
-    claim: (p) => apis.service.post('/api/v1/tickets/sync', { event: 'claim', channelId: p.channelId, assigneeId: p.assigneeId }),
-    close: (p) => apis.service.post('/api/v1/tickets/sync', { event: 'close', channelId: p.channelId, closedBy: p.closedBy, reason: p.reason }),
+    open: (p) =>
+      apis.service.post('/api/v1/tickets/sync', {
+        event: 'open',
+        channelId: p.channelId,
+        creatorId: p.creatorId,
+        subject: p.subject,
+        category: p.category,
+      }),
+    claim: (p) =>
+      apis.service.post('/api/v1/tickets/sync', { event: 'claim', channelId: p.channelId, assigneeId: p.assigneeId }),
+    close: (p) =>
+      apis.service.post('/api/v1/tickets/sync', {
+        event: 'close',
+        channelId: p.channelId,
+        closedBy: p.closedBy,
+        reason: p.reason,
+      }),
   });
   await legacy?.onReady(ready);
   await refreshConfig();
@@ -164,11 +201,20 @@ client.once(Events.ClientReady, async (ready) => {
   const instanceId = `${process.env.HOSTNAME ?? 'local'}-${randomUUID().slice(0, 8)}`;
   const beat = async () => {
     await apis.service
-      .post('/api/v1/monitoring/heartbeat', { service: 'bot', instanceId, version: env.APP_VERSION, info: { guilds: ready.guilds.cache.size, ping: ready.ws.ping } })
+      .post('/api/v1/monitoring/heartbeat', {
+        service: 'bot',
+        instanceId,
+        version: env.APP_VERSION,
+        info: { guilds: ready.guilds.cache.size, ping: ready.ws.ping },
+      })
       .catch((err) => logger.warn({ err: describeError(err) }, 'Heartbeat an API fehlgeschlagen'));
     // Präsenz mit echter Spielerzahl (oder Hinweis, wenn kein Server verbunden ist).
-    const status = await apis.service.get<{ roblox: { connected: boolean; playersOnline: number } | null }>('/api/v1/status').catch(() => null);
-    const text = status?.roblox?.connected ? `${status.roblox.playersOnline} Spieler online` : (botConfig?.bot.presenceText ?? 'GermanRP');
+    const status = await apis.service
+      .get<{ roblox: { connected: boolean; playersOnline: number } | null }>('/api/v1/status')
+      .catch(() => null);
+    const text = status?.roblox?.connected
+      ? `${status.roblox.playersOnline} Spieler online`
+      : (botConfig?.bot.presenceText ?? 'GermanRP');
     ready.user.setActivity(text, { type: ActivityType.Watching });
   };
   await beat();
@@ -193,6 +239,9 @@ process.on('unhandledRejection', (err) => logger.error({ err }, 'unhandledReject
 
 client.login(env.token).catch((err: Error & { code?: string }) => {
   logger.fatal({ code: err.code, message: err.message }, 'Login fehlgeschlagen');
-  if (/disallowed intents/i.test(err.message)) logger.fatal('Im Developer Portal unter „Bot“ die Privileged Intents „Server Members“ und „Message Content“ aktivieren.');
+  if (/disallowed intents/i.test(err.message))
+    logger.fatal(
+      'Im Developer Portal unter „Bot“ die Privileged Intents „Server Members“ und „Message Content“ aktivieren.',
+    );
   process.exit(1);
 });

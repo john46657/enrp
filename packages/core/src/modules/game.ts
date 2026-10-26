@@ -34,7 +34,12 @@ import { vehiclesForPlayer } from './vehicles';
 
 const KEY_PREFIX = 'enrp_rbx_';
 
-export async function createRobloxApiKey(ctx: CoreContext, actor: Actor, input: { name: string; allowedPlaceIds?: string[] }, reason: string) {
+export async function createRobloxApiKey(
+  ctx: CoreContext,
+  actor: Actor,
+  input: { name: string; allowedPlaceIds?: string[] },
+  reason: string,
+) {
   requirePermission(actor, 'roblox_servers:configure');
   const secret = `${KEY_PREFIX}${randomToken(32)}`;
   const row = await ctx.db.transaction(async (tx) => {
@@ -49,7 +54,18 @@ export async function createRobloxApiKey(ctx: CoreContext, actor: Actor, input: 
         createdBy: actorId(actor),
       })
       .returning();
-    await writeAudit(tx, actor, { action: 'roblox_key.create', resourceType: 'api_key', resourceId: created!.id, reason, after: { name: input.name, prefix: created!.prefix } }, ctx.now());
+    await writeAudit(
+      tx,
+      actor,
+      {
+        action: 'roblox_key.create',
+        resourceType: 'api_key',
+        resourceId: created!.id,
+        reason,
+        after: { name: input.name, prefix: created!.prefix },
+      },
+      ctx.now(),
+    );
     return created!;
   });
   return { id: row.id, name: row.name, prefix: row.prefix, key: secret };
@@ -63,7 +79,12 @@ export async function revokeRobloxApiKey(ctx: CoreContext, actor: Actor, id: str
     .where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt)))
     .returning();
   if (!row) throw errors.notFound('Aktiver API-Schlüssel');
-  await writeAudit(ctx.db, actor, { action: 'roblox_key.revoke', resourceType: 'api_key', resourceId: id, reason }, ctx.now());
+  await writeAudit(
+    ctx.db,
+    actor,
+    { action: 'roblox_key.revoke', resourceType: 'api_key', resourceId: id, reason },
+    ctx.now(),
+  );
   return { id: row.id, revokedAt: row.revokedAt };
 }
 
@@ -94,24 +115,39 @@ export async function authenticateRobloxRequest(
   input: { bearer?: string; timestamp?: string; nonce?: string; placeId?: string | null },
   now: Date,
 ): Promise<{ apiKeyId: string }> {
-  if (!input.bearer?.startsWith(KEY_PREFIX)) throw new AppError('UNAUTHENTICATED', 'Ungültiger oder fehlender API-Schlüssel.');
-  const [key] = await db.select().from(apiKeys).where(eq(apiKeys.keyHash, sha256Hex(input.bearer)));
-  if (!key || key.revokedAt || !safeEqual(key.keyHash, sha256Hex(input.bearer))) throw new AppError('UNAUTHENTICATED', 'Ungültiger oder widerrufener API-Schlüssel.');
+  if (!input.bearer?.startsWith(KEY_PREFIX))
+    throw new AppError('UNAUTHENTICATED', 'Ungültiger oder fehlender API-Schlüssel.');
+  const [key] = await db
+    .select()
+    .from(apiKeys)
+    .where(eq(apiKeys.keyHash, sha256Hex(input.bearer)));
+  if (!key || key.revokedAt || !safeEqual(key.keyHash, sha256Hex(input.bearer)))
+    throw new AppError('UNAUTHENTICATED', 'Ungültiger oder widerrufener API-Schlüssel.');
   const ts = Number(input.timestamp);
   if (!Number.isFinite(ts) || Math.abs(now.getTime() / 1000 - ts) > REQUEST_MAX_SKEW_SECONDS) {
     throw new AppError('INVALID_SIGNATURE', 'Zeitstempel fehlt oder liegt außerhalb des erlaubten Zeitfensters.');
   }
-  if (!input.nonce || !/^[\w{}-]{16,64}$/.test(input.nonce)) throw new AppError('INVALID_SIGNATURE', 'Nonce fehlt oder ist ungültig.');
+  if (!input.nonce || !/^[\w{}-]{16,64}$/.test(input.nonce))
+    throw new AppError('INVALID_SIGNATURE', 'Nonce fehlt oder ist ungültig.');
   if (key.allowedPlaceIds?.length && (!input.placeId || !key.allowedPlaceIds.includes(input.placeId))) {
     throw errors.forbidden('Dieser API-Schlüssel ist für diesen Place nicht freigegeben.');
   }
   try {
     await db.insert(requestNonces).values({ nonce: `${key.id}:${input.nonce}`, apiKeyId: key.id, receivedAt: now });
   } catch (err) {
-    if (isUniqueViolation(err)) throw new AppError('REPLAY_DETECTED', 'Diese Anfrage wurde bereits verarbeitet (Nonce wiederverwendet).');
+    if (isUniqueViolation(err))
+      throw new AppError('REPLAY_DETECTED', 'Diese Anfrage wurde bereits verarbeitet (Nonce wiederverwendet).');
     throw err;
   }
-  await db.update(apiKeys).set({ lastUsedAt: now }).where(and(eq(apiKeys.id, key.id), sql`(${apiKeys.lastUsedAt} is null or ${apiKeys.lastUsedAt} < ${new Date(now.getTime() - 60_000)})`));
+  await db
+    .update(apiKeys)
+    .set({ lastUsedAt: now })
+    .where(
+      and(
+        eq(apiKeys.id, key.id),
+        sql`(${apiKeys.lastUsedAt} is null or ${apiKeys.lastUsedAt} < ${new Date(now.getTime() - 60_000)})`,
+      ),
+    );
   return { apiKeyId: key.id };
 }
 
@@ -125,7 +161,13 @@ export const heartbeatSchema = z.object({
   placeVersion: z.number().int().nonnegative().optional(),
   maxPlayers: z.number().int().min(0).max(1000).optional(),
   players: z
-    .array(z.object({ userId: z.number().int().positive(), username: z.string().min(1).max(40), displayName: z.string().max(60).optional() }))
+    .array(
+      z.object({
+        userId: z.number().int().positive(),
+        username: z.string().min(1).max(40),
+        displayName: z.string().max(60).optional(),
+      }),
+    )
     .max(200),
   /** Zeitpunkt der letzten verarbeiteten Ankündigung (ISO), damit nur neue geliefert werden. */
   announcementsSince: z.iso.datetime().optional(),
@@ -159,7 +201,14 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
       })
       .onConflictDoUpdate({
         target: gameServers.jobId,
-        set: { playerCount: input.players.length, maxPlayers: input.maxPlayers ?? null, placeVersion: input.placeVersion ?? null, status: 'online', lastHeartbeatAt: now, endedAt: null },
+        set: {
+          playerCount: input.players.length,
+          maxPlayers: input.maxPlayers ?? null,
+          placeVersion: input.placeVersion ?? null,
+          status: 'online',
+          lastHeartbeatAt: now,
+          endedAt: null,
+        },
       })
       .returning();
     const txCtx: TxContext = { ...ctx, db: tx };
@@ -195,23 +244,35 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
 }
 
 async function openPlaySession(db: DbExecutor, robloxUserId: number, serverId: string, now: Date) {
-  const [existing] = await db.select().from(playSessions).where(and(eq(playSessions.robloxUserId, robloxUserId), isNull(playSessions.leftAt)));
+  const [existing] = await db
+    .select()
+    .from(playSessions)
+    .where(and(eq(playSessions.robloxUserId, robloxUserId), isNull(playSessions.leftAt)));
   if (existing?.serverId === serverId) return;
   if (existing) await closePlaySession(db, robloxUserId, now);
   await db.insert(playSessions).values({ robloxUserId, serverId, joinedAt: now }).onConflictDoNothing();
-  await db.update(robloxUsers).set({ firstSeenAt: sql`coalesce(${robloxUsers.firstSeenAt}, ${now})`, lastSeenAt: now }).where(eq(robloxUsers.id, robloxUserId));
+  await db
+    .update(robloxUsers)
+    .set({ firstSeenAt: sql`coalesce(${robloxUsers.firstSeenAt}, ${now})`, lastSeenAt: now })
+    .where(eq(robloxUsers.id, robloxUserId));
 }
 
 async function closePlaySession(db: DbExecutor, robloxUserId: number, now: Date) {
   const [closed] = await db
     .update(playSessions)
-    .set({ leftAt: now, durationSeconds: sql`greatest(0, extract(epoch from (${now}::timestamptz - ${playSessions.joinedAt}))::int)` })
+    .set({
+      leftAt: now,
+      durationSeconds: sql`greatest(0, extract(epoch from (${now}::timestamptz - ${playSessions.joinedAt}))::int)`,
+    })
     .where(and(eq(playSessions.robloxUserId, robloxUserId), isNull(playSessions.leftAt)))
     .returning();
   if (closed?.durationSeconds) {
     await db
       .update(robloxUsers)
-      .set({ totalPlaytimeSeconds: sql`${robloxUsers.totalPlaytimeSeconds} + ${closed.durationSeconds}`, lastSeenAt: now })
+      .set({
+        totalPlaytimeSeconds: sql`${robloxUsers.totalPlaytimeSeconds} + ${closed.durationSeconds}`,
+        lastSeenAt: now,
+      })
       .where(eq(robloxUsers.id, robloxUserId));
   }
   return closed ?? null;
@@ -221,9 +282,16 @@ async function closePlaySession(db: DbExecutor, robloxUserId: number, now: Date)
 export async function processShutdown(ctx: CoreContext, jobId: string) {
   const now = ctx.now();
   return ctx.db.transaction(async (tx) => {
-    const [server] = await tx.update(gameServers).set({ status: 'offline', endedAt: now, playerCount: 0 }).where(eq(gameServers.jobId, jobId)).returning();
+    const [server] = await tx
+      .update(gameServers)
+      .set({ status: 'offline', endedAt: now, playerCount: 0 })
+      .where(eq(gameServers.jobId, jobId))
+      .returning();
     if (!server) return { closed: 0 };
-    const open = await tx.select({ robloxUserId: playSessions.robloxUserId }).from(playSessions).where(and(eq(playSessions.serverId, server.id), isNull(playSessions.leftAt)));
+    const open = await tx
+      .select({ robloxUserId: playSessions.robloxUserId })
+      .from(playSessions)
+      .where(and(eq(playSessions.serverId, server.id), isNull(playSessions.leftAt)));
     for (const s of open) {
       await closePlaySession(tx, s.robloxUserId, now);
       await endActiveDuty({ ...ctx, db: tx }, s.robloxUserId, 'server_shutdown', now);
@@ -235,11 +303,20 @@ export async function processShutdown(ctx: CoreContext, jobId: string) {
 /** Worker: Server ohne Heartbeat als offline markieren und deren Spielsessions zum letzten Heartbeat schließen. */
 export async function markStaleServers(ctx: CoreContext, timeoutSeconds: number) {
   const cutoff = new Date(ctx.now().getTime() - timeoutSeconds * 1000);
-  const stale = await ctx.db.select().from(gameServers).where(and(eq(gameServers.status, 'online'), lt(gameServers.lastHeartbeatAt, cutoff)));
+  const stale = await ctx.db
+    .select()
+    .from(gameServers)
+    .where(and(eq(gameServers.status, 'online'), lt(gameServers.lastHeartbeatAt, cutoff)));
   for (const server of stale) {
     await ctx.db.transaction(async (tx) => {
-      await tx.update(gameServers).set({ status: 'offline', endedAt: server.lastHeartbeatAt, playerCount: 0 }).where(eq(gameServers.id, server.id));
-      const open = await tx.select({ robloxUserId: playSessions.robloxUserId }).from(playSessions).where(and(eq(playSessions.serverId, server.id), isNull(playSessions.leftAt)));
+      await tx
+        .update(gameServers)
+        .set({ status: 'offline', endedAt: server.lastHeartbeatAt, playerCount: 0 })
+        .where(eq(gameServers.id, server.id));
+      const open = await tx
+        .select({ robloxUserId: playSessions.robloxUserId })
+        .from(playSessions)
+        .where(and(eq(playSessions.serverId, server.id), isNull(playSessions.leftAt)));
       for (const s of open) await closePlaySession(tx, s.robloxUserId, server.lastHeartbeatAt);
     });
   }
@@ -251,9 +328,18 @@ export async function serverOverview(db: DbExecutor, now: Date, staleSeconds = 1
   const online = await db
     .select()
     .from(gameServers)
-    .where(and(eq(gameServers.status, 'online'), sql`${gameServers.lastHeartbeatAt} > ${new Date(now.getTime() - staleSeconds * 1000)}`))
+    .where(
+      and(
+        eq(gameServers.status, 'online'),
+        sql`${gameServers.lastHeartbeatAt} > ${new Date(now.getTime() - staleSeconds * 1000)}`,
+      ),
+    )
     .orderBy(desc(gameServers.lastHeartbeatAt));
-  const [last] = await db.select({ at: gameServers.lastHeartbeatAt }).from(gameServers).orderBy(desc(gameServers.lastHeartbeatAt)).limit(1);
+  const [last] = await db
+    .select({ at: gameServers.lastHeartbeatAt })
+    .from(gameServers)
+    .orderBy(desc(gameServers.lastHeartbeatAt))
+    .limit(1);
   return {
     servers: online,
     playersOnline: online.reduce((sum, s) => sum + s.playerCount, 0),
@@ -279,11 +365,20 @@ const baseEvent = z.object({
 const playerRef = { userId: z.number().int().positive(), username: z.string().min(1).max(40).optional() };
 
 export const gameEventSchema = z.discriminatedUnion('type', [
-  baseEvent.extend({ type: z.literal('player_joined'), data: z.object({ ...playerRef, username: z.string().min(1).max(40), displayName: z.string().max(60).optional() }) }),
+  baseEvent.extend({
+    type: z.literal('player_joined'),
+    data: z.object({ ...playerRef, username: z.string().min(1).max(40), displayName: z.string().max(60).optional() }),
+  }),
   baseEvent.extend({ type: z.literal('player_left'), data: z.object(playerRef) }),
-  baseEvent.extend({ type: z.literal('duty_start'), data: z.object({ ...playerRef, faction: z.string().max(40).optional() }) }),
+  baseEvent.extend({
+    type: z.literal('duty_start'),
+    data: z.object({ ...playerRef, faction: z.string().max(40).optional() }),
+  }),
   baseEvent.extend({ type: z.literal('duty_end'), data: z.object(playerRef) }),
-  baseEvent.extend({ type: z.literal('redemption_delivered'), data: z.object({ ...playerRef, redemptionId: z.uuid() }) }),
+  baseEvent.extend({
+    type: z.literal('redemption_delivered'),
+    data: z.object({ ...playerRef, redemptionId: z.uuid() }),
+  }),
 ]);
 export type GameEvent = z.infer<typeof gameEventSchema>;
 
@@ -292,13 +387,22 @@ export const eventBatchSchema = z.object({
   events: z.array(gameEventSchema).min(1).max(50),
 });
 
-export type EventResult = { id: string; status: 'processed' | 'duplicate' | 'rejected' | 'ignored'; result?: unknown; error?: string };
+export type EventResult = {
+  id: string;
+  status: 'processed' | 'duplicate' | 'rejected' | 'ignored';
+  result?: unknown;
+  error?: string;
+};
 
 /**
  * Verarbeitet Spielereignisse einzeln und idempotent (eindeutig je API-Schlüssel + Ereignis-ID).
  * Ungültige Ereignisse werden verworfen und protokolliert, ohne den Rest der Charge zu blockieren.
  */
-export async function processGameEvents(ctx: CoreContext, actor: RobloxServerActor, batch: z.infer<typeof eventBatchSchema>): Promise<EventResult[]> {
+export async function processGameEvents(
+  ctx: CoreContext,
+  actor: RobloxServerActor,
+  batch: z.infer<typeof eventBatchSchema>,
+): Promise<EventResult[]> {
   const server = await getServerByJobId(ctx.db, batch.jobId);
   if (!server || server.apiKeyId !== actor.apiKeyId) {
     throw errors.badRequest('Unbekannter Server. Bitte zuerst einen Heartbeat senden.');
@@ -311,7 +415,14 @@ export async function processGameEvents(ctx: CoreContext, actor: RobloxServerAct
       const outcome = await ctx.db.transaction(async (tx) => {
         const [inserted] = await tx
           .insert(gameEvents)
-          .values({ serverId: server.id, apiKeyId: actor.apiKeyId, type: event.type, idempotencyKey: event.id, payload: event, receivedAt: ctx.now() })
+          .values({
+            serverId: server.id,
+            apiKeyId: actor.apiKeyId,
+            type: event.type,
+            idempotencyKey: event.id,
+            payload: event,
+            receivedAt: ctx.now(),
+          })
           .onConflictDoNothing()
           .returning({ id: gameEvents.id });
         if (!inserted) {
@@ -328,14 +439,21 @@ export async function processGameEvents(ctx: CoreContext, actor: RobloxServerAct
           result = { reason: 'kill_switch' };
         } else {
           result = await applyEvent({ ...ctx, db: tx }, server.id, event, dutyTracking);
-          if (result && typeof result === 'object' && (result as { status?: string }).status === 'rejected') status = 'rejected';
+          if (result && typeof result === 'object' && (result as { status?: string }).status === 'rejected')
+            status = 'rejected';
         }
-        await tx.update(gameEvents).set({ result: result as never, status }).where(eq(gameEvents.id, inserted.id));
+        await tx
+          .update(gameEvents)
+          .set({ result: result as never, status })
+          .where(eq(gameEvents.id, inserted.id));
         return { id: event.id, status, result };
       });
       results.push(outcome);
     } catch (err) {
-      ctx.logger.warn({ eventId: event.id, type: event.type, err: (err as Error).message }, 'Spielereignis fehlgeschlagen');
+      ctx.logger.warn(
+        { eventId: event.id, type: event.type, err: (err as Error).message },
+        'Spielereignis fehlgeschlagen',
+      );
       results.push({ id: event.id, status: 'rejected', error: 'Verarbeitung fehlgeschlagen' });
     }
   }
@@ -347,7 +465,11 @@ async function applyEvent(ctx: TxContext, serverId: string, event: GameEvent, du
   const reportedAt = event.occurredAt ? new Date(event.occurredAt) : null;
   switch (event.type) {
     case 'player_joined':
-      await upsertRobloxUser(ctx.db, { id: event.data.userId, username: event.data.username, displayName: event.data.displayName }, now);
+      await upsertRobloxUser(
+        ctx.db,
+        { id: event.data.userId, username: event.data.username, displayName: event.data.displayName },
+        now,
+      );
       await openPlaySession(ctx.db, event.data.userId, serverId, now);
       return { status: 'ok' };
     case 'player_left': {
@@ -362,7 +484,11 @@ async function applyEvent(ctx: TxContext, serverId: string, event: GameEvent, du
       if (!dutyTracking) return { status: 'rejected', reason: 'duty_tracking_disabled' };
       return endDuty(ctx, { robloxUserId: event.data.userId, reportedAt });
     case 'redemption_delivered':
-      return { status: (await confirmRedemptionDelivered(ctx.db, event.data.redemptionId, event.data.userId, now)) ? 'ok' : 'unknown_redemption' };
+      return {
+        status: (await confirmRedemptionDelivered(ctx.db, event.data.redemptionId, event.data.userId, now))
+          ? 'ok'
+          : 'unknown_redemption',
+      };
   }
 }
 
@@ -374,7 +500,9 @@ export async function playerAccess(ctx: CoreContext, robloxUserId: number) {
   return {
     allowed: !ban,
     ban: ban ? { reason: ban.reason, expiresAt: ban.expiresAt, number: ban.number } : null,
-    faction: membership ? { key: membership.faction.key, name: membership.faction.name, hasDuty: membership.faction.hasDuty } : null,
+    faction: membership
+      ? { key: membership.faction.key, name: membership.faction.name, hasDuty: membership.faction.hasDuty }
+      : null,
     vehicles: await vehiclesForPlayer(ctx.db, robloxUserId, membership?.faction.id ?? null),
   };
 }
@@ -385,18 +513,32 @@ export const redeemSchema = z.object({
   code: z.string().min(1).max(64),
 });
 
-export async function redeemFromGame(ctx: CoreContext, actor: RobloxServerActor, input: z.infer<typeof redeemSchema>, idempotencyKey: string) {
+export async function redeemFromGame(
+  ctx: CoreContext,
+  actor: RobloxServerActor,
+  input: z.infer<typeof redeemSchema>,
+  idempotencyKey: string,
+) {
   const server = await getServerByJobId(ctx.db, input.jobId);
   if (!server || server.apiKeyId !== actor.apiKeyId) throw errors.badRequest('Unbekannter Server.');
-  return redeemCode(ctx, { code: input.code, robloxUserId: input.userId, idempotencyKey: `${actor.apiKeyId}:${idempotencyKey}`, serverId: server.id });
+  return redeemCode(ctx, {
+    code: input.code,
+    robloxUserId: input.userId,
+    idempotencyKey: `${actor.apiKeyId}:${idempotencyKey}`,
+    serverId: server.id,
+  });
 }
 
 export async function recentGameEvents(db: DbExecutor, filter: { type?: string; status?: string; limit?: number }) {
   return db
     .select()
     .from(gameEvents)
-    .where(and(filter.type ? eq(gameEvents.type, filter.type) : undefined, filter.status ? eq(gameEvents.status, filter.status) : undefined))
+    .where(
+      and(
+        filter.type ? eq(gameEvents.type, filter.type) : undefined,
+        filter.status ? eq(gameEvents.status, filter.status) : undefined,
+      ),
+    )
     .orderBy(desc(gameEvents.receivedAt))
     .limit(Math.min(filter.limit ?? 100, 500));
 }
-

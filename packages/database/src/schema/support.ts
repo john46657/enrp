@@ -80,10 +80,19 @@ export const caseReports = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('case_reports_status_idx').on(t.status), index('case_reports_subject_roblox_idx').on(t.subjectRobloxId)],
+  (t) => [
+    index('case_reports_status_idx').on(t.status),
+    index('case_reports_subject_roblox_idx').on(t.subjectRobloxId),
+  ],
 );
 
-export const caseReferenceKind = pgEnum('case_reference_kind', ['url', 'report', 'ticket', 'moderation_action', 'discord_message']);
+export const caseReferenceKind = pgEnum('case_reference_kind', [
+  'url',
+  'report',
+  'ticket',
+  'moderation_action',
+  'discord_message',
+]);
 
 /**
  * Anhänge werden nicht als Dateien gespeichert, sondern als Referenzen (geprüfte HTTPS-URLs oder interne IDs).

@@ -13,7 +13,10 @@ export function createDeps(env: ApiEnv): ApiDeps {
   const redis = env.REDIS_URL ? createRedis(env.REDIS_URL, 'enrp-api') : undefined;
   const subscriber = env.REDIS_URL ? createRedis(env.REDIS_URL, 'enrp-api-sub') : undefined;
   const bullQueue = redis ? new BullJobQueue(redis) : undefined;
-  if (!bullQueue) logger.warn('REDIS_URL fehlt: Hintergrundjobs werden nur im Speicher gesammelt und NICHT ausgeführt (nur für lokale Tests).');
+  if (!bullQueue)
+    logger.warn(
+      'REDIS_URL fehlt: Hintergrundjobs werden nur im Speicher gesammelt und NICHT ausgeführt (nur für lokale Tests).',
+    );
   const realtime = new RealtimeHub(redis, subscriber);
   const core: CoreContext = {
     db: database.db,

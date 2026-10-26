@@ -9,13 +9,25 @@ interface Profile {
   faction: { key: string; name: string; since: string } | null;
   playtimeSeconds: number;
   online: boolean;
-  duty: { onDuty: { factionKey: string; since: string } | null; totalSeconds: number; sessions: number; weekSeconds: number; monthSeconds: number; perFaction: Array<{ factionName: string; seconds: number }> } | null;
+  duty: {
+    onDuty: { factionKey: string; since: string } | null;
+    totalSeconds: number;
+    sessions: number;
+    weekSeconds: number;
+    monthSeconds: number;
+    perFaction: Array<{ factionName: string; seconds: number }>;
+  } | null;
   discord: { id: string; username: string } | null;
-  private: { moderation: Array<{ number: number; type: string; status: string; reason: string; createdAt: string }>; reports: unknown[] } | null;
+  private: {
+    moderation: Array<{ number: number; type: string; status: string; reason: string; createdAt: string }>;
+    reports: unknown[];
+  } | null;
 }
 
 function profileEmbed(p: Profile) {
-  const e = embed(p.verified ? 'success' : 'muted').setTitle(p.roblox ? `👤 ${p.roblox.displayName ?? p.roblox.username} (@${p.roblox.username})` : '👤 Spielerprofil');
+  const e = embed(p.verified ? 'success' : 'muted').setTitle(
+    p.roblox ? `👤 ${p.roblox.displayName ?? p.roblox.username} (@${p.roblox.username})` : '👤 Spielerprofil',
+  );
   e.setDescription(
     table([
       ['Roblox-ID', p.roblox ? String(p.roblox.id) : '–'],
@@ -38,8 +50,13 @@ function profileEmbed(p: Profile) {
     });
   }
   if (p.private) {
-    const mods = p.private.moderation.slice(0, 5).map((m) => `#${m.number} ${m.type} (${m.status}) – ${m.reason.slice(0, 60)}`);
-    e.addFields({ name: '🔒 Intern: Moderation', value: mods.length ? mods.join('\n') : 'Keine Einträge' }, { name: '🔒 Intern: Reports', value: `${p.private.reports.length} Meldung(en)` });
+    const mods = p.private.moderation
+      .slice(0, 5)
+      .map((m) => `#${m.number} ${m.type} (${m.status}) – ${m.reason.slice(0, 60)}`);
+    e.addFields(
+      { name: '🔒 Intern: Moderation', value: mods.length ? mods.join('\n') : 'Keine Einträge' },
+      { name: '🔒 Intern: Reports', value: `${p.private.reports.length} Meldung(en)` },
+    );
   }
   return e;
 }
@@ -54,13 +71,17 @@ export const verify = defineCommand({
       s
         .setName('unlink')
         .setDescription('Kontoverknüpfung aufheben')
-        .addStringOption((o) => o.setName('grund').setDescription('Warum?').setRequired(true).setMinLength(3).setMaxLength(300)),
+        .addStringOption((o) =>
+          o.setName('grund').setDescription('Warum?').setRequired(true).setMinLength(3).setMaxLength(300),
+        ),
     ),
   async execute(interaction, { api }) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'start') {
       const { url, expiresAt } = await api.post<{ url: string; expiresAt: string }>('/api/v1/verification/start');
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel('Mit Roblox verifizieren'));
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel('Mit Roblox verifizieren'),
+      );
       return interaction.editReply({
         embeds: [
           embed()
@@ -73,7 +94,12 @@ export const verify = defineCommand({
       });
     }
     if (sub === 'status') {
-      const s = await api.get<{ verified: boolean; roblox: { id: number; username: string } | null; verifiedAt: string | null; lastAttempt: { outcome: string; at: string; reason: string | null } | null }>('/api/v1/verification/status');
+      const s = await api.get<{
+        verified: boolean;
+        roblox: { id: number; username: string } | null;
+        verifiedAt: string | null;
+        lastAttempt: { outcome: string; at: string; reason: string | null } | null;
+      }>('/api/v1/verification/status');
       return reply(
         interaction,
         embed(s.verified ? 'success' : 'muted')
@@ -86,7 +112,10 @@ export const verify = defineCommand({
       );
     }
     await api.post('/api/v1/verification/unlink', { reason: interaction.options.getString('grund', true) });
-    return reply(interaction, '✅ Die Verknüpfung wurde aufgehoben. Die Rolle „Verifiziert“ wird entfernt. Eine erneute Verifizierung ist erst nach der Wartezeit möglich.');
+    return reply(
+      interaction,
+      '✅ Die Verknüpfung wurde aufgehoben. Die Rolle „Verifiziert“ wird entfernt. Eine erneute Verifizierung ist erst nach der Wartezeit möglich.',
+    );
   },
 });
 
@@ -115,16 +144,28 @@ export const profile = defineCommand({
       const target = interaction.options.getUser('nutzer');
       const roblox = interaction.options.getString('roblox');
       if (!target && !roblox) return reply(interaction, 'Bitte einen Nutzer oder eine Roblox-ID angeben.');
-      const path = roblox ? `/api/v1/players/roblox/${encodeURIComponent(roblox)}` : `/api/v1/players/discord/${target!.id}`;
+      const path = roblox
+        ? `/api/v1/players/roblox/${encodeURIComponent(roblox)}`
+        : `/api/v1/players/discord/${target!.id}`;
       return reply(interaction, profileEmbed(await api.get<Profile>(path)));
     }
     const target = interaction.options.getUser('nutzer') ?? interaction.user;
-    const { items } = await api.get<{ items: Array<{ summary: string; createdAt: string; data: string | null }> }>('/api/v1/players/history', { query: { discordUserId: target.id } });
+    const { items } = await api.get<{ items: Array<{ summary: string; createdAt: string; data: string | null }> }>(
+      '/api/v1/players/history',
+      { query: { discordUserId: target.id } },
+    );
     return reply(
       interaction,
       embed()
         .setTitle(`📜 Historie von ${target.username}`)
-        .setDescription(items.length ? items.slice(0, 15).map((i) => `${ts(i.createdAt, 'd')} – ${i.summary}${i.data ? ` (${i.data.slice(0, 80)})` : ''}`).join('\n') : 'Keine Einträge.'),
+        .setDescription(
+          items.length
+            ? items
+                .slice(0, 15)
+                .map((i) => `${ts(i.createdAt, 'd')} – ${i.summary}${i.data ? ` (${i.data.slice(0, 80)})` : ''}`)
+                .join('\n')
+            : 'Keine Einträge.',
+        ),
     );
   },
 });
@@ -138,20 +179,60 @@ export const leaderboard = defineCommand({
       s
         .setName('duty')
         .setDescription('Top 10 nach Dienstzeit')
-        .addStringOption((o) => o.setName('zeitraum').setDescription('Zeitraum').addChoices({ name: 'Heute', value: 'day' }, { name: 'Woche', value: 'week' }, { name: 'Monat', value: 'month' }, { name: 'Gesamt', value: 'all' }))
-        .addStringOption((o) => o.setName('fraktion').setDescription('Fraktion').addChoices({ name: 'Polizei', value: 'polizei' }, { name: 'Feuerwehr', value: 'feuerwehr' }, { name: 'Rettungsdienst', value: 'rettungsdienst' })),
+        .addStringOption((o) =>
+          o
+            .setName('zeitraum')
+            .setDescription('Zeitraum')
+            .addChoices(
+              { name: 'Heute', value: 'day' },
+              { name: 'Woche', value: 'week' },
+              { name: 'Monat', value: 'month' },
+              { name: 'Gesamt', value: 'all' },
+            ),
+        )
+        .addStringOption((o) =>
+          o
+            .setName('fraktion')
+            .setDescription('Fraktion')
+            .addChoices(
+              { name: 'Polizei', value: 'polizei' },
+              { name: 'Feuerwehr', value: 'feuerwehr' },
+              { name: 'Rettungsdienst', value: 'rettungsdienst' },
+            ),
+        ),
     ),
   defer: 'public',
   async execute(interaction, { api }) {
     const sub = interaction.options.getSubcommand();
     const medal = (r: number) => ['🥇', '🥈', '🥉'][r - 1] ?? `**${r}.**`;
     if (sub === 'playtime') {
-      const { items } = await api.get<{ items: Array<{ rank: number; username: string; seconds: number }> }>('/api/v1/leaderboards/playtime');
-      return interaction.editReply({ embeds: [embed().setTitle('🏆 Spielzeit').setDescription(items.map((i) => `${medal(i.rank)} ${i.username} – ${dur(i.seconds)}`).join('\n') || 'Noch keine Daten.')] });
+      const { items } = await api.get<{ items: Array<{ rank: number; username: string; seconds: number }> }>(
+        '/api/v1/leaderboards/playtime',
+      );
+      return interaction.editReply({
+        embeds: [
+          embed()
+            .setTitle('🏆 Spielzeit')
+            .setDescription(
+              items.map((i) => `${medal(i.rank)} ${i.username} – ${dur(i.seconds)}`).join('\n') || 'Noch keine Daten.',
+            ),
+        ],
+      });
     }
     const period = interaction.options.getString('zeitraum') ?? 'week';
     const faction = interaction.options.getString('fraktion') ?? undefined;
-    const { items } = await api.get<{ items: Array<{ rank: number; username: string; seconds: number }> }>('/api/v1/leaderboards/duty', { query: { period, faction } });
-    return interaction.editReply({ embeds: [embed().setTitle(`🚓 Dienstzeit (${period}${faction ? `, ${faction}` : ''})`).setDescription(items.map((i) => `${medal(i.rank)} ${i.username} – ${dur(i.seconds)}`).join('\n') || 'Noch keine Daten.')] });
+    const { items } = await api.get<{ items: Array<{ rank: number; username: string; seconds: number }> }>(
+      '/api/v1/leaderboards/duty',
+      { query: { period, faction } },
+    );
+    return interaction.editReply({
+      embeds: [
+        embed()
+          .setTitle(`🚓 Dienstzeit (${period}${faction ? `, ${faction}` : ''})`)
+          .setDescription(
+            items.map((i) => `${medal(i.rank)} ${i.username} – ${dur(i.seconds)}`).join('\n') || 'Noch keine Daten.',
+          ),
+      ],
+    });
   },
 });

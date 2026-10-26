@@ -10,7 +10,11 @@ export interface ResolvedRole {
 }
 
 /** Ermittelt die Plattform-Rollen einer Person über Discord-Rollen und direkte Zuweisungen. */
-export async function resolveRoles(db: DbExecutor, discordUserId: string, discordRoleIds: readonly string[]): Promise<ResolvedRole[]> {
+export async function resolveRoles(
+  db: DbExecutor,
+  discordUserId: string,
+  discordRoleIds: readonly string[],
+): Promise<ResolvedRole[]> {
   const condition = discordRoleIds.length
     ? or(eq(roleBindings.discordUserId, discordUserId), inArray(roleBindings.discordRoleId, [...discordRoleIds]))
     : eq(roleBindings.discordUserId, discordUserId);
@@ -51,5 +55,12 @@ export async function buildUserActor(
   input: { discordUserId: string; roleIds: string[]; via: 'dashboard' | 'bot'; sessionId?: string },
 ): Promise<UserActor> {
   const subject = await loadSubject(db, config, input.discordUserId, input.roleIds);
-  return { kind: 'user', discordUserId: input.discordUserId, roleIds: input.roleIds, via: input.via, sessionId: input.sessionId, subject };
+  return {
+    kind: 'user',
+    discordUserId: input.discordUserId,
+    roleIds: input.roleIds,
+    via: input.via,
+    sessionId: input.sessionId,
+    subject,
+  };
 }

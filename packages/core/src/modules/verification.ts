@@ -83,7 +83,11 @@ export async function consumeOAuthState(
       ),
     )
     .returning();
-  if (!row) throw new AppError('GONE', 'Dieser Link ist abgelaufen oder wurde bereits verwendet. Bitte starte den Vorgang neu.');
+  if (!row)
+    throw new AppError(
+      'GONE',
+      'Dieser Link ist abgelaufen oder wurde bereits verwendet. Bitte starte den Vorgang neu.',
+    );
   if (row.browserBindingHash) {
     if (!browserBinding || !safeEqual(row.browserBindingHash, sha256Hex(browserBinding))) {
       throw new AppError('CSRF_FAILED', 'Der Vorgang wurde in einem anderen Browser gestartet. Bitte starte ihn neu.');
@@ -99,10 +103,21 @@ export async function upsertDiscordUser(
 ) {
   await db
     .insert(discordUsers)
-    .values({ id: user.id, username: user.username, globalName: user.globalName ?? null, avatarHash: user.avatarHash ?? null, lastSeenAt: now })
+    .values({
+      id: user.id,
+      username: user.username,
+      globalName: user.globalName ?? null,
+      avatarHash: user.avatarHash ?? null,
+      lastSeenAt: now,
+    })
     .onConflictDoUpdate({
       target: discordUsers.id,
-      set: { username: user.username, globalName: user.globalName ?? null, avatarHash: user.avatarHash ?? null, lastSeenAt: now },
+      set: {
+        username: user.username,
+        globalName: user.globalName ?? null,
+        avatarHash: user.avatarHash ?? null,
+        lastSeenAt: now,
+      },
     });
 }
 
@@ -116,14 +131,26 @@ export async function upsertRobloxUser(
   if (!existing) {
     await db
       .insert(robloxUsers)
-      .values({ id: user.id, username: user.username, displayName: user.displayName ?? null, accountCreatedAt: user.accountCreatedAt ?? null })
+      .values({
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName ?? null,
+        accountCreatedAt: user.accountCreatedAt ?? null,
+      })
       .onConflictDoNothing();
     return;
   }
-  if (existing.username !== user.username || (user.displayName !== undefined && existing.displayName !== user.displayName)) {
+  if (
+    existing.username !== user.username ||
+    (user.displayName !== undefined && existing.displayName !== user.displayName)
+  ) {
     await db
       .update(robloxUsers)
-      .set({ username: user.username, displayName: user.displayName ?? existing.displayName, accountCreatedAt: user.accountCreatedAt ?? existing.accountCreatedAt })
+      .set({
+        username: user.username,
+        displayName: user.displayName ?? existing.displayName,
+        accountCreatedAt: user.accountCreatedAt ?? existing.accountCreatedAt,
+      })
       .where(eq(robloxUsers.id, user.id));
     if (existing.username !== user.username) {
       await db.insert(profileEvents).values({
@@ -175,12 +202,16 @@ export async function startVerification(ctx: CoreContext, actor: Actor) {
   await assertFeature(ctx.db, 'verification');
   const now = ctx.now();
   if (await getActiveLinkByDiscord(ctx.db, user.discordUserId)) {
-    throw errors.conflict('Dein Discord-Konto ist bereits verknüpft. Hebe die Verknüpfung zuerst mit /verify unlink auf.');
+    throw errors.conflict(
+      'Dein Discord-Konto ist bereits verknüpft. Hebe die Verknüpfung zuerst mit /verify unlink auf.',
+    );
   }
   const settings = await getSetting(ctx.db, 'verification');
   const until = await cooldownUntil(ctx.db, user.discordUserId, settings.unlinkCooldownHours);
   if (until && until > now) {
-    throw new AppError('CONFLICT', `Du kannst dich erst ab ${until.toISOString()} erneut verifizieren.`, { until: until.toISOString() });
+    throw new AppError('CONFLICT', `Du kannst dich erst ab ${until.toISOString()} erneut verifizieren.`, {
+      until: until.toISOString(),
+    });
   }
   const [recent] = await ctx.db
     .select({ count: sql<number>`count(*)::int` })
@@ -226,10 +257,17 @@ export async function completeVerification(ctx: CoreContext, discordUserId: stri
       }
       const existingRoblox = await getActiveLinkByRoblox(tx, roblox.id);
       if (existingRoblox) {
-        throw errors.conflict('Dieses Roblox-Konto ist bereits mit einem anderen Discord-Konto verknüpft. Wende dich an das Team.');
+        throw errors.conflict(
+          'Dieses Roblox-Konto ist bereits mit einem anderen Discord-Konto verknüpft. Wende dich an das Team.',
+        );
       }
-      const [created] = await tx.insert(accountLinks).values({ discordUserId, robloxUserId: roblox.id, verifiedAt: now }).returning();
-      await tx.insert(verifications).values({ discordUserId, robloxUserId: roblox.id, outcome: 'success', createdAt: now });
+      const [created] = await tx
+        .insert(accountLinks)
+        .values({ discordUserId, robloxUserId: roblox.id, verifiedAt: now })
+        .returning();
+      await tx
+        .insert(verifications)
+        .values({ discordUserId, robloxUserId: roblox.id, outcome: 'success', createdAt: now });
       await tx.insert(profileEvents).values({
         discordUserId,
         robloxUserId: roblox.id,
@@ -241,7 +279,12 @@ export async function completeVerification(ctx: CoreContext, discordUserId: stri
       await writeAudit(
         tx,
         selfActor(discordUserId),
-        { action: 'verification.link', resourceType: 'account_link', resourceId: created!.id, after: { discordUserId, robloxUserId: roblox.id } },
+        {
+          action: 'verification.link',
+          resourceType: 'account_link',
+          resourceId: created!.id,
+          after: { discordUserId, robloxUserId: roblox.id },
+        },
         now,
       );
       return created!;
@@ -249,17 +292,35 @@ export async function completeVerification(ctx: CoreContext, discordUserId: stri
     const settings = await getSetting(ctx.db, 'verification');
     const roleId = settings.verifiedRoleId ?? ctx.config.verifiedRoleId;
     if (roleId && ctx.config.guildId) {
-      await ctx.queue.enqueue('discord', 'role.add', { guildId: ctx.config.guildId, userId: discordUserId, roleId, reason: 'Roblox-Verifizierung' }, { jobId: `verify-role-${link.id}` });
+      await ctx.queue.enqueue(
+        'discord',
+        'role.add',
+        { guildId: ctx.config.guildId, userId: discordUserId, roleId, reason: 'Roblox-Verifizierung' },
+        { jobId: `verify-role-${link.id}` },
+      );
     }
     return link;
   } catch (err) {
-    if (isUniqueViolation(err)) throw errors.conflict('Das Konto wurde parallel verknüpft. Bitte prüfe /verify status.');
+    if (isUniqueViolation(err))
+      throw errors.conflict('Das Konto wurde parallel verknüpft. Bitte prüfe /verify status.');
     throw err;
   }
 }
 
-export async function recordVerificationFailure(db: DbExecutor, discordUserId: string, reason: string, robloxUserId?: number) {
-  await db.insert(verifications).values({ discordUserId, robloxUserId: robloxUserId ?? null, outcome: 'failed', failureReason: reason.slice(0, 300) });
+export async function recordVerificationFailure(
+  db: DbExecutor,
+  discordUserId: string,
+  reason: string,
+  robloxUserId?: number,
+) {
+  await db
+    .insert(verifications)
+    .values({
+      discordUserId,
+      robloxUserId: robloxUserId ?? null,
+      outcome: 'failed',
+      failureReason: reason.slice(0, 300),
+    });
 }
 
 export async function verificationStatus(db: DbExecutor, discordUserId: string) {
@@ -272,9 +333,13 @@ export async function verificationStatus(db: DbExecutor, discordUserId: string) 
     .limit(1);
   return {
     verified: Boolean(active),
-    roblox: active ? { id: active.roblox.id, username: active.roblox.username, displayName: active.roblox.displayName } : null,
+    roblox: active
+      ? { id: active.roblox.id, username: active.roblox.username, displayName: active.roblox.displayName }
+      : null,
     verifiedAt: active?.link.verifiedAt ?? null,
-    lastAttempt: lastAttempt ? { outcome: lastAttempt.outcome, at: lastAttempt.createdAt, reason: lastAttempt.failureReason } : null,
+    lastAttempt: lastAttempt
+      ? { outcome: lastAttempt.outcome, at: lastAttempt.createdAt, reason: lastAttempt.failureReason }
+      : null,
   };
 }
 
@@ -289,7 +354,8 @@ export async function unlinkAccount(ctx: CoreContext, actor: Actor, input: { dis
   const self = target === user.discordUserId;
   if (self) {
     const settings = await getSetting(ctx.db, 'verification');
-    if (!settings.allowSelfUnlink) throw errors.forbidden('Das selbstständige Aufheben ist deaktiviert. Bitte eröffne ein Ticket.');
+    if (!settings.allowSelfUnlink)
+      throw errors.forbidden('Das selbstständige Aufheben ist deaktiviert. Bitte eröffne ein Ticket.');
   } else {
     requirePermission(actor, 'verification:delete');
   }
@@ -313,7 +379,14 @@ export async function unlinkAccount(ctx: CoreContext, actor: Actor, input: { dis
     await writeAudit(
       tx,
       actor,
-      { action: 'verification.unlink', resourceType: 'account_link', resourceId: row.id, reason: input.reason, before: { status: 'active' }, after: { status: 'revoked' } },
+      {
+        action: 'verification.unlink',
+        resourceType: 'account_link',
+        resourceId: row.id,
+        reason: input.reason,
+        before: { status: 'active' },
+        after: { status: 'revoked' },
+      },
       now,
     );
     return row;
@@ -321,12 +394,20 @@ export async function unlinkAccount(ctx: CoreContext, actor: Actor, input: { dis
   const settings = await getSetting(ctx.db, 'verification');
   const roleId = settings.verifiedRoleId ?? ctx.config.verifiedRoleId;
   if (roleId && ctx.config.guildId) {
-    await ctx.queue.enqueue('discord', 'role.remove', { guildId: ctx.config.guildId, userId: target, roleId, reason: 'Kontoverknüpfung aufgehoben' });
+    await ctx.queue.enqueue('discord', 'role.remove', {
+      guildId: ctx.config.guildId,
+      userId: target,
+      roleId,
+      reason: 'Kontoverknüpfung aufgehoben',
+    });
   }
   return { link, actorId: actorId(actor) };
 }
 
-export async function listLinks(db: DbExecutor, filter: { status?: 'active' | 'revoked'; page: number; pageSize: number; q?: string }) {
+export async function listLinks(
+  db: DbExecutor,
+  filter: { status?: 'active' | 'revoked'; page: number; pageSize: number; q?: string },
+) {
   const where = and(
     filter.status ? eq(accountLinks.status, filter.status) : undefined,
     filter.q

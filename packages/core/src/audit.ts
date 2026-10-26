@@ -93,12 +93,23 @@ export async function verifyAuditChain(db: DbExecutor, batchSize = 1000): Promis
   let checked = 0;
   let firstId: number | null = null;
   for (;;) {
-    const rows = await db.select().from(auditEvents).where(sql`${auditEvents.id} > ${lastId}`).orderBy(auditEvents.id).limit(batchSize);
+    const rows = await db
+      .select()
+      .from(auditEvents)
+      .where(sql`${auditEvents.id} > ${lastId}`)
+      .orderBy(auditEvents.id)
+      .limit(batchSize);
     if (!rows.length) break;
     for (const row of rows) {
       firstId ??= row.id;
       if (prev !== null && row.prevHash !== prev) {
-        return { ok: false, checked, firstId, lastId: row.id, brokenAt: { id: row.id, reason: 'prev_hash passt nicht zur vorherigen Zeile' } };
+        return {
+          ok: false,
+          checked,
+          firstId,
+          lastId: row.id,
+          brokenAt: { id: row.id, reason: 'prev_hash passt nicht zur vorherigen Zeile' },
+        };
       }
       const expected = computeAuditHash(row.prevHash, {
         occurredAt: row.occurredAt.toISOString(),
@@ -113,7 +124,13 @@ export async function verifyAuditChain(db: DbExecutor, batchSize = 1000): Promis
         metadata: row.metadata,
       });
       if (expected !== row.hash) {
-        return { ok: false, checked, firstId, lastId: row.id, brokenAt: { id: row.id, reason: 'Inhalt wurde verändert (Hash stimmt nicht)' } };
+        return {
+          ok: false,
+          checked,
+          firstId,
+          lastId: row.id,
+          brokenAt: { id: row.id, reason: 'Inhalt wurde verändert (Hash stimmt nicht)' },
+        };
       }
       prev = row.hash;
       lastId = row.id;
@@ -152,7 +169,10 @@ export async function searchAudit(db: DbExecutor, filter: AuditSearch) {
       .orderBy(desc(auditEvents.id))
       .limit(filter.pageSize)
       .offset((filter.page - 1) * filter.pageSize),
-    db.select({ count: sql<number>`count(*)::int` }).from(auditEvents).where(where),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(auditEvents)
+      .where(where),
   ]);
   return { items, total: total?.count ?? 0, page: filter.page, pageSize: filter.pageSize };
 }

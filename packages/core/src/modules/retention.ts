@@ -16,17 +16,84 @@ interface RetentionRule {
 
 /** Aufbewahrungsregeln. Alle Fristen sind über die Einstellung "retention" konfigurierbar. */
 export const RETENTION_RULES: RetentionRule[] = [
-  { key: 'game_events', label: 'Rohdaten der Spielereignisse', days: (r) => r.gameEventsDays, table: 'game_events', where: (c) => sql`received_at < ${c}` },
-  { key: 'request_nonces', label: 'Replay-Schutz-Nonces', days: () => 1, table: 'request_nonces', where: (c) => sql`received_at < ${c}` },
-  { key: 'idempotency_keys', label: 'Idempotenzschlüssel', days: () => 2, table: 'idempotency_keys', where: (c) => sql`created_at < ${c}` },
-  { key: 'oauth_states', label: 'Abgelaufene OAuth-Zustände', days: () => 1, table: 'oauth_states', where: (c) => sql`expires_at < ${c}` },
-  { key: 'admin_sessions', label: 'Abgelaufene Dashboard-Sitzungen', days: () => 30, table: 'admin_sessions', where: (c) => sql`expires_at < ${c}` },
-  { key: 'verifications', label: 'Verifizierungsprotokoll', days: (r) => r.verificationLogDays, table: 'verifications', where: (c) => sql`created_at < ${c}` },
-  { key: 'security_events', label: 'Sicherheitsereignisse', days: (r) => r.securityEventsDays, table: 'security_events', where: (c) => sql`occurred_at < ${c}` },
-  { key: 'job_runs', label: 'Jobhistorie', days: (r) => r.jobRunsDays, table: 'job_runs', where: (c) => sql`started_at < ${c}` },
-  { key: 'closed_tickets', label: 'Geschlossene Tickets', days: (r) => r.closedTicketsDays, table: 'tickets', where: (c) => sql`status = 'closed' and closed_at < ${c}` },
-  { key: 'privacy_exports', label: 'Abgelaufene Datenauskünfte (Inhalt)', days: () => 0, table: 'privacy_requests', where: (c) => sql`type = 'export' and result is not null and expires_at < ${c}` },
-  { key: 'audit_events', label: 'Audit-Log', days: (r) => r.auditEventsDays, table: 'audit_events', where: (c) => sql`occurred_at < ${c}`, audit: true },
+  {
+    key: 'game_events',
+    label: 'Rohdaten der Spielereignisse',
+    days: (r) => r.gameEventsDays,
+    table: 'game_events',
+    where: (c) => sql`received_at < ${c}`,
+  },
+  {
+    key: 'request_nonces',
+    label: 'Replay-Schutz-Nonces',
+    days: () => 1,
+    table: 'request_nonces',
+    where: (c) => sql`received_at < ${c}`,
+  },
+  {
+    key: 'idempotency_keys',
+    label: 'Idempotenzschlüssel',
+    days: () => 2,
+    table: 'idempotency_keys',
+    where: (c) => sql`created_at < ${c}`,
+  },
+  {
+    key: 'oauth_states',
+    label: 'Abgelaufene OAuth-Zustände',
+    days: () => 1,
+    table: 'oauth_states',
+    where: (c) => sql`expires_at < ${c}`,
+  },
+  {
+    key: 'admin_sessions',
+    label: 'Abgelaufene Dashboard-Sitzungen',
+    days: () => 30,
+    table: 'admin_sessions',
+    where: (c) => sql`expires_at < ${c}`,
+  },
+  {
+    key: 'verifications',
+    label: 'Verifizierungsprotokoll',
+    days: (r) => r.verificationLogDays,
+    table: 'verifications',
+    where: (c) => sql`created_at < ${c}`,
+  },
+  {
+    key: 'security_events',
+    label: 'Sicherheitsereignisse',
+    days: (r) => r.securityEventsDays,
+    table: 'security_events',
+    where: (c) => sql`occurred_at < ${c}`,
+  },
+  {
+    key: 'job_runs',
+    label: 'Jobhistorie',
+    days: (r) => r.jobRunsDays,
+    table: 'job_runs',
+    where: (c) => sql`started_at < ${c}`,
+  },
+  {
+    key: 'closed_tickets',
+    label: 'Geschlossene Tickets',
+    days: (r) => r.closedTicketsDays,
+    table: 'tickets',
+    where: (c) => sql`status = 'closed' and closed_at < ${c}`,
+  },
+  {
+    key: 'privacy_exports',
+    label: 'Abgelaufene Datenauskünfte (Inhalt)',
+    days: () => 0,
+    table: 'privacy_requests',
+    where: (c) => sql`type = 'export' and result is not null and expires_at < ${c}`,
+  },
+  {
+    key: 'audit_events',
+    label: 'Audit-Log',
+    days: (r) => r.auditEventsDays,
+    table: 'audit_events',
+    where: (c) => sql`occurred_at < ${c}`,
+    audit: true,
+  },
 ];
 
 function cutoffFor(rule: RetentionRule, retention: SettingValue<'retention'>, now: Date) {
@@ -39,7 +106,9 @@ export async function retentionPreview(db: DbExecutor, now: Date) {
   const items = [];
   for (const rule of RETENTION_RULES) {
     const cutoff = cutoffFor(rule, retention, now);
-    const r = await db.execute<{ c: number }>(sql`select count(*)::int as c from ${sql.identifier(rule.table)} where ${rule.where(cutoff)}`);
+    const r = await db.execute<{ c: number }>(
+      sql`select count(*)::int as c from ${sql.identifier(rule.table)} where ${rule.where(cutoff)}`,
+    );
     items.push({ key: rule.key, label: rule.label, days: rule.days(retention), cutoff, rows: r.rows[0]?.c ?? 0 });
   }
   return items;
@@ -69,6 +138,11 @@ export async function applyRetention(ctx: CoreContext, options: { maxRowsPerRule
     });
     summary[rule.key] = deleted;
   }
-  await writeAudit(ctx.db, systemActor('retention'), { action: 'retention.apply', resourceType: 'retention', metadata: summary }, now);
+  await writeAudit(
+    ctx.db,
+    systemActor('retention'),
+    { action: 'retention.apply', resourceType: 'retention', metadata: summary },
+    now,
+  );
   return summary;
 }

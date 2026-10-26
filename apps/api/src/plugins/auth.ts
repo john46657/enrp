@@ -1,5 +1,14 @@
 import { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { anonymousActor, buildUserActor, recordSecurityEvent, safeEqual, sha256Hex, verification, type Actor, type UserActor } from '@enrp/core';
+import {
+  anonymousActor,
+  buildUserActor,
+  recordSecurityEvent,
+  safeEqual,
+  sha256Hex,
+  verification,
+  type Actor,
+  type UserActor,
+} from '@enrp/core';
 import { adminSessions, and, eq, gt, isNull, memberRoleCache } from '@enrp/database';
 import { AppError } from '@enrp/shared';
 
@@ -14,11 +23,17 @@ const actorCache = new Map<string, { at: number; actor: UserActor }>();
 const userSync = new Map<string, number>();
 
 /** Lädt die Discord-Rollen eines Dashboard-Nutzers (gecacht), damit Rollenänderungen zeitnah wirken. */
-export async function memberRoles(app: FastifyInstance, discordUserId: string, force = false): Promise<{ roleIds: string[]; inGuild: boolean }> {
+export async function memberRoles(
+  app: FastifyInstance,
+  discordUserId: string,
+  force = false,
+): Promise<{ roleIds: string[]; inGuild: boolean }> {
   const { core } = app.deps;
   const [cached] = await core.db.select().from(memberRoleCache).where(eq(memberRoleCache.discordUserId, discordUserId));
-  if (!force && cached && core.now().getTime() - cached.fetchedAt.getTime() < ROLE_CACHE_MS) return { roleIds: cached.roleIds, inGuild: cached.inGuild };
-  if (!core.discord.configured || !core.config.guildId) return { roleIds: cached?.roleIds ?? [], inGuild: cached?.inGuild ?? false };
+  if (!force && cached && core.now().getTime() - cached.fetchedAt.getTime() < ROLE_CACHE_MS)
+    return { roleIds: cached.roleIds, inGuild: cached.inGuild };
+  if (!core.discord.configured || !core.config.guildId)
+    return { roleIds: cached?.roleIds ?? [], inGuild: cached?.inGuild ?? false };
   try {
     const member = await core.discord.getMember(core.config.guildId, discordUserId);
     const value = { roleIds: member?.roleIds ?? [], inGuild: Boolean(member), fetchedAt: core.now() };
@@ -44,7 +59,10 @@ async function resolveBotActor(app: FastifyInstance, request: FastifyRequest): P
   if (typeof actorIdHeader !== 'string') return { kind: 'service', name: 'bot' };
   if (!SNOWFLAKE.test(actorIdHeader)) throw new AppError('BAD_REQUEST', 'Ungültiger X-Actor-Id-Header.');
   const rolesHeader = typeof request.headers['x-actor-roles'] === 'string' ? request.headers['x-actor-roles'] : '';
-  const roleIds = rolesHeader.split(',').filter((r) => SNOWFLAKE.test(r)).slice(0, 250);
+  const roleIds = rolesHeader
+    .split(',')
+    .filter((r) => SNOWFLAKE.test(r))
+    .slice(0, 250);
   const key = `${actorIdHeader}|${roleIds.sort().join(',')}`;
   const now = Date.now();
   const hit = actorCache.get(key);
@@ -56,7 +74,9 @@ async function resolveBotActor(app: FastifyInstance, request: FastifyRequest): P
   const name = request.headers['x-actor-name'];
   if (typeof name === 'string' && name.length <= 64 && now - (userSync.get(actorIdHeader) ?? 0) > 600_000) {
     userSync.set(actorIdHeader, now);
-    await verification.upsertDiscordUser(core.db, { id: actorIdHeader, username: decodeURIComponent(name) }, core.now()).catch(() => undefined);
+    await verification
+      .upsertDiscordUser(core.db, { id: actorIdHeader, username: decodeURIComponent(name) }, core.now())
+      .catch(() => undefined);
   }
   return actor;
 }
@@ -67,7 +87,13 @@ async function resolveSession(app: FastifyInstance, request: FastifyRequest, tok
   const [session] = await core.db
     .select()
     .from(adminSessions)
-    .where(and(eq(adminSessions.tokenHash, sha256Hex(token)), isNull(adminSessions.revokedAt), gt(adminSessions.expiresAt, now)));
+    .where(
+      and(
+        eq(adminSessions.tokenHash, sha256Hex(token)),
+        isNull(adminSessions.revokedAt),
+        gt(adminSessions.expiresAt, now),
+      ),
+    );
   if (!session) return null;
   // Gleitende Verlängerung bis zur absoluten Höchstdauer.
   if (now.getTime() - session.lastSeenAt.getTime() > 60_000) {
@@ -77,9 +103,19 @@ async function resolveSession(app: FastifyInstance, request: FastifyRequest, tok
       .set({ lastSeenAt: now, expiresAt: new Date(Math.min(now.getTime() + SESSION_IDLE_MS, absolute)) })
       .where(eq(adminSessions.id, session.id));
   }
-  request.session = { id: session.id, discordUserId: session.discordUserId, csrfToken: session.csrfToken, expiresAt: session.expiresAt };
+  request.session = {
+    id: session.id,
+    discordUserId: session.discordUserId,
+    csrfToken: session.csrfToken,
+    expiresAt: session.expiresAt,
+  };
   const { roleIds } = await memberRoles(app, session.discordUserId);
-  return buildUserActor(core.db, core.config, { discordUserId: session.discordUserId, roleIds, via: 'dashboard', sessionId: session.id });
+  return buildUserActor(core.db, core.config, {
+    discordUserId: session.discordUserId,
+    roleIds,
+    via: 'dashboard',
+    sessionId: session.id,
+  });
 }
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -97,7 +133,11 @@ export function registerAuth(app: FastifyInstance) {
     const { env, core } = app.deps;
     if (token && !token.startsWith('enrp_rbx_')) {
       if (!safeEqual(token, env.BOT_API_TOKEN)) {
-        await recordSecurityEvent(core.db, core.config.hashSecret, { type: 'auth.invalid_service_token', ip: request.ip, details: { path: request.routeOptions.url } });
+        await recordSecurityEvent(core.db, core.config.hashSecret, {
+          type: 'auth.invalid_service_token',
+          ip: request.ip,
+          details: { path: request.routeOptions.url },
+        });
         throw new AppError('UNAUTHENTICATED', 'Ungültiges Service-Token.');
       }
       request.authMethod = 'bot';
@@ -118,8 +158,16 @@ export function registerAuth(app: FastifyInstance) {
       const origin = request.headers.origin;
       const allowed = new Set([new URL(env.DASHBOARD_URL).origin, new URL(env.PUBLIC_URL).origin]);
       const csrf = request.headers['x-csrf-token'];
-      if ((origin && !allowed.has(origin)) || typeof csrf !== 'string' || !safeEqual(csrf, request.session!.csrfToken)) {
-        await recordSecurityEvent(core.db, core.config.hashSecret, { type: 'auth.csrf_failed', actorId: request.session!.discordUserId, ip: request.ip });
+      if (
+        (origin && !allowed.has(origin)) ||
+        typeof csrf !== 'string' ||
+        !safeEqual(csrf, request.session!.csrfToken)
+      ) {
+        await recordSecurityEvent(core.db, core.config.hashSecret, {
+          type: 'auth.csrf_failed',
+          actorId: request.session!.discordUserId,
+          ip: request.ip,
+        });
         throw new AppError('CSRF_FAILED', 'Sicherheitsprüfung fehlgeschlagen. Bitte lade die Seite neu.');
       }
     }
