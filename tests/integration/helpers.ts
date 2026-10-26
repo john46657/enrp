@@ -82,6 +82,9 @@ export class FakeDiscord implements DiscordGateway {
     this.record('sendMessage', args);
     return { id: '1' };
   }
+  async editMessage(...args: unknown[]) {
+    this.record('editMessage', args);
+  }
   async sendDirectMessage(...args: unknown[]) {
     this.record('sendDirectMessage', args);
     return true;

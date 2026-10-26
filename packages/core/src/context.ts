@@ -51,6 +51,21 @@ export interface DiscordEmbedInput {
   url?: string;
 }
 
+/** Buttons als Discord-Komponenten (custom_id wird vom Bot ausgewertet). */
+export interface DiscordButtonInput {
+  customId: string;
+  label: string;
+  style?: 'primary' | 'secondary' | 'success' | 'danger';
+  emoji?: string;
+  disabled?: boolean;
+}
+
+export interface DiscordMessageInput {
+  content?: string;
+  embed?: DiscordEmbedInput;
+  buttons?: DiscordButtonInput[];
+}
+
 /**
  * Discord-REST-Zugriff (Bot-Token). Wird von API und Worker genutzt; in Tests durch eine Attrappe ersetzt.
  * Alle Methoden werfen bei Fehlern einen Error mit verständlicher Nachricht.
@@ -64,7 +79,8 @@ export interface DiscordGateway {
   kick(guildId: string, userId: string, reason: string): Promise<void>;
   ban(guildId: string, userId: string, reason: string, deleteMessageSeconds?: number): Promise<void>;
   unban(guildId: string, userId: string, reason: string): Promise<void>;
-  sendMessage(channelId: string, payload: { content?: string; embed?: DiscordEmbedInput }): Promise<{ id: string }>;
+  sendMessage(channelId: string, payload: DiscordMessageInput): Promise<{ id: string }>;
+  editMessage(channelId: string, messageId: string, payload: DiscordMessageInput): Promise<void>;
   sendDirectMessage(userId: string, payload: { content?: string; embed?: DiscordEmbedInput }): Promise<boolean>;
 }
 
@@ -81,6 +97,7 @@ export class NotConfiguredDiscordGateway implements DiscordGateway {
   ban = async () => this.fail();
   unban = async () => this.fail();
   sendMessage = async (): Promise<{ id: string }> => this.fail();
+  editMessage = async () => this.fail();
   sendDirectMessage = async (): Promise<boolean> => this.fail();
 }
 

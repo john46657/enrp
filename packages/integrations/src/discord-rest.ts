@@ -1,4 +1,4 @@
-import { type DiscordEmbedInput, type DiscordGateway, type DiscordMemberInfo } from '@enrp/core';
+import { type DiscordEmbedInput, type DiscordGateway, type DiscordMemberInfo, type DiscordMessageInput } from '@enrp/core';
 
 const API = 'https://discord.com/api/v10';
 
@@ -35,6 +35,33 @@ export function toDiscordEmbed(embed: DiscordEmbedInput) {
     fields: embed.fields?.slice(0, 25).map((f) => ({ name: f.name.slice(0, 256), value: f.value.slice(0, 1024), inline: f.inline })),
     footer: embed.footer ? { text: embed.footer.slice(0, 2048) } : undefined,
     timestamp: new Date().toISOString(),
+  };
+}
+
+const BUTTON_STYLE = { primary: 1, secondary: 2, success: 3, danger: 4 } as const;
+
+function toMessageBody(payload: DiscordMessageInput) {
+  const buttons = payload.buttons?.slice(0, 25) ?? [];
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += 5) {
+    rows.push({
+      type: 1,
+      components: buttons.slice(i, i + 5).map((b) => ({
+        type: 2,
+        style: BUTTON_STYLE[b.style ?? 'secondary'],
+        label: b.label.slice(0, 80),
+        custom_id: b.customId.slice(0, 100),
+        emoji: b.emoji ? { name: b.emoji } : undefined,
+        disabled: b.disabled ?? false,
+      })),
+    });
+  }
+  return {
+    content: payload.content?.slice(0, 2000),
+    embeds: payload.embed ? [toDiscordEmbed(payload.embed)] : [],
+    components: rows,
+    // Keine @everyone-/Rollen-Erwähnungen aus Inhalten zulassen.
+    allowed_mentions: { parse: [] },
   };
 }
 
@@ -119,16 +146,16 @@ export class DiscordRestGateway implements DiscordGateway {
     }
   }
 
-  async sendMessage(channelId: string, payload: { content?: string; embed?: DiscordEmbedInput }) {
-    const msg = await this.request<{ id: string }>('POST', `/channels/${channelId}/messages`, {
-      content: payload.content?.slice(0, 2000),
-      embeds: payload.embed ? [toDiscordEmbed(payload.embed)] : undefined,
-      allowed_mentions: { parse: [] },
-    });
+  async sendMessage(channelId: string, payload: DiscordMessageInput) {
+    const msg = await this.request<{ id: string }>('POST', `/channels/${channelId}/messages`, toMessageBody(payload));
     return { id: msg.id };
   }
 
-  async sendDirectMessage(userId: string, payload: { content?: string; embed?: DiscordEmbedInput }) {
+  async editMessage(channelId: string, messageId: string, payload: DiscordMessageInput) {
+    await this.request('PATCH', `/channels/${channelId}/messages/${messageId}`, toMessageBody(payload));
+  }
+
+  async sendDirectMessage(userId: string, payload: DiscordMessageInput) {
     try {
       const channel = await this.request<{ id: string }>('POST', '/users/@me/channels', { recipient_id: userId });
       await this.sendMessage(channel.id, payload);
