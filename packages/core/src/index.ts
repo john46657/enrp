@@ -1,4 +1,5 @@
 export * from './context';
+export * from './request-context';
 export * from './crypto';
 export * from './actor';
 export * from './access';

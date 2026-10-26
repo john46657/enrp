@@ -1,6 +1,7 @@
 import { and, auditEvents, desc, eq, gte, ilike, lte, sql, type DbExecutor } from '@enrp/database';
 import { type Actor, actorId, actorTypeOf } from './actor';
 import { canonicalJson, sha256Hex } from './crypto';
+import { requestContext } from './request-context';
 
 export const GENESIS_HASH = '0'.repeat(64);
 
@@ -69,7 +70,7 @@ export async function writeAudit(db: DbExecutor, actor: Actor, entry: AuditEntry
       before: input.before,
       after: input.after,
       metadata: input.metadata,
-      requestId: entry.requestId ?? null,
+      requestId: entry.requestId ?? requestContext.getStore()?.requestId ?? null,
       prevHash,
       hash,
     })
