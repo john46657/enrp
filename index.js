@@ -15,8 +15,9 @@ const client = new Client({
     GatewayIntentBits.GuildMembers, // privilegiert: Willkommen & Auto-Rolle
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent, // privilegiert: Ticket-Transkripte
+    GatewayIntentBits.DirectMessages, // Bewerbungsfragen per DM
   ],
-  partials: [Partials.GuildMember],
+  partials: [Partials.GuildMember, Partials.Channel], // Channel-Partial ist für DM-Nachrichten nötig
 });
 
 client.commands = new Collection();

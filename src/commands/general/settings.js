@@ -3,17 +3,16 @@ const config = require('../../../config.json');
 const settings = require('../../lib/settings');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
+const appMessages = require('../../lib/applications/messages');
 
 const CHANNELS = {
   welcome: 'Willkommen',
   modLog: 'Mod-Log',
   ticketLog: 'Ticket-Log',
-  whitelistReview: 'Whitelist-Bewerbungen',
   levelUp: 'Level-Up',
 };
 const ROLES = {
   autoRole: 'Auto-Rolle',
-  whitelisted: 'Whitelist',
   support: 'Support',
   staff: 'Staff',
 };
@@ -97,6 +96,20 @@ function overview() {
         name: 'FiveM',
         value: `Adresse: ${config.fivem.address ? `\`${config.fivem.address}\`` : '—'}\nVerbinden: ${config.fivem.connectUrl || '—'}`,
         inline: true,
+      },
+      {
+        name: 'Bewerbungen',
+        value: truncate(
+          `Bewerbungs-Kanal: ${channel(config.applications.channel)} · Qualifikations-Kanal: ${channel(config.applications.qualiChannel)}\n` +
+            config.applications.types
+              .map(
+                (t) =>
+                  `${t.emoji} **${t.name}** ${onOff(t.enabled)} · Panel ${t.panel} · Kanal ${channel(t.channels.open)} · ` +
+                  `Manager ${t.roles.managers.map(role).join(' ') || '—'} · Wartezeit ${t.cooldownMinutes} Min. · Verlassen: ${t.onLeave}`,
+              )
+              .join('\n'),
+          1024,
+        ),
       },
       { name: 'Willkommensnachricht', value: truncate(config.welcome.message, 1024) },
     );
@@ -208,6 +221,47 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('bewerbung')
+      .setDescription('Einstellungen einer Bewerbungsart (nur angegebene Optionen werden geändert).')
+      .addStringOption((o) =>
+        o
+          .setName('art')
+          .setDescription('Welche Bewerbung?')
+          .setRequired(true)
+          .addChoices(...config.applications.types.slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+      )
+      .addBooleanOption((o) => o.setName('aktiv').setDescription('Bewerbungen annehmen?'))
+      .addStringOption((o) =>
+        o.setName('panel').setDescription('In welchem Panel?').addChoices({ name: 'Bewerbungs-Panel', value: 'apply' }, { name: 'Qualifikations-Panel', value: 'quali' }),
+      )
+      .addChannelOption((o) => o.setName('kanal_offen').setDescription('Hier landen neue Bewerbungen').addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('kanal_angenommen').setDescription('Kopie angenommener Bewerbungen').addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('kanal_abgelehnt').setDescription('Kopie abgelehnter Bewerbungen').addChannelTypes(ChannelType.GuildText))
+      .addRoleOption((o) => o.setName('manager_rolle').setDescription('Darf in Discord entscheiden'))
+      .addRoleOption((o) => o.setName('ping_rolle').setDescription('Wird bei neuen Bewerbungen markiert'))
+      .addRoleOption((o) => o.setName('annahme_rolle').setDescription('Bekommt man bei Annahme'))
+      .addRoleOption((o) => o.setName('ausstehend_rolle').setDescription('Hat man, solange die Bewerbung offen ist'))
+      .addRoleOption((o) => o.setName('erforderliche_rolle').setDescription('Ohne diese Rolle keine Bewerbung'))
+      .addBooleanOption((o) => o.setName('rollen_leeren').setDescription('Alle Rollen-Einstellungen dieser Bewerbung leeren'))
+      .addIntegerOption((o) => o.setName('wartezeit_minuten').setDescription('Wartezeit zwischen zwei Bewerbungen').setMinValue(0).setMaxValue(525_600))
+      .addIntegerOption((o) => o.setName('zeitlimit_minuten').setDescription('Zeit zum Ausfüllen (5–10080)').setMinValue(5).setMaxValue(10_080))
+      .addStringOption((o) =>
+        o
+          .setName('bei_verlassen')
+          .setDescription('Was passiert, wenn der Bewerber den Server verlässt?')
+          .addChoices({ name: 'Nichts', value: 'NONE' }, { name: 'Ablehnen', value: 'DENY' }, { name: 'Zurückziehen', value: 'WITHDRAW' }),
+      )
+      .addBooleanOption((o) => o.setName('team_threads').setDescription('Zu jeder Bewerbung einen Thread fürs Team öffnen?')),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('bewerbungs-kanaele')
+      .setDescription('Standard-Kanäle für neue Bewerbungen (wenn eine Art keinen eigenen hat).')
+      .addChannelOption((o) => o.setName('bewerbungen').setDescription('Für das Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('qualifikationen').setDescription('Für das Qualifikations-Panel').addChannelTypes(ChannelType.GuildText)),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('willkommen')
       .setDescription('Willkommensnachricht ({user} {name} {server} {count}).')
       .addStringOption((o) => o.setName('nachricht').setDescription('Text der Nachricht').setMaxLength(1500).setRequired(true)),
@@ -306,6 +360,38 @@ function changesFor(interaction, sub) {
         ['zeitzone', 'tickets.openingHours.timezone', 'getString', (v) => v.trim()],
       ]);
     }
+    case 'bewerbung': {
+      const base = `applications.types.${o.getString('art')}`;
+      const asList = (r) => [r.id];
+      const changes = [];
+      if (o.getBoolean('rollen_leeren')) {
+        for (const key of ['managers', 'ping', 'acceptAdd', 'pending', 'required']) changes.push([`${base}.roles.${key}`, []]);
+      }
+      changes.push(
+        ...collect(interaction, [
+          ['aktiv', `${base}.enabled`, 'getBoolean'],
+          ['panel', `${base}.panel`, 'getString'],
+          ['kanal_offen', `${base}.channels.open`, 'getChannel', (c) => c.id],
+          ['kanal_angenommen', `${base}.channels.accepted`, 'getChannel', (c) => c.id],
+          ['kanal_abgelehnt', `${base}.channels.rejected`, 'getChannel', (c) => c.id],
+          ['manager_rolle', `${base}.roles.managers`, 'getRole', asList],
+          ['ping_rolle', `${base}.roles.ping`, 'getRole', asList],
+          ['annahme_rolle', `${base}.roles.acceptAdd`, 'getRole', asList],
+          ['ausstehend_rolle', `${base}.roles.pending`, 'getRole', asList],
+          ['erforderliche_rolle', `${base}.roles.required`, 'getRole', asList],
+          ['wartezeit_minuten', `${base}.cooldownMinutes`, 'getInteger'],
+          ['zeitlimit_minuten', `${base}.timeLimitMinutes`, 'getInteger'],
+          ['bei_verlassen', `${base}.onLeave`, 'getString'],
+          ['team_threads', `${base}.teamThreads`, 'getBoolean'],
+        ]),
+      );
+      return changes;
+    }
+    case 'bewerbungs-kanaele':
+      return collect(interaction, [
+        ['bewerbungen', 'applications.channel', 'getChannel', (c) => c.id],
+        ['qualifikationen', 'applications.qualiChannel', 'getChannel', (c) => c.id],
+      ]);
     case 'willkommen':
       return [['welcome.message', o.getString('nachricht')]];
     case 'level': {
@@ -340,6 +426,7 @@ module.exports = {
       if (!interaction.options.getBoolean('bestaetigen')) return replyPrivate(interaction, 'Abgebrochen.');
       settings.reset();
       await replyPrivate(interaction, '♻️ Alle Einstellungen kommen jetzt wieder aus der config.json.');
+      await appMessages.refreshPanels(interaction.guild);
       return refreshPanels(interaction.guild);
     }
 
@@ -357,5 +444,6 @@ module.exports = {
       embeds: [overview()],
     });
     if (sub.startsWith('ticket') || sub === 'oeffnungszeiten') await refreshPanels(interaction.guild);
+    if (sub === 'bewerbung') await appMessages.refreshPanels(interaction.guild);
   },
 };

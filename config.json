@@ -10,49 +10,248 @@
     "welcome": "",
     "modLog": "",
     "ticketLog": "",
-    "whitelistReview": "",
     "levelUp": ""
   },
   "roles": {
     "autoRole": "",
-    "whitelisted": "",
     "support": "",
     "staff": ""
   },
   "welcome": {
     "message": "Willkommen {user} auf **{server}**! Du bist unser {count}. Mitglied. 🎉"
   },
-  "whitelist": {
-    "questions": [
+  "applications": {
+    "channel": "",
+    "qualiChannel": "",
+    "panels": {
+      "apply": {
+        "title": "📋 Bewerbung",
+        "description": "Du möchtest Teil unseres Teams werden? Klicke unten und der Bot stellt dir die Fragen per **Direktnachricht** – lass deine DMs offen!",
+        "image": ""
+      },
+      "quali": {
+        "title": "🎖️ Einheiten & Qualifikationen",
+        "description": "Bewirb dich für eine Einheit oder Qualifikation. Wähle unten aus, wofür du dich bewerben möchtest.",
+        "image": ""
+      }
+    },
+    "defaults": {
+      "enabled": true,
+      "panel": "quali",
+      "workflow": "simple",
+      "numberPrefix": "Q",
+      "emoji": "📝",
+      "description": "",
+      "channels": {
+        "open": "",
+        "accepted": "",
+        "rejected": ""
+      },
+      "messages": {
+        "start": "Hallo {applicant}! 👋\nDu startest die **{applicationName}**. Es gibt **{questionCount} Fragen**, du hast dafür **{timeLimit}** Zeit.\nSchreibe jederzeit **abbrechen**, um abzubrechen.",
+        "finish": "✅ Deine **{applicationName}** wurde eingereicht! Deine Bewerbungsnummer: **{number}**.\nDas Team meldet sich bei dir – lass deine DMs offen.",
+        "accept": "🎉 Glückwunsch {applicant}! Deine **{applicationName}** (**{number}**) wurde von {user} angenommen.",
+        "reject": "Leider wurde deine **{applicationName}** (**{number}**) abgelehnt."
+      },
+      "roles": {
+        "required": [],
+        "requiredMode": "all",
+        "blocked": [],
+        "blockedMode": "any",
+        "acceptAdd": [],
+        "acceptRemove": [],
+        "rejectAdd": [],
+        "rejectRemove": [],
+        "pending": [],
+        "removeOnSubmit": [],
+        "ping": [],
+        "managers": []
+      },
+      "teamThreads": false,
+      "cooldownMinutes": 1440,
+      "timeLimitMinutes": 180,
+      "onLeave": "WITHDRAW",
+      "questions": []
+    },
+    "types": [
       {
-        "id": "ingame",
-        "label": "Name deines Charakters",
-        "style": "short",
-        "required": true
+        "id": "polizei",
+        "name": "Polizei-Bewerbung",
+        "emoji": "👮",
+        "panel": "apply",
+        "workflow": "police",
+        "numberPrefix": "APP",
+        "description": "Werde Polizeianwärter und starte deine Laufbahn bei uns.",
+        "questions": [
+          {
+            "key": "roblox",
+            "type": "ROBLOX",
+            "label": "Wie lautet dein Roblox-Benutzername?",
+            "required": true
+          },
+          {
+            "key": "erfahrung",
+            "type": "TEXT",
+            "label": "Welche Erfahrung hast du im Polizei-RP?",
+            "required": true,
+            "min": 10,
+            "max": 1000
+          },
+          {
+            "key": "aktivitaet",
+            "type": "CHOICE",
+            "label": "Wie aktiv kannst du sein?",
+            "required": true,
+            "multiple": false,
+            "options": [
+              {
+                "label": "Täglich"
+              },
+              {
+                "label": "Mehrmals pro Woche"
+              },
+              {
+                "label": "Am Wochenende"
+              },
+              {
+                "label": "Unregelmäßig"
+              }
+            ]
+          },
+          {
+            "key": "motivation",
+            "type": "TEXT",
+            "label": "Warum möchtest du zur Polizei?",
+            "required": true,
+            "min": 50,
+            "max": 1000
+          },
+          {
+            "key": "roleplay",
+            "type": "TEXT",
+            "label": "Was macht für dich gutes Roleplay aus?",
+            "required": true,
+            "min": 30,
+            "max": 1000
+          },
+          {
+            "key": "erlc",
+            "type": "TEXT",
+            "label": "Welche Kenntnisse hast du in ER:LC?",
+            "required": true,
+            "min": 10,
+            "max": 1000
+          },
+          {
+            "key": "konflikte",
+            "type": "TEXT",
+            "label": "Wie gehst du mit Konflikten im Dienst um?",
+            "required": true,
+            "min": 30,
+            "max": 1000
+          }
+        ]
       },
       {
-        "id": "alter",
-        "label": "Wie alt bist du (OOC)?",
-        "style": "short",
-        "required": true
+        "id": "sek",
+        "name": "SEK",
+        "emoji": "🎯",
+        "description": "Spezialeinsatzkommando für Lagen mit erhöhtem Risiko.",
+        "questions": [
+          {
+            "key": "erfahrung",
+            "type": "TEXT",
+            "label": "Welche Erfahrung hast du in taktischen Einsätzen?",
+            "required": true,
+            "min": 10,
+            "max": 1000
+          },
+          {
+            "key": "motivation",
+            "type": "TEXT",
+            "label": "Warum möchtest du ins SEK?",
+            "required": true,
+            "min": 30,
+            "max": 1000
+          },
+          {
+            "key": "verfuegbarkeit",
+            "type": "CHOICE",
+            "label": "Wann bist du meistens verfügbar?",
+            "required": true,
+            "multiple": true,
+            "options": [
+              {
+                "label": "Vormittags"
+              },
+              {
+                "label": "Nachmittags"
+              },
+              {
+                "label": "Abends"
+              },
+              {
+                "label": "Nachts"
+              }
+            ]
+          }
+        ]
       },
       {
-        "id": "erfahrung",
-        "label": "Deine RP-Erfahrung",
-        "style": "paragraph",
-        "required": true
+        "id": "flugstaffel",
+        "name": "Flugstaffel",
+        "emoji": "🚁",
+        "description": "Luftunterstützung, Verfolgungen und Überwachung aus der Luft.",
+        "questions": [
+          {
+            "key": "erfahrung",
+            "type": "TEXT",
+            "label": "Wie sicher fliegst du Helikopter in ER:LC?",
+            "required": true,
+            "min": 10,
+            "max": 1000
+          },
+          {
+            "key": "motivation",
+            "type": "TEXT",
+            "label": "Warum möchtest du zur Flugstaffel?",
+            "required": true,
+            "min": 30,
+            "max": 1000
+          }
+        ]
       },
       {
-        "id": "story",
-        "label": "Kurze Hintergrundgeschichte deines Charakters",
-        "style": "paragraph",
-        "required": true
-      },
-      {
-        "id": "regeln",
-        "label": "Was bedeutet Powergaming?",
-        "style": "paragraph",
-        "required": true
+        "id": "ausbilder",
+        "name": "Ausbilder",
+        "emoji": "🎓",
+        "description": "Bilde neue Anwärter aus und gib dein Wissen weiter.",
+        "questions": [
+          {
+            "key": "erfahrung",
+            "type": "TEXT",
+            "label": "Welche Erfahrung hast du als Ausbilder oder Mentor?",
+            "required": true,
+            "min": 10,
+            "max": 1000
+          },
+          {
+            "key": "ablauf",
+            "type": "TEXT",
+            "label": "Wie würdest du eine Grundausbildung aufbauen?",
+            "required": true,
+            "min": 50,
+            "max": 1000
+          },
+          {
+            "key": "geduld",
+            "type": "TEXT",
+            "label": "Ein Anwärter macht denselben Fehler zum dritten Mal. Was tust du?",
+            "required": true,
+            "min": 30,
+            "max": 1000
+          }
+        ]
       }
     ]
   },

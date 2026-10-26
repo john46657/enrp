@@ -4,13 +4,15 @@ const { bucket, save } = require('../lib/db');
 const { levelInfo } = require('../lib/leveling');
 const { embed, getChannel } = require('../lib/util');
 const { trackMessage } = require('../lib/tickets');
+const { handleDirectMessage } = require('../lib/applications/flow');
 
 const cooldowns = new Map();
 
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
-    if (!message.inGuild() || message.author.bot) return;
+    if (message.author.bot) return;
+    if (!message.inGuild()) return handleDirectMessage(message);
     trackMessage(message);
 
     const { leveling } = config;

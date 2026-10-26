@@ -9,12 +9,14 @@ const fail = (msg) => {
   console.error(`❌ ${msg}`);
 };
 
+require('../src/lib/settings');
 const config = require('../config.json');
 for (const t of config.tickets.types) {
   if (!t.id || !t.label || !t.emoji || !t.description) fail(`Ticket-Kategorie unvollständig: ${JSON.stringify(t)}`);
 }
 if (new Set(config.tickets.types.map((t) => t.id)).size !== config.tickets.types.length) fail('Doppelte Ticket-Kategorie-IDs');
-if (config.whitelist.questions.length > 5) console.warn('⚠️  Whitelist: nur die ersten 5 Fragen werden verwendet');
+const { validateType } = require('../src/lib/applications/forms');
+for (const problem of config.applications.types.flatMap(validateType)) fail(`Bewerbung: ${problem}`);
 
 const names = new Set();
 function walk(dir) {

@@ -4,6 +4,8 @@
 const config = require('../../config.json');
 const db = require('./db');
 
+require('./applications/normalize')(config); // Standardwerte der Bewerbungsarten ergänzen
+
 const overrides = (db.data.settings ??= {});
 const defaults = structuredClone(config);
 

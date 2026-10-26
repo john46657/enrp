@@ -1,6 +1,6 @@
 # ENRP Discord-Bot
 
-Ein Discord-Bot für Roleplay-Server mit Whitelist, Moderation, Ticket-System und Community-Funktionen.
+Ein Discord-Bot für Roleplay-Server mit Bewerbungssystem, Moderation, Ticket-System und Community-Funktionen.
 Er ist in JavaScript mit [discord.js](https://discord.js.org) geschrieben, braucht keine externe Datenbank
 und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 
@@ -8,7 +8,8 @@ und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 
 | Bereich | Befehle / Features |
 |---|---|
-| 🎭 **Roleplay** | `/whitelist-panel`: Bewerbungsformular mit Annehmen/Ablehnen-Buttons fürs Team, Rolle + DM automatisch · `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
+| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
+| 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
@@ -20,7 +21,7 @@ und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 1. Öffne das [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
 2. Links auf **Bot** → **Reset Token** → Token kopieren (niemals teilen!).
 3. Unter **Bot → Privileged Gateway Intents** einschalten:
-   - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Ticket schließen beim Verlassen)
+   - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Tickets und Bewerbungen beim Verlassen)
    - ✅ **Message Content Intent** (Ticket-Transkripte)
 4. Links auf **OAuth2 → URL Generator**: Scopes `bot` und `applications.commands`, Berechtigung
    `Administrator` (am einfachsten) → Link öffnen und Bot auf deinen Server einladen.
@@ -46,13 +47,11 @@ GUILD_ID=id-deines-servers
 | `channels.welcome` | Willkommensnachrichten |
 | `channels.modLog` | Moderations-Log |
 | `channels.ticketLog` | Ticket-Aktivitäten und Transkripte |
-| `channels.whitelistReview` | Hier landen Whitelist-Bewerbungen fürs Team |
 | `channels.levelUp` | Level-Up-Nachrichten (leer = im selben Kanal) |
 | `roles.autoRole` | Bekommt jedes neue Mitglied |
-| `roles.whitelisted` | Bekommt man bei angenommener Whitelist |
 | `roles.support` | Standard-Team für Tickets |
-| `roles.staff` | Darf Bewerbungen bearbeiten, Tickets freigeben usw. |
-| `whitelist.questions` | Fragen im Bewerbungsformular (max. 5) |
+| `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben usw. |
+| `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [docs/applications.md](docs/applications.md) |
 | `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
 | `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
 | `leveling.roleRewards` | z. B. `{ "10": "ROLLEN_ID" }` gibt ab Level 10 eine Rolle |
@@ -89,7 +88,8 @@ sofort, werden in `data/db.json` gespeichert und haben Vorrang vor der `config.j
 | Unterbefehl | Was du einstellst |
 |---|---|
 | `anzeigen` | Übersicht aller aktuellen Werte |
-| `kanal` / `rolle` | Log-, Willkommens- und Bewerbungskanäle bzw. Support-, Staff-, Whitelist- und Auto-Rolle (ohne Auswahl = entfernen) |
+| `kanal` / `rolle` | Log- und Willkommenskanäle bzw. Support-, Staff- und Auto-Rolle (ohne Auswahl = entfernen) |
+| `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
 | `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
 | `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
 | `ticket-kategorie` | Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
@@ -99,7 +99,7 @@ sofort, werden in `data/db.json` gespeichert und haben Vorrang vor der `config.j
 | `fivem` | Server-Adresse und Verbinden-Link |
 | `zuruecksetzen` | Alle Discord-Änderungen verwerfen, wieder die `config.json` verwenden |
 
-Neue Ticket-Kategorien und die Whitelist-Fragen legst du weiterhin in der `config.json` an.
+Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
 
 ## 3. Starten
 
@@ -116,7 +116,7 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit Token und Server-ID hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und `✅ 17 Slash-Commands … registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …` und `✅ 21 Slash-Commands … registriert` stehen.
 
 Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.
@@ -124,7 +124,7 @@ nicht löschen.
 ## 4. Einrichten auf dem Server
 
 1. `/ticket panel` im Support-Kanal ausführen.
-2. `/whitelist-panel` im Whitelist-Kanal ausführen.
+2. `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
 3. Optional `/rollenpanel` für selbst wählbare Rollen.
 
 ## Projektstruktur

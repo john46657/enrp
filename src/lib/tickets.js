@@ -38,13 +38,18 @@ function teamRoles(type) {
   return type?.roles?.length ? type.roles : [config.roles.support].filter(Boolean);
 }
 
+// Tickets aus anderen Systemen (z. B. Bewerbungen) bringen eigene Rollen und eine eigene Bezeichnung mit.
+const ticketTeamRoles = (ticket) => (ticket.roles?.length ? ticket.roles : teamRoles(typeById(ticket.type)));
+const ticketLabel = (ticket) => typeById(ticket.type)?.label ?? ticket.label ?? ticket.type;
+
 function isTicketTeam(member, ticket) {
-  return isStaff(member) || teamRoles(typeById(ticket.type)).some((id) => member.roles.cache.has(id));
+  return isStaff(member) || ticketTeamRoles(ticket).some((id) => member.roles.cache.has(id));
 }
 
-const roleMentions = (type) => teamRoles(type).map((id) => `<@&${id}>`).join(' ');
+const mentions = (roles) => roles.map((id) => `<@&${id}>`).join(' ');
+const roleMentions = (type) => mentions(teamRoles(type));
 const unix = (date) => Math.floor(date.getTime() / 1000);
-const ticketRef = (channelId, ticket) => `<#${channelId}> (#${ticket.number}, ${typeById(ticket.type)?.label ?? ticket.type})`;
+const ticketRef = (channelId, ticket) => `<#${channelId}> (#${ticket.number}, ${ticketLabel(ticket)})`;
 
 // Ticket-Aktivitäten in den Log-Kanal (channels.ticketLog) schreiben.
 function logActivity(guild, color, text) {
@@ -246,6 +251,39 @@ async function openTicket(interaction, typeId) {
   await refreshPanels(interaction.guild);
 }
 
+// Ticket zwischen Bewerber und Team, geöffnet aus einer Bewerbung. Wer es öffnet, übernimmt es direkt.
+async function openApplicationTicket(interaction, applicant, { roles, name, title, label }) {
+  const teamRoleIds = roles.length ? roles : teamRoles(null);
+  const number = nextNumber('ticket', interaction.guildId);
+  const channel = await interaction.guild.channels.create({
+    name: name.slice(0, 100),
+    type: ChannelType.GuildText,
+    parent: settings.categoryId || null,
+    topic: `${label} – ${applicant.user.tag}`,
+    permissionOverwrites: [
+      { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: applicant.id, allow: MEMBER_PERMS },
+      { id: interaction.user.id, allow: MEMBER_PERMS },
+      { id: interaction.client.user.id, allow: [...MEMBER_PERMS, PermissionFlagsBits.ManageChannels] },
+      ...teamRoleIds.map((id) => ({ id, allow: MEMBER_PERMS })),
+    ],
+  });
+
+  const now = Date.now();
+  const ticket = { owner: applicant.id, type: 'bewerbung', label, roles: teamRoleIds, number, openedAt: now, claimedBy: interaction.user.id, claimerLastAt: now };
+  const message = await channel.send({
+    content: `${applicant} ${interaction.user}`,
+    embeds: [embed().setTitle(title).setDescription(`${interaction.user} möchte mit dir über deine Bewerbung sprechen, ${applicant}.`)],
+    components: [controls(ticket)],
+  });
+  ticket.controlsMessageId = message.id;
+  ticket.parentId = channel.parentId;
+  ticketsOf(interaction.guildId)[channel.id] = ticket;
+  save();
+  await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(channel.id, ticket)} mit ${applicant} geöffnet.`);
+  return channel;
+}
+
 // ---------- Ticket schließen ----------
 
 async function buildTranscript(channel) {
@@ -282,7 +320,7 @@ async function closeTicket(channel, closedBy, reason) {
     .addFields(
       { name: 'Ersteller', value: `<@${ticket.owner}>`, inline: true },
       { name: 'Geschlossen von', value: closedBy ? `${closedBy}` : 'System', inline: true },
-      { name: 'Kategorie', value: typeById(ticket.type)?.label ?? ticket.type, inline: true },
+      { name: 'Kategorie', value: ticketLabel(ticket), inline: true },
       { name: 'Geöffnet', value: `<t:${Math.floor(ticket.openedAt / 1000)}:f>`, inline: true },
     );
   if (ticket.claimedBy) summary.addFields({ name: 'Bearbeitet von', value: `<@${ticket.claimedBy}>`, inline: true });
@@ -406,7 +444,7 @@ async function requestAddUser(interaction, ticket, user) {
     return replyPrivate(interaction, 'Nur das Team kann Personen hinzufügen.');
   }
   await interaction.reply({
-    content: roleMentions(typeById(ticket.type)) || undefined,
+    content: mentions(ticketTeamRoles(ticket)) || undefined,
     embeds: [embed('warning').setDescription(`📨 ${interaction.user} möchte ${user} zum Ticket hinzufügen. Ein Teammitglied muss das bestätigen.`)],
     components: [
       new ActionRowBuilder().addComponents(
@@ -461,7 +499,7 @@ async function checkReminders(client) {
         save();
         await channel
           .send({
-            content: roleMentions(typeById(ticket.type)) || undefined,
+            content: mentions(ticketTeamRoles(ticket)) || undefined,
             embeds: [embed('warning').setDescription(`⏰ Dieses Ticket wartet seit <t:${Math.floor(ticket.openedAt / 1000)}:R> auf eine Antwort vom Team.`)],
           })
           .catch(() => {});
@@ -477,7 +515,7 @@ async function checkReminders(client) {
         await logActivity(guild, 'warning', `↩️ ${ticketRef(channelId, ticket)} wurde automatisch freigegeben (<@${previous}> war inaktiv).`);
         await channel
           .send({
-            content: roleMentions(typeById(ticket.type)) || undefined,
+            content: mentions(ticketTeamRoles(ticket)) || undefined,
             embeds: [embed('warning').setDescription(`↩️ <@${previous}> war ${autoUnclaim.afterHours} h inaktiv – das Ticket wurde automatisch freigegeben.`)],
             allowedMentions: { parse: ['roles'] },
           })
@@ -506,6 +544,7 @@ module.exports = {
   postPanel,
   refreshPanels,
   openTicket,
+  openApplicationTicket,
   closeTicket,
   closeFromInteraction,
   confirmClose,

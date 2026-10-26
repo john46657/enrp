@@ -2,6 +2,10 @@ const { Events, ActivityType } = require('discord.js');
 const config = require('../../config.json');
 const { fetchFivemStatus } = require('../lib/fivem');
 const { startTicketWatcher, refreshPanels } = require('../lib/tickets');
+const appStore = require('../lib/applications/store');
+const appMessages = require('../lib/applications/messages');
+const { sweep } = require('../lib/applications/flow');
+const { validateType } = require('../lib/applications/forms');
 
 module.exports = {
   name: Events.ClientReady,
@@ -23,6 +27,12 @@ module.exports = {
     // Ticket-Panels nach einem Neustart auf den aktuellen Stand bringen.
     for (const guild of client.guilds.cache.values()) await refreshPanels(guild);
     startTicketWatcher(client);
+
+    // Bewerbungen: laufende DM-Bewerbungen gehen bei einem Neustart verloren
+    appStore.resetProgress();
+    for (const problem of appStore.types().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
+    for (const guild of client.guilds.cache.values()) await appMessages.refreshPanels(guild);
+    setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
     const updatePresence = async () => {
       if (!config.fivem.address) {
