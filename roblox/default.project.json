@@ -1,0 +1,15 @@
+{
+  "name": "EmdenNetwork",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "EmdenNetwork": { "$path": "server/EmdenNetwork" },
+      "EmdenNetworkMain": { "$path": "server/Main.server.luau" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "EmdenNetworkAnnouncements": { "$path": "client/Announcements.client.luau" }
+      }
+    }
+  }
+}

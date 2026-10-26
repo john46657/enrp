@@ -19,7 +19,8 @@
     "dev:bot": "tsx watch --conditions=development apps/bot/src/main.ts",
     "bot:register": "tsx --conditions=development apps/bot/src/register-commands.ts",
     "start:api": "node apps/api/dist/main.js",
-    "start:bot": "node apps/bot/dist/main.js"
+    "start:bot": "node apps/bot/dist/main.js",
+    "docs:permissions": "tsx --conditions=development scripts/permissions-doc.ts"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

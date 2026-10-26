@@ -1,0 +1,9 @@
+# Beispiel: HTTPS-Reverse-Proxy mit automatischen Let's-Encrypt-Zertifikaten.
+# Domain anpassen; DNS-A/AAAA-Eintrag muss auf den Server zeigen.
+api.example.de {
+	encode gzip
+	reverse_proxy api:3000
+	header {
+		-Server
+	}
+}

@@ -72,7 +72,8 @@ export class RobloxOAuthClient {
     url.searchParams.set('state', params.state);
     url.searchParams.set('code_challenge', params.codeChallenge);
     url.searchParams.set('code_challenge_method', 'S256');
-    return url.toString();
+    // URLSearchParams kodiert Leerzeichen als "+"; %20 ist für den scope-Parameter eindeutiger.
+    return url.toString().replace(/\+/g, '%20');
   }
 
   async exchangeCode(code: string, codeVerifier: string): Promise<RobloxTokenResponse> {
