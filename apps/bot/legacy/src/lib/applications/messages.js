@@ -11,7 +11,7 @@ const {
   StringSelectMenuBuilder,
   TextDisplayBuilder,
 } = require('discord.js');
-const config = require('../../../config.json');
+const { base, forGuild } = require('../settings');
 const { embed, truncate } = require('../util');
 const { bucket, save } = require('../db');
 const store = require('./store');
@@ -23,15 +23,15 @@ const unix = (ms) => Math.floor(ms / 1000);
 
 // ---------- Panels ----------
 
-function panelTypes(kind) {
-  return store.types().filter((t) => t.panel === kind);
+function panelTypes(guildId, kind) {
+  return store.types(guildId).filter((t) => t.panel === kind);
 }
 
-function buildPanel(kind) {
-  const panel = config.applications.panels[kind];
-  const list = panelTypes(kind);
+function buildPanel(guildId, kind) {
+  const panel = forGuild(guildId).applications.panels[kind];
+  const list = panelTypes(guildId, kind);
   const container = new ContainerBuilder()
-    .setAccentColor(parseInt(config.colors.primary.slice(1), 16))
+    .setAccentColor(parseInt(base.colors.primary.slice(1), 16))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`));
 
   if (list.length > 1 || kind === 'quali') {
@@ -68,7 +68,7 @@ function buildPanel(kind) {
 }
 
 async function postPanel(channel, kind) {
-  const message = await channel.send(buildPanel(kind));
+  const message = await channel.send(buildPanel(channel.guild.id, kind));
   bucket('appPanels', channel.guild.id)[message.id] = { channelId: channel.id, kind };
   save();
 }
@@ -82,7 +82,7 @@ async function refreshPanels(guild) {
       save();
       continue;
     }
-    await message.edit(buildPanel(kind)).catch((err) => console.error('[appPanel]', err.message));
+    await message.edit(buildPanel(guild.id, kind)).catch((err) => console.error('[appPanel]', err.message));
   }
 }
 
@@ -102,7 +102,7 @@ function infoEmbed(record, type) {
   const info = embed(color)
     .setTitle(`${type.emoji} ${type.name} – ${record.number}`)
     .setAuthor({ name: record.userTag, iconURL: record.avatarUrl ?? undefined })
-    .setFooter({ text: `${config.serverName} · ${record.number}` })
+    .setFooter({ text: `${base.serverName} · ${record.number}` })
     .setTimestamp(record.createdAt)
     .addFields({ name: 'Status', value: status.join(' ') });
   if (record.reason) info.addFields({ name: 'Grund', value: truncate(record.reason, 1024) });

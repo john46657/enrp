@@ -37,7 +37,7 @@ export interface LegacyBridge {
   onReady(client: Client): Promise<void>;
   onMessage(message: Message): Promise<void>;
   onMemberAdd(member: GuildMember): Promise<void>;
-  /** Nur die Auto-Rolle aus der config.json vergeben (wenn die neue Begrüßung aktiv ist). */
+  /** Nur die Auto-Rolle dieses Servers vergeben (wenn die neue Begrüßung aktiv ist). */
   autoRole(member: GuildMember): Promise<void>;
   onMemberRemove(member: GuildMember | PartialGuildMember): Promise<void>;
   setTicketHooks(hooks: Record<string, (payload: Record<string, unknown>) => Promise<unknown>>): void;
@@ -45,7 +45,7 @@ export interface LegacyBridge {
 }
 
 export function loadLegacy(logger: Logger): LegacyBridge {
-  require('./src/lib/settings'); // Einstellungen aus /einstellungen über config.json legen
+  const settings = require('./src/lib/settings'); // Einstellungen je Server: config.json + /einstellungen
   const { InteractionContextType } = require('discord.js');
   const commands = LEGACY_COMMAND_FILES.map((file) => {
     const command = require(`./src/commands/${file}`) as LegacyCommand;
@@ -69,7 +69,7 @@ export function loadLegacy(logger: Logger): LegacyBridge {
         await tickets.refreshPanels(guild).catch((err: Error) => logger.warn({ err: err.message }, 'Ticketpanel'));
       tickets.startTicketWatcher(client);
       appStore.resetProgress();
-      for (const problem of appStore.types().flatMap(validateType)) logger.warn(`Bewerbung: ${problem}`);
+      for (const problem of appStore.baseTypes().flatMap(validateType)) logger.warn(`Bewerbung: ${problem}`);
       for (const guild of client.guilds.cache.values())
         await appMessages
           .refreshPanels(guild)
@@ -82,10 +82,10 @@ export function loadLegacy(logger: Logger): LegacyBridge {
     onMessage: (message) => messageEvent.execute(message),
     onMemberAdd: (member) => memberAdd.execute(member),
     async autoRole(member) {
-      const config = require('./config.json');
-      if (config.roles?.autoRole)
+      const { autoRole } = settings.forGuild(member.guild.id).roles;
+      if (autoRole)
         await member.roles
-          .add(config.roles.autoRole, 'Auto-Rolle')
+          .add(autoRole, 'Auto-Rolle')
           .catch((err: Error) => logger.warn({ err: err.message }, 'Auto-Rolle'));
     },
     onMemberRemove: (member) => memberRemove.execute(member),

@@ -147,8 +147,8 @@ Kanal für neue Bewerbungen: `channels.open` der Art. Ist er leer, gilt bei Arte
 
 ## 6. Einrichtung
 
-Einstellen kannst du per `config.json` (alles) oder per `/einstellungen bewerbung` und
-`/einstellungen bewerbungs-kanaele` (die wichtigsten Werte, ohne Neustart).
+Einstellen kannst du per `config.json` (alles, Vorlage für alle Server) oder per `/einstellungen bewerbung` und
+`/einstellungen bewerbungs-kanaele` (die wichtigsten Werte, ohne Neustart, nur für den jeweiligen Server).
 
 ### 6.1 Panels
 - **Bewerbungs-Panel** (`applications.panels.apply`: Titel, Beschreibung, Bild): Bei einer Art erscheint der Button
@@ -329,7 +329,7 @@ oder sind durch Discord-Funktionen ersetzt:
 | Team-Chance (Bewerbungsphasen) | nicht enthalten – `enabled` per `/einstellungen bewerbung` umschalten |
 | Personal-/Dienstnummern-Automatik | nicht enthalten |
 | SEK-Mitgliedschaft über verknüpftes Konto | Rolle per `acceptAdd` |
-| Einstellungen je Discord-Server (`…@guildId`) | ein Satz Einstellungen für den Bot; Daten (Bewerbungen, Sperren) sind je Server getrennt |
+| Einstellungen je Discord-Server (`…@guildId`) | `/einstellungen` gilt je Server; Daten (Bewerbungen, Sperren) sind ebenfalls je Server getrennt |
 
 ---
 

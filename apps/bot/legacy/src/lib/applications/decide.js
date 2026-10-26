@@ -12,7 +12,7 @@ const LEFT_REASON = 'Hat den Discord-Server verlassen.';
 // Bewerbung + Art laden und prüfen, ob der Klickende entscheiden darf. Antwortet selbst bei Fehlern.
 async function loadForManager(interaction, number) {
   const record = store.getRecord(interaction.guildId, number);
-  const type = record && store.typeById(record.type);
+  const type = record && store.typeById(interaction.guildId, record.type);
   if (!record || !type) {
     await replyPrivate(interaction, 'Diese Bewerbung gibt es nicht mehr.');
     return null;
@@ -132,7 +132,7 @@ async function changeStatus(interaction, number) {
 async function withdraw(interaction, guildId, number) {
   const record = store.getRecord(guildId, number);
   const guild = interaction.client.guilds.cache.get(guildId);
-  const type = record && store.typeById(record.type);
+  const type = record && store.typeById(guildId, record.type);
   if (!record || !guild || !type || record.userId !== interaction.user.id) {
     return interaction.update({ components: [] });
   }
@@ -149,7 +149,7 @@ async function showHistory(interaction, userId) {
   const list = store.historyOf(interaction.guildId, userId);
   if (!list.length) return replyPrivate(interaction, `<@${userId}> hat noch keine Bewerbungen.`);
   const lines = list.map((r) => {
-    const type = store.typeById(r.type);
+    const type = store.typeById(interaction.guildId, r.type);
     const link = r.messageId ? ` · [Nachricht](https://discord.com/channels/${r.guildId}/${r.channelId}/${r.messageId})` : '';
     return `**${r.number}** ${type?.emoji ?? ''} ${type?.name ?? r.type} – ${store.STATUS[r.status]} <t:${Math.floor(r.createdAt / 1000)}:R>${link}`;
   });
@@ -177,7 +177,7 @@ async function openTicket(interaction, number) {
 async function handleMemberLeave(member) {
   cancelForMember(member.guild.id, member.id);
   for (const record of store.openOf(member.guild.id, (r) => r.userId === member.id)) {
-    const type = store.typeById(record.type);
+    const type = store.typeById(member.guild.id, record.type);
     if (!type || type.onLeave === 'NONE') continue;
     const status = type.onLeave === 'DENY' ? 'REJECTED' : 'WITHDRAWN';
     if (!store.setStatus(record, status, null, { reason: LEFT_REASON })) continue;

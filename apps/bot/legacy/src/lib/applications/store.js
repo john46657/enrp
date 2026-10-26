@@ -1,6 +1,5 @@
 // Datenhaltung für Bewerbungen, Sperren und „in Bearbeitung“ (alles in data/db.json).
-require('../settings'); // stellt sicher, dass die Bewerbungsarten mit Standardwerten ergänzt sind
-const config = require('../../../config.json');
+const { base, forGuild } = require('../settings');
 const { data, bucket, save, nextNumber } = require('../db');
 const { isStaff } = require('../util');
 
@@ -23,8 +22,10 @@ const POLICE_TRANSITIONS = {
   PENDING_DECISION: ['ACCEPTED', 'REJECTED', 'WITHDRAWN'],
 };
 
-const types = () => config.applications.types;
-const typeById = (id) => types().find((t) => t.id === id);
+// Bewerbungsarten mit den Einstellungen eines Servers; baseTypes() = Vorlage aus config.json (z. B. für Befehlsauswahlen).
+const types = (guildId) => forGuild(guildId).applications.types;
+const typeById = (guildId, id) => types(guildId).find((t) => t.id === id);
+const baseTypes = () => base.applications.types;
 const isOpenStatus = (status) => !FINAL.includes(status);
 const initialStatus = (type) => (type.workflow === 'police' ? 'SUBMITTED' : 'OPEN');
 
@@ -81,12 +82,12 @@ function isManager(member, type) {
   if (!member) return false;
   return isStaff(member) || type.roles.managers.some((id) => member.roles.cache.has(id));
 }
-const managesAny = (member) => types().some((t) => isManager(member, t));
+const managesAny = (member) => types(member.guild.id).some((t) => isManager(member, t));
 
 // ---------- Sperren ----------
 
 function activeBan(guildId, typeId, { discordId, robloxId }) {
-  const type = typeById(typeId);
+  const type = typeById(guildId, typeId);
   const now = Date.now();
   return (
     Object.values(bansOf(guildId)).find((ban) => {
@@ -157,6 +158,7 @@ module.exports = {
   POLICE_TRANSITIONS,
   types,
   typeById,
+  baseTypes,
   isOpenStatus,
   recordsOf,
   bansOf,

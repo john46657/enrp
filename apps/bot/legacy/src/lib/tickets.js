@@ -16,12 +16,13 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const config = require('../../config.json');
+const { base, forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
 const { embed, sendTo, isStaff, replyPrivate } = require('./util');
 const { isOpen, nextOpening } = require('./openingHours');
 
-const settings = config.tickets;
+// Ticket-Einstellungen eines Servers.
+const settingsOf = (guildId) => forGuild(guildId).tickets;
 const MEMBER_PERMS = [
   PermissionFlagsBits.ViewChannel,
   PermissionFlagsBits.SendMessages,
@@ -29,37 +30,37 @@ const MEMBER_PERMS = [
   PermissionFlagsBits.AttachFiles,
 ];
 
-const typeById = (id) => settings.types.find((t) => t.id === id);
+const typeById = (guildId, id) => settingsOf(guildId).types.find((t) => t.id === id);
 const ticketsOf = (guildId) => bucket('tickets', guildId);
 const panelsOf = (guildId) => bucket('ticketPanels', guildId);
 
 // Rollen, die eine Ticket-Art bearbeiten: eigene Rollen der Art, sonst die allgemeine Support-Rolle.
-function teamRoles(type) {
-  return type?.roles?.length ? type.roles : [config.roles.support].filter(Boolean);
+function teamRoles(guildId, type) {
+  return type?.roles?.length ? type.roles : [forGuild(guildId).roles.support].filter(Boolean);
 }
 
 // Tickets aus anderen Systemen (z. B. Bewerbungen) bringen eigene Rollen und eine eigene Bezeichnung mit.
-const ticketTeamRoles = (ticket) => (ticket.roles?.length ? ticket.roles : teamRoles(typeById(ticket.type)));
-const ticketLabel = (ticket) => typeById(ticket.type)?.label ?? ticket.label ?? ticket.type;
+const ticketTeamRoles = (guildId, ticket) => (ticket.roles?.length ? ticket.roles : teamRoles(guildId, typeById(guildId, ticket.type)));
+const ticketLabel = (guildId, ticket) => typeById(guildId, ticket.type)?.label ?? ticket.label ?? ticket.type;
 
 function isTicketTeam(member, ticket) {
-  return isStaff(member) || ticketTeamRoles(ticket).some((id) => member.roles.cache.has(id));
+  return isStaff(member) || ticketTeamRoles(member.guild.id, ticket).some((id) => member.roles.cache.has(id));
 }
 
 const mentions = (roles) => roles.map((id) => `<@&${id}>`).join(' ');
-const roleMentions = (type) => mentions(teamRoles(type));
+const roleMentions = (guildId, type) => mentions(teamRoles(guildId, type));
 const unix = (date) => Math.floor(date.getTime() / 1000);
-const ticketRef = (channelId, ticket) => `<#${channelId}> (#${ticket.number}, ${ticketLabel(ticket)})`;
+const ticketRef = (guildId, channelId, ticket) => `<#${channelId}> (#${ticket.number}, ${ticketLabel(guildId, ticket)})`;
 
 // Ticket-Aktivitäten in den Log-Kanal (channels.ticketLog) schreiben.
 function logActivity(guild, color, text) {
-  if (!settings.logging.activities) return null;
+  if (!settingsOf(guild.id).logging.activities) return null;
   return sendTo(guild, 'ticketLog', { embeds: [embed(color).setDescription(text)], allowedMentions: { parse: [] } });
 }
 
 // Claim-Kategorie: übernommene Tickets verschieben und beim Freigeben zurück in die ursprüngliche Kategorie.
 async function moveForClaim(channel, ticket, claimed) {
-  const { enabled, categoryId } = settings.claimCategory;
+  const { enabled, categoryId } = settingsOf(channel.guild.id).claimCategory;
   if (!enabled || !categoryId) return;
   await channel
     .setParent(claimed ? categoryId : (ticket.parentId ?? null), { lockPermissions: false })
@@ -88,9 +89,10 @@ function loadLine(type, count) {
 }
 
 function buildPanel(guild) {
+  const settings = settingsOf(guild.id);
   const { panel } = settings;
   const container = new ContainerBuilder()
-    .setAccentColor(parseInt(config.colors.primary.slice(1), 16))
+    .setAccentColor(parseInt(base.colors.primary.slice(1), 16))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`))
     .addSeparatorComponents(new SeparatorBuilder())
     .addTextDisplayComponents(
@@ -110,8 +112,8 @@ function buildPanel(guild) {
     );
   }
 
-  if (settings.openingHours.enabled && !isOpen()) {
-    const next = nextOpening();
+  if (settings.openingHours.enabled && !isOpen(settings.openingHours)) {
+    const next = nextOpening(settings.openingHours);
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`-# 🌙 Das Team ist gerade nicht erreichbar${next ? ` – wieder da <t:${unix(next)}:R>` : ''}.`),
     );
@@ -170,7 +172,7 @@ function channelName(type, member, number, caseNumber) {
     DISPLAY_NAME: member.user.globalName ?? member.user.username,
     EMOTE: type.emoji ?? '',
   };
-  const name = settings.channelName.replace(/%(\w+)%/g, (match, key) => values[key] ?? match).slice(0, 100);
+  const name = settingsOf(member.guild.id).channelName.replace(/%(\w+)%/g, (match, key) => values[key] ?? match).slice(0, 100);
   return name.trim() || `ticket-${values.TICKET_NUMBER}`;
 }
 
@@ -198,7 +200,8 @@ function emitHook(name, payload) {
 }
 
 async function openTicket(interaction, typeId) {
-  const type = typeById(typeId);
+  const settings = settingsOf(interaction.guildId);
+  const type = typeById(interaction.guildId, typeId);
   if (!type) return replyPrivate(interaction, 'Diese Kategorie gibt es nicht mehr.');
 
   const tickets = openTickets(interaction.guild);
@@ -210,7 +213,7 @@ async function openTicket(interaction, typeId) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const number = nextNumber('ticket', interaction.guildId);
   const caseNumber = nextNumber(`ticket:${type.id}`, interaction.guildId);
-  const roles = teamRoles(type);
+  const roles = teamRoles(interaction.guildId, type);
 
   const channel = await interaction.guild.channels.create({
     name: channelName(type, interaction.member, number, caseNumber),
@@ -226,7 +229,7 @@ async function openTicket(interaction, typeId) {
   });
 
   const ticket = { owner: interaction.user.id, type: type.id, number, openedAt: Date.now() };
-  const teamAvailable = isOpen();
+  const teamAvailable = isOpen(settings.openingHours);
   const embeds = [
     embed()
       .setTitle(`${type.emoji} ${type.label} – Ticket #${number}`)
@@ -236,7 +239,7 @@ async function openTicket(interaction, typeId) {
       ),
   ];
   if (!teamAvailable) {
-    const next = nextOpening();
+    const next = nextOpening(settings.openingHours);
     embeds.push(
       embed('warning')
         .setTitle('🌙 Außerhalb der Öffnungszeiten')
@@ -247,7 +250,7 @@ async function openTicket(interaction, typeId) {
     );
   }
 
-  const ping = settings.pingTeam && teamAvailable ? roleMentions(type) : '';
+  const ping = settings.pingTeam && teamAvailable ? roleMentions(interaction.guildId, type) : '';
   const message = await channel.send({ content: `${interaction.user} ${ping}`.trim(), embeds, components: [controls(ticket)] });
   ticket.controlsMessageId = message.id;
   ticket.parentId = channel.parentId;
@@ -256,18 +259,18 @@ async function openTicket(interaction, typeId) {
 
   emitHook('open', { channelId: channel.id, creatorId: interaction.user.id, number, category: type.id, subject: `${type.label} – Ticket #${number}` });
   await interaction.editReply(`✅ Dein Ticket wurde erstellt: ${channel}`);
-  await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(channel.id, ticket)} geöffnet.`);
+  await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(interaction.guildId, channel.id, ticket)} geöffnet.`);
   await refreshPanels(interaction.guild);
 }
 
 // Ticket zwischen Bewerber und Team, geöffnet aus einer Bewerbung. Wer es öffnet, übernimmt es direkt.
 async function openApplicationTicket(interaction, applicant, { roles, name, title, label }) {
-  const teamRoleIds = roles.length ? roles : teamRoles(null);
+  const teamRoleIds = roles.length ? roles : teamRoles(interaction.guildId, null);
   const number = nextNumber('ticket', interaction.guildId);
   const channel = await interaction.guild.channels.create({
     name: name.slice(0, 100),
     type: ChannelType.GuildText,
-    parent: settings.categoryId || null,
+    parent: settingsOf(interaction.guildId).categoryId || null,
     topic: `${label} – ${applicant.user.tag}`,
     permissionOverwrites: [
       { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -289,7 +292,7 @@ async function openApplicationTicket(interaction, applicant, { roles, name, titl
   ticket.parentId = channel.parentId;
   ticketsOf(interaction.guildId)[channel.id] = ticket;
   save();
-  await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(channel.id, ticket)} mit ${applicant} geöffnet.`);
+  await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(interaction.guildId, channel.id, ticket)} mit ${applicant} geöffnet.`);
   return channel;
 }
 
@@ -305,7 +308,7 @@ async function buildTranscript(channel) {
     before = batch.last().id;
   }
   const lines = all.reverse().map((m) => {
-    const time = m.createdAt.toLocaleString('de-DE', { timeZone: settings.openingHours.timezone });
+    const time = m.createdAt.toLocaleString('de-DE', { timeZone: settingsOf(channel.guild.id).openingHours.timezone });
     const files = [...m.attachments.values()].map((a) => ` [Anhang: ${a.url}]`).join('');
     const embeds = m.embeds.map((e) => ` [Embed: ${e.title ?? e.description ?? ''}]`).join('');
     return `[${time}] ${m.author.tag}: ${m.content}${files}${embeds}`;
@@ -322,7 +325,7 @@ async function closeTicket(channel, closedBy, reason) {
   save();
   emitHook('close', { channelId: channel.id, closedBy: closedBy?.id ?? null, reason: reason ?? null });
 
-  const { activities, transcripts } = settings.logging;
+  const { activities, transcripts } = settingsOf(channel.guild.id).logging;
   const transcript = transcripts ? await buildTranscript(channel) : null;
   const files = transcript ? [transcript] : [];
   const summary = embed('danger')
@@ -330,7 +333,7 @@ async function closeTicket(channel, closedBy, reason) {
     .addFields(
       { name: 'Ersteller', value: `<@${ticket.owner}>`, inline: true },
       { name: 'Geschlossen von', value: closedBy ? `${closedBy}` : 'System', inline: true },
-      { name: 'Kategorie', value: ticketLabel(ticket), inline: true },
+      { name: 'Kategorie', value: ticketLabel(channel.guild.id, ticket), inline: true },
       { name: 'Geöffnet', value: `<t:${Math.floor(ticket.openedAt / 1000)}:f>`, inline: true },
     );
   if (ticket.claimedBy) summary.addFields({ name: 'Bearbeitet von', value: `<@${ticket.claimedBy}>`, inline: true });
@@ -353,7 +356,7 @@ function closeError(interaction) {
   const ticket = ticketsOf(interaction.guildId)[interaction.channelId];
   if (!ticket) return 'Das hier ist kein Ticket-Kanal.';
   if (isTicketTeam(interaction.member, ticket)) return null;
-  if (settings.onlyTeamCanClose) return 'Nur das Team kann Tickets schließen.';
+  if (settingsOf(interaction.guildId).onlyTeamCanClose) return 'Nur das Team kann Tickets schließen.';
   if (ticket.owner !== interaction.user.id) return 'Nur der Ersteller oder das Team kann das Ticket schließen.';
   return null;
 }
@@ -417,7 +420,7 @@ async function claim(interaction) {
   await interaction.update({ components: [controls(ticket)] });
   await interaction.followUp({ embeds: [embed('success').setDescription(`🙋 ${interaction.user} kümmert sich um dieses Ticket.`)] });
   await moveForClaim(interaction.channel, ticket, true);
-  await logActivity(interaction.guild, 'success', `🙋 ${interaction.user} hat ${ticketRef(interaction.channelId, ticket)} übernommen.`);
+  await logActivity(interaction.guild, 'success', `🙋 ${interaction.user} hat ${ticketRef(interaction.guildId, interaction.channelId, ticket)} übernommen.`);
 }
 
 async function unclaim(interaction) {
@@ -433,7 +436,7 @@ async function unclaim(interaction) {
   await interaction.update({ components: [controls(ticket)] });
   await interaction.followUp({ embeds: [embed('warning').setDescription(`↩️ ${interaction.user} hat das Ticket wieder freigegeben.`)] });
   await moveForClaim(interaction.channel, ticket, false);
-  await logActivity(interaction.guild, 'warning', `↩️ ${interaction.user} hat ${ticketRef(interaction.channelId, ticket)} freigegeben.`);
+  await logActivity(interaction.guild, 'warning', `↩️ ${interaction.user} hat ${ticketRef(interaction.guildId, interaction.channelId, ticket)} freigegeben.`);
 }
 
 // ---------- Personen hinzufügen ----------
@@ -450,13 +453,13 @@ async function requestAddUser(interaction, ticket, user) {
   if (isTicketTeam(interaction.member, ticket)) {
     await addUser(interaction.channel, user.id);
     await interaction.reply(`➕ ${user} wurde zum Ticket hinzugefügt.`);
-    return logActivity(interaction.guild, 'primary', `➕ ${interaction.user} hat ${user} zu ${ticketRef(interaction.channelId, ticket)} hinzugefügt.`);
+    return logActivity(interaction.guild, 'primary', `➕ ${interaction.user} hat ${user} zu ${ticketRef(interaction.guildId, interaction.channelId, ticket)} hinzugefügt.`);
   }
-  if (!settings.creatorCanAddUsers || ticket.owner !== interaction.user.id) {
+  if (!settingsOf(interaction.guildId).creatorCanAddUsers || ticket.owner !== interaction.user.id) {
     return replyPrivate(interaction, 'Nur das Team kann Personen hinzufügen.');
   }
   await interaction.reply({
-    content: mentions(ticketTeamRoles(ticket)) || undefined,
+    content: mentions(ticketTeamRoles(interaction.guildId, ticket)) || undefined,
     embeds: [embed('warning').setDescription(`📨 ${interaction.user} möchte ${user} zum Ticket hinzufügen. Ein Teammitglied muss das bestätigen.`)],
     components: [
       new ActionRowBuilder().addComponents(
@@ -484,7 +487,7 @@ async function answerAddRequest(interaction, userId, accepted) {
   await logActivity(
     interaction.guild,
     accepted ? 'primary' : 'danger',
-    `${accepted ? '➕' : '❌'} ${interaction.user} hat die Anfrage für <@${userId}> in ${ticketRef(interaction.channelId, ticket)} ${accepted ? 'bestätigt' : 'abgelehnt'}.`,
+    `${accepted ? '➕' : '❌'} ${interaction.user} hat die Anfrage für <@${userId}> in ${ticketRef(interaction.guildId, interaction.channelId, ticket)} ${accepted ? 'bestätigt' : 'abgelehnt'}.`,
   );
 }
 
@@ -498,55 +501,53 @@ function trackMessage(message) {
   save();
 }
 
-async function checkReminders(client) {
-  if (!isOpen()) return; // Außerhalb der Öffnungszeiten pausieren die Erinnerungen
+async function checkReminders(guild) {
+  const { autoTeamAlert, autoUnclaim, openingHours } = settingsOf(guild.id);
+  if (!isOpen(openingHours)) return; // Außerhalb der Öffnungszeiten pausieren die Erinnerungen
   const now = Date.now();
-  for (const guild of client.guilds.cache.values()) {
-    for (const [channelId, ticket] of Object.entries(openTickets(guild))) {
-      const channel = guild.channels.cache.get(channelId);
-      const { autoTeamAlert, autoUnclaim } = settings;
+  for (const [channelId, ticket] of Object.entries(openTickets(guild))) {
+    const channel = guild.channels.cache.get(channelId);
 
-      if (autoTeamAlert.enabled && !ticket.alerted && !ticket.teamRepliedAt && !ticket.claimedBy && now - ticket.openedAt >= autoTeamAlert.afterMinutes * 60_000) {
-        ticket.alerted = true;
-        save();
-        await channel
-          .send({
-            content: mentions(ticketTeamRoles(ticket)) || undefined,
-            embeds: [embed('warning').setDescription(`⏰ Dieses Ticket wartet seit <t:${Math.floor(ticket.openedAt / 1000)}:R> auf eine Antwort vom Team.`)],
-          })
-          .catch(() => {});
-      }
+    if (autoTeamAlert.enabled && !ticket.alerted && !ticket.teamRepliedAt && !ticket.claimedBy && now - ticket.openedAt >= autoTeamAlert.afterMinutes * 60_000) {
+      ticket.alerted = true;
+      save();
+      await channel
+        .send({
+          content: mentions(ticketTeamRoles(guild.id, ticket)) || undefined,
+          embeds: [embed('warning').setDescription(`⏰ Dieses Ticket wartet seit <t:${Math.floor(ticket.openedAt / 1000)}:R> auf eine Antwort vom Team.`)],
+        })
+        .catch(() => {});
+    }
 
-      if (autoUnclaim.enabled && ticket.claimedBy && now - (ticket.claimerLastAt ?? 0) >= autoUnclaim.afterHours * 3_600_000) {
-        const previous = ticket.claimedBy;
-        delete ticket.claimedBy;
-        delete ticket.claimerLastAt;
-        save();
-        await updateControls(channel, ticket);
-        await moveForClaim(channel, ticket, false);
-        await logActivity(guild, 'warning', `↩️ ${ticketRef(channelId, ticket)} wurde automatisch freigegeben (<@${previous}> war inaktiv).`);
-        await channel
-          .send({
-            content: mentions(ticketTeamRoles(ticket)) || undefined,
-            embeds: [embed('warning').setDescription(`↩️ <@${previous}> war ${autoUnclaim.afterHours} h inaktiv – das Ticket wurde automatisch freigegeben.`)],
-            allowedMentions: { parse: ['roles'] },
-          })
-          .catch(() => {});
-      }
+    if (autoUnclaim.enabled && ticket.claimedBy && now - (ticket.claimerLastAt ?? 0) >= autoUnclaim.afterHours * 3_600_000) {
+      const previous = ticket.claimedBy;
+      delete ticket.claimedBy;
+      delete ticket.claimerLastAt;
+      save();
+      await updateControls(channel, ticket);
+      await moveForClaim(channel, ticket, false);
+      await logActivity(guild, 'warning', `↩️ ${ticketRef(guild.id, channelId, ticket)} wurde automatisch freigegeben (<@${previous}> war inaktiv).`);
+      await channel
+        .send({
+          content: mentions(ticketTeamRoles(guild.id, ticket)) || undefined,
+          embeds: [embed('warning').setDescription(`↩️ <@${previous}> war ${autoUnclaim.afterHours} h inaktiv – das Ticket wurde automatisch freigegeben.`)],
+          allowedMentions: { parse: ['roles'] },
+        })
+        .catch(() => {});
     }
   }
 }
 
-let lastOpenState = null;
+const lastOpenState = new Map(); // guildId → Team erreichbar?
 function startTicketWatcher(client) {
   setInterval(async () => {
-    await checkReminders(client).catch((err) => console.error('[ticketWatcher]', err));
-    // Panels neu zeichnen, wenn sich der Öffnungsstatus ändert.
-    const open = isOpen();
-    if (lastOpenState !== null && open !== lastOpenState) {
-      for (const guild of client.guilds.cache.values()) await refreshPanels(guild);
+    for (const guild of client.guilds.cache.values()) {
+      await checkReminders(guild).catch((err) => console.error('[ticketWatcher]', err));
+      // Panels neu zeichnen, wenn sich der Öffnungsstatus ändert.
+      const open = isOpen(settingsOf(guild.id).openingHours);
+      if (lastOpenState.has(guild.id) && open !== lastOpenState.get(guild.id)) await refreshPanels(guild);
+      lastOpenState.set(guild.id, open);
     }
-    lastOpenState = open;
   }, 60_000);
 }
 

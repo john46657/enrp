@@ -1,45 +1,43 @@
 const { Events, ActivityType } = require('discord.js');
-const config = require('../../config.json');
+const settings = require('../lib/settings');
 const { fetchFivemStatus } = require('../lib/fivem');
-const { startTicketWatcher, refreshPanels } = require('../lib/tickets');
+const { startTicketWatcher } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
-const appMessages = require('../lib/applications/messages');
 const { sweep } = require('../lib/applications/flow');
 const { validateType } = require('../lib/applications/forms');
+const { setupGuild } = require('../lib/guilds');
 
 module.exports = {
   name: Events.ClientReady,
   once: true,
   async execute(client) {
-    console.log(`✅ Eingeloggt als ${client.user.tag}`);
+    console.log(`✅ Eingeloggt als ${client.user.tag} – auf ${client.guilds.cache.size} Server(n)`);
 
-    // Slash-Commands registrieren: mit GUILD_ID sofort auf diesem Server, sonst global (dauert bis zu 1 h).
-    const body = client.commands.map((c) => c.data.toJSON());
-    const guildId = process.env.GUILD_ID;
-    await client.application.commands.set(body, ...(guildId ? [guildId] : []));
-    console.log(`✅ ${body.length} Slash-Commands ${guildId ? `auf Server ${guildId}` : 'global'} registriert`);
-
-    for (const [section, values] of Object.entries({ channels: config.channels, roles: config.roles })) {
-      const missing = Object.keys(values).filter((key) => !values[key]);
-      if (missing.length) console.warn(`⚠️  config.json → ${section}: noch nicht eingetragen: ${missing.join(', ')}`);
+    // Einstellungen aus der Zeit, als der Bot nur einen Server kannte, dem einzigen Server zuordnen.
+    if (settings.hasLegacy()) {
+      if (client.guilds.cache.size === 1) settings.adoptLegacy(client.guilds.cache.first().id);
+      else console.warn('⚠️  Alte Einstellungen gefunden, aber der Bot ist auf mehreren Servern. Trage GUILD_ID in die .env ein, um sie einem Server zuzuordnen.');
     }
 
-    // Ticket-Panels nach einem Neustart auf den aktuellen Stand bringen.
-    for (const guild of client.guilds.cache.values()) await refreshPanels(guild);
-    startTicketWatcher(client);
+    // Früher global registrierte Befehle entfernen, sonst erscheinen sie doppelt. Jetzt wird je Server registriert.
+    await client.application.commands.set([]).catch((err) => console.error('[commands] Globale Befehle entfernen:', err.message));
 
     // Bewerbungen: laufende DM-Bewerbungen gehen bei einem Neustart verloren
     appStore.resetProgress();
-    for (const problem of appStore.types().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
-    for (const guild of client.guilds.cache.values()) await appMessages.refreshPanels(guild);
+    for (const problem of appStore.baseTypes().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
+
+    for (const guild of client.guilds.cache.values()) await setupGuild(guild);
+    startTicketWatcher(client);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
+    // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.
     const updatePresence = async () => {
-      if (!config.fivem.address) {
-        client.user.setActivity(config.serverName, { type: ActivityType.Watching });
+      const address = client.guilds.cache.map((g) => settings.forGuild(g.id).fivem.address).find(Boolean);
+      if (!address) {
+        client.user.setActivity(settings.base.serverName, { type: ActivityType.Watching });
         return;
       }
-      const status = await fetchFivemStatus();
+      const status = await fetchFivemStatus(address);
       client.user.setActivity(status.online ? `${status.players}/${status.maxPlayers} Spieler online` : 'Server offline', {
         type: ActivityType.Watching,
       });

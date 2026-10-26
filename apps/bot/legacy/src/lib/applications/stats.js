@@ -65,7 +65,7 @@ function buildStats(guildId, days, { typeId, status, reviewerId } = {}) {
   const m = metrics(current);
   const p = metrics(previous);
 
-  const scope = [typeId && store.typeById(typeId)?.name, status && store.STATUS[status], reviewerId && `Prüfer <@${reviewerId}>`].filter(Boolean).join(' · ');
+  const scope = [typeId && store.typeById(guildId, typeId)?.name, status && store.STATUS[status], reviewerId && `Prüfer <@${reviewerId}>`].filter(Boolean).join(' · ');
   const result = embed()
     .setTitle(`📊 Bewerbungen – letzte ${days} Tage`)
     .setDescription(`${scope ? `${scope}\n` : ''}Vergleich mit den ${days} Tagen davor.`)
@@ -96,7 +96,7 @@ function buildStats(guildId, days, { typeId, status, reviewerId } = {}) {
 
   if (!typeId) {
     const perType = store
-      .types()
+      .types(guildId)
       .map((t) => {
         const own = metrics(current.filter((r) => r.type === t.id));
         return own.count ? `${t.emoji} **${t.name}**: ${own.count} · ✅ ${own.accepted} · ❌ ${own.rejected} · ⏳ ${own.open}` : null;

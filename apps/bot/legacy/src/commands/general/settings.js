@@ -1,5 +1,4 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const config = require('../../../config.json');
 const settings = require('../../lib/settings');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
@@ -45,13 +44,16 @@ const channel = (id) => (id ? `<#${id}>` : '—');
 const role = (id) => (id ? `<@&${id}>` : '—');
 const onOff = (value) => (value ? '✅' : '❌');
 
-function overview() {
+// Einstellungen dieses Servers (jeder Server hat seine eigenen).
+function overview(guild) {
+  const config = settings.forGuild(guild.id);
   const t = config.tickets;
+  const changed = settings.overrideCount(guild.id);
   return embed()
-    .setTitle('⚙️ Einstellungen')
+    .setTitle(`⚙️ Einstellungen – ${guild.name}`)
     .setDescription(
-      settings.overrideCount()
-        ? `${settings.overrideCount()} Einstellung(en) wurden in Discord geändert. \`/einstellungen zuruecksetzen\` stellt die config.json wieder her.`
+      changed
+        ? `${changed} Einstellung(en) wurden auf diesem Server geändert. \`/einstellungen zuruecksetzen\` stellt die config.json wieder her.`
         : 'Alle Werte kommen aus der config.json.',
     )
     .addFields(
@@ -201,7 +203,7 @@ const builder = new SlashCommandBuilder()
           .setName('kategorie')
           .setDescription('Welche Kategorie?')
           .setRequired(true)
-          .addChoices(...config.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
+          .addChoices(...settings.base.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
       )
       .addIntegerOption((o) => o.setName('kapazitaet').setDescription('Plätze für die Auslastung (0 = ausblenden)').setMinValue(0).setMaxValue(1000))
       .addRoleOption((o) => o.setName('team_rolle').setDescription('Nur diese Rolle bearbeitet die Kategorie'))
@@ -228,7 +230,7 @@ const builder = new SlashCommandBuilder()
           .setName('art')
           .setDescription('Welche Bewerbung?')
           .setRequired(true)
-          .addChoices(...config.applications.types.slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+          .addChoices(...settings.base.applications.types.slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
       )
       .addBooleanOption((o) => o.setName('aktiv').setDescription('Bewerbungen annehmen?'))
       .addStringOption((o) =>
@@ -285,7 +287,7 @@ const builder = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s
       .setName('zuruecksetzen')
-      .setDescription('Verwirft alle in Discord geänderten Einstellungen.')
+      .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
       .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
   );
 
@@ -420,12 +422,12 @@ module.exports = {
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
-    if (sub === 'anzeigen') return replyPrivate(interaction, { embeds: [overview()] });
+    if (sub === 'anzeigen') return replyPrivate(interaction, { embeds: [overview(interaction.guild)] });
 
     if (sub === 'zuruecksetzen') {
       if (!interaction.options.getBoolean('bestaetigen')) return replyPrivate(interaction, 'Abgebrochen.');
-      settings.reset();
-      await replyPrivate(interaction, '♻️ Alle Einstellungen kommen jetzt wieder aus der config.json.');
+      settings.reset(interaction.guildId);
+      await replyPrivate(interaction, '♻️ Alle Einstellungen dieses Servers kommen jetzt wieder aus der config.json.');
       await appMessages.refreshPanels(interaction.guild);
       return refreshPanels(interaction.guild);
     }
@@ -438,10 +440,10 @@ module.exports = {
     }
     if (!changes.length) return replyPrivate(interaction, 'Du hast keine Option angegeben – es wurde nichts geändert.');
 
-    for (const [path, value] of changes) settings.set(path, value);
+    for (const [path, value] of changes) settings.set(interaction.guildId, path, value);
     await replyPrivate(interaction, {
-      content: `✅ ${changes.length} Einstellung(en) gespeichert. Gilt sofort, ohne Neustart.`,
-      embeds: [overview()],
+      content: `✅ ${changes.length} Einstellung(en) für diesen Server gespeichert. Gilt sofort, ohne Neustart.`,
+      embeds: [overview(interaction.guild)],
     });
     if (sub.startsWith('ticket') || sub === 'oeffnungszeiten') await refreshPanels(interaction.guild);
     if (sub === 'bewerbung') await appMessages.refreshPanels(interaction.guild);

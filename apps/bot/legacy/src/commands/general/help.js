@@ -14,7 +14,7 @@ module.exports = {
   data: new SlashCommandBuilder().setName('hilfe').setDescription('Zeigt alle Befehle des Bots.'),
 
   async execute(interaction) {
-    const commands = await interaction.client.application.commands.fetch({ guildId: process.env.GUILD_ID || undefined }).catch(() => null);
+    const commands = await interaction.client.application.commands.fetch({ guildId: interaction.guildId }).catch(() => null);
     const mention = (name) => {
       const cmd = commands?.find((c) => c.name === name);
       return cmd ? `</${name}:${cmd.id}>` : `/${name}`;

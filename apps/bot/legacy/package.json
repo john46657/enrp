@@ -1,5 +1,19 @@
 {
   "name": "enrp-bot-legacy",
+  "version": "1.0.0",
   "private": true,
-  "type": "commonjs"
+  "type": "commonjs",
+  "description": "Eigenständiger Discord-Bot (ohne Datenbank und API) – läuft auf jedem Bot-Hoster mit Node.js",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node scripts/check.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.4.7"
+  }
 }

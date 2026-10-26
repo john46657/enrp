@@ -14,11 +14,12 @@ module.exports = {
       o
         .setName('art')
         .setDescription('Wofür? (Standard: Polizei-Bewerbung)')
-        .addChoices(...store.types().slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+        .addChoices(...store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
     ),
 
   async execute(interaction) {
-    const typeId = interaction.options.getString('art') ?? (store.types().find((t) => t.panel === 'apply') ?? store.types()[0])?.id;
+    const types = store.types(interaction.guildId);
+    const typeId = interaction.options.getString('art') ?? (types.find((t) => t.panel === 'apply') ?? types[0])?.id;
     return flow.offer(interaction, typeId);
   },
 
@@ -30,7 +31,7 @@ module.exports = {
           await flow.offer(interaction, interaction.values[0]);
           // Auswahl im Panel zurücksetzen
           const panel = bucket('appPanels', interaction.guildId)[interaction.message.id];
-          if (panel) await interaction.message.edit(buildPanel(panel.kind)).catch(() => {});
+          if (panel) await interaction.message.edit(buildPanel(interaction.guildId, panel.kind)).catch(() => {});
           return;
         }
         case 'apply':

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const config = require('../../../config.json');
+const { forGuild } = require('../../lib/settings');
 const { embed, replyPrivate } = require('../../lib/util');
 const { bucket } = require('../../lib/db');
 const { levelInfo, progressBar } = require('../../lib/leveling');
@@ -11,7 +11,7 @@ module.exports = {
     .addUserOption((o) => o.setName('user').setDescription('Nutzer (Standard: du)')),
 
   async execute(interaction) {
-    if (!config.leveling.enabled) return replyPrivate(interaction, 'Das Level-System ist deaktiviert.');
+    if (!forGuild(interaction.guildId).leveling.enabled) return replyPrivate(interaction, 'Das Level-System ist deaktiviert.');
     const user = interaction.options.getUser('user') ?? interaction.user;
     const levels = bucket('levels', interaction.guildId);
     const xp = levels[user.id]?.xp ?? 0;
