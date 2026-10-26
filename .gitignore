@@ -1,3 +1,9 @@
 node_modules/
+dist/
+*.tsbuildinfo
 .env
+.env.*
+!.env.example
+coverage/
 data/
+legacy/discord-bot-v1/data/

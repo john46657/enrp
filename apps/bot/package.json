@@ -1,0 +1,21 @@
+{
+  "name": "@emden-network/bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@emden-network/core": "workspace:*",
+    "@emden-network/database": "workspace:*",
+    "@emden-network/shared": "workspace:*",
+    "discord.js": "^14.27.0",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  }
+}

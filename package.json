@@ -1,18 +1,41 @@
 {
-  "name": "enrp-bot",
-  "version": "1.0.0",
-  "description": "Discord-Bot für Roleplay-Server: Whitelist, Moderation, Tickets, Community",
-  "main": "index.js",
+  "name": "emden-network",
+  "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "start": "node index.js",
-    "check": "node scripts/check.js"
-  },
+  "description": "Emden Network – GermanRP-Plattform: Discord-Bot, Backend-API und Roblox-Integration mit Roblox-OAuth-Verifizierung",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
   "engines": {
-    "node": ">=18.17"
+    "node": ">=22.12"
   },
-  "dependencies": {
-    "discord.js": "^14.27.0",
-    "dotenv": "^16.4.7"
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "typecheck": "tsc -b tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "tsx --conditions=development packages/database/src/cli.ts up",
+    "db:status": "tsx --conditions=development packages/database/src/cli.ts status",
+    "dev:api": "tsx watch --conditions=development apps/api/src/main.ts",
+    "dev:bot": "tsx watch --conditions=development apps/bot/src/main.ts",
+    "bot:register": "tsx --conditions=development apps/bot/src/register-commands.ts",
+    "start:api": "node apps/api/dist/main.js",
+    "start:bot": "node apps/bot/dist/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "@emden-network/api": "workspace:*",
+    "@emden-network/bot": "workspace:*",
+    "@emden-network/core": "workspace:*",
+    "@emden-network/database": "workspace:*",
+    "@emden-network/shared": "workspace:*",
+    "fastify": "^5.12.7"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

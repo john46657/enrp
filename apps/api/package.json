@@ -1,0 +1,23 @@
+{
+  "name": "@emden-network/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@emden-network/core": "workspace:*",
+    "@emden-network/database": "workspace:*",
+    "@emden-network/shared": "workspace:*",
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/rate-limit": "^11.2.1",
+    "fastify": "^5.12.7",
+    "zod": "^4.6.7"
+  }
+}
