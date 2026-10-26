@@ -13,6 +13,7 @@ module.exports = {
   once: true,
   async execute(client) {
     console.log(`✅ ${branding.product('bot')} ist online als ${client.user.tag}`);
+    await branding.syncProfile(client);
 
     // Slash-Commands registrieren: mit GUILD_ID sofort auf diesem Server, sonst global (dauert bis zu 1 h).
     const body = client.commands.map((c) => c.data.toJSON());

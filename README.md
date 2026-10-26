@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/logo.svg" alt="Emden Network" width="420"></p>
+<p align="center"><img src="assets/brand/banner.webp" alt="Emden Network" width="720"></p>
 
 # Emden Network
 
@@ -22,7 +22,8 @@ und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 ## 1. Bot bei Discord anlegen
 
 1. Öffne das [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
-   und nenne sie **Emden Network**. Als App-Icon `assets/brand/icon-512.png` hochladen.
+   und nenne sie **Emden Network**. Profilbild und Banner setzt der Bot beim ersten Start selbst
+   (`assets/brand/avatar.png` und `banner.webp`).
 2. Links auf **Bot** → **Reset Token** → Token kopieren (niemals teilen!).
 3. Unter **Bot → Privileged Gateway Intents** einschalten:
    - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Tickets und Bewerbungen beim Verlassen)
@@ -67,7 +68,7 @@ GUILD_ID=id-deines-servers
 | Feld | Bedeutung |
 |---|---|
 | `categoryId` | Discord-Kategorie, in der Tickets erstellt werden |
-| `panel.title` / `panel.description` / `panel.image` / `panel.footer` | Aussehen der Panel-Nachricht (`image` = Banner-URL) |
+| `panel.title` / `panel.description` / `panel.image` / `panel.footer` | Aussehen der Panel-Nachricht (`image` = Bild-URL, leer = Banner von Emden Network) |
 | `panel.showLoad` | Auslastung im Panel anzeigen (aktualisiert sich automatisch) |
 | `maxOpenPerUser` | Offene Tickets pro Nutzer, `0` = kein Limit |
 | `pingTeam` | Team beim Öffnen markieren |
@@ -138,7 +139,7 @@ nicht löschen.
 ```
 index.js              Start, lädt Befehle und Events
 config.json           Einstellungen inkl. Branding (keine Geheimnisse)
-assets/brand/…        Logo, App-Icon und Design-Tokens von Emden Network
+assets/brand/…        Profilbild, Banner und Design-Tokens von Emden Network
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
 src/lib/…             Gemeinsame Logik (Branding, Datenbank, Tickets, Öffnungszeiten, Level, FiveM)

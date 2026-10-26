@@ -15,59 +15,69 @@ Technische Paketnamen verwenden das Präfix `emden-network` bzw. den Scope `@emd
 
 ## Zentral konfigurieren
 
-Name, Produktbezeichnungen und Logo stehen **nur** in `config.json → branding`:
+Name, Produktbezeichnungen, Profilbild und Banner stehen **nur** in `config.json → branding`:
 
 ```json
 "branding": {
   "name": "Emden Network",
   "shortName": "EN",
   "tagline": "Roleplay. Gemeinschaft. Verantwortung.",
+  "avatar": "assets/brand/avatar.png",
+  "banner": "assets/brand/banner.webp",
+  "syncProfile": true,
   "logoUrl": "",
+  "bannerUrl": "",
   "products": { "dashboard": "{name} Control Center", "…": "…" }
 }
 ```
 
 - `{name}` in den Produktbezeichnungen wird durch `branding.name` ersetzt – ändert sich der Name,
   reicht eine Änderung an einer Stelle.
-- `logoUrl`: öffentliche Bild-URL (z. B. das hochgeladene `icon-512.png`). Ist sie gesetzt, erscheint
-  das Logo in der Fußzeile aller Embeds.
+- `avatar` / `banner`: Bilddateien des Bot-Profils. Mit `syncProfile: true` überträgt der Bot sie beim
+  Start auf seinen Discord-Account – aber nur, wenn sich eine Datei geändert hat (Discord begrenzt
+  Profiländerungen). Neues Bild = Datei ersetzen und den Bot neu starten.
+- `logoUrl` / `bannerUrl`: nur nötig, wenn andere Bilder als das Bot-Profil verwendet werden sollen.
+  Leer = Profilbild und Banner des Bots, wie Discord sie hostet.
+- Das Profilbild erscheint als Icon in der Fußzeile aller Embeds, der Banner in Ticket- und
+  Bewerbungs-Panels ohne eigenes `image`.
 - Im Code nie den Namen fest eintippen, sondern `src/lib/branding.js` verwenden:
 
 ```js
 const branding = require('./lib/branding');
 branding.name();               // "Emden Network"
 branding.product('dashboard'); // "Emden Network Control Center"
-branding.footer('B-0042');     // Embed-Fußzeile "Emden Network · B-0042" (+ Logo)
-branding.color('accent');      // "#22C3B5"
+branding.footer('Q-0042');     // Embed-Fußzeile "Emden Network · Q-0042" mit Profilbild
+branding.color('primary');     // "#1E9BF0"
+branding.bannerUrl();          // Banner-URL für Panels
 ```
 
 Alle Embeds aus `embed()` (`src/lib/util.js`) tragen automatisch Markenfarbe, Fußzeile und Zeitstempel.
 
-## Logo und Icon
-
-Eigenes Logo, keine fremden Marken- oder Bildrechte:
+## Profilbild und Banner
 
 | Datei | Verwendung |
 |---|---|
-| `assets/brand/icon.svg` | App-Icon / Favicon (Sechseck = Netzwerk, „E“ aus verbundenen Knoten, Welle = Hafenstadt Emden) |
-| `assets/brand/icon-512.png` | Bot-Avatar im Discord Developer Portal, `branding.logoUrl` |
-| `assets/brand/logo.svg` | Logo mit Schriftzug für Login-Seite, Navigation und README; nutzt `currentColor` für den hellen Text |
+| `assets/brand/avatar.png` | Offizielles Profilbild: „EN“-Monogramm, silbernes E und blaues N (1024 × 1024, transparent) – Bot-Avatar, Embed-Icon, Favicon und App-Icon |
+| `assets/brand/banner.webp` | Offizieller Banner auf dunklem Hintergrund – Bot-Banner, Panels, README, Login-Seite des Control Centers |
 
-Schutzzone: mindestens die halbe Icon-Breite um das Logo frei lassen. Das Icon nicht verzerren,
-umfärben oder mit anderen Logos kombinieren.
+Das Monogramm nicht verzerren, umfärben oder mit anderen Logos kombinieren und rundherum mindestens
+ein Viertel seiner Breite frei lassen. Auf dunklen Flächen funktioniert es ohne Hintergrund, auf hellen
+Flächen mit genug Kontrast zum silbernen „E“.
 
 ## Farben
 
+Abgeleitet aus Profilbild und Banner: Silber und leuchtendes Blau auf tiefem Nachtblau.
+
 | Token | Wert | Verwendung |
 |---|---|---|
-| `primary` | `#2F7DF6` | Standard-Embeds, Buttons, Links, Akzentfarbe der Panels |
-| `accent` | `#22C3B5` | Verlauf, Hervorhebungen, Wortmarke „NETWORK“ |
+| `primary` | `#1E9BF0` | Standard-Embeds, Buttons, Links, Akzentfarbe der Panels (Blau des „N“) |
+| `accent` | `#C2C8CF` | Silber des „E“, Hervorhebungen, Trennlinien |
 | `success` | `#2ECC71` | Angenommen, online, erfolgreich |
 | `warning` | `#F5B841` | Hinweise, Verwarnungen |
 | `danger` | `#E5484D` | Abgelehnt, Strafen, Fehler |
-| Hintergrund | `#0B1220` | Dunkles Theme (Standard) |
-| Fläche | `#121A2B` / `#1A2438` | Karten, Panels |
-| Text | `#E6EDF7` / `#8E9BB3` | Fließtext / Nebentext |
+| Hintergrund | `#050B16` | Dunkles Theme (Standard) |
+| Fläche | `#0D1626` / `#142036` | Karten, Panels |
+| Text | `#E8EDF4` / `#8C99AE` | Fließtext / Nebentext |
 
 Die Embed-Farben kommen aus `config.json → colors`. Für Weboberflächen (Control Center, Admin)
 liegen alle Werte als CSS-Variablen in `assets/brand/tokens.css`: dunkles Theme als Standard, helles
@@ -75,9 +85,10 @@ Theme über `data-theme="light"`.
 
 ## Typografie
 
-- Schrift: **Inter** (Fallback: Segoe UI, Roboto, Helvetica, Arial)
+- Überschriften und Wortmarke: Serifenschrift wie im Logo, z. B. **Cinzel** oder **Playfair Display**,
+  in Großbuchstaben mit weiter Laufweite
+- Fließtext und Oberfläche: **Inter** (Fallback: Segoe UI, Roboto, Helvetica, Arial)
 - Code / IDs: **JetBrains Mono** (Fallback: Consolas, monospace)
-- Überschriften fett (700–800), Fließtext 400, Wortmarke „NETWORK“ mit weiter Laufweite
 
 ## Texte und Benachrichtigungen
 

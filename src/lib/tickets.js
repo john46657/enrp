@@ -117,10 +117,11 @@ function buildPanel(guild) {
       new TextDisplayBuilder().setContent(`-# 🌙 Das Team ist gerade nicht erreichbar${next ? ` – wieder da <t:${unix(next)}:R>` : ''}.`),
     );
   }
-  if (panel.image) {
+  const image = panel.image || branding.bannerUrl();
+  if (image) {
     container
       .addSeparatorComponents(new SeparatorBuilder())
-      .addMediaGalleryComponents(new MediaGalleryBuilder().addItems((item) => item.setURL(panel.image)));
+      .addMediaGalleryComponents(new MediaGalleryBuilder().addItems((item) => item.setURL(image)));
   }
   if (panel.footer) {
     container.addSeparatorComponents(new SeparatorBuilder()).addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${panel.footer}`));

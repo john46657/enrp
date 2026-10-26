@@ -3,7 +3,11 @@
     "name": "Emden Network",
     "shortName": "EN",
     "tagline": "Roleplay. Gemeinschaft. Verantwortung.",
+    "avatar": "assets/brand/avatar.png",
+    "banner": "assets/brand/banner.webp",
+    "syncProfile": true,
     "logoUrl": "",
+    "bannerUrl": "",
     "products": {
       "bot": "{name}",
       "dashboard": "{name} Control Center",
@@ -13,8 +17,8 @@
     }
   },
   "colors": {
-    "primary": "#2F7DF6",
-    "accent": "#22C3B5",
+    "primary": "#1E9BF0",
+    "accent": "#C2C8CF",
     "success": "#2ECC71",
     "danger": "#E5484D",
     "warning": "#F5B841"

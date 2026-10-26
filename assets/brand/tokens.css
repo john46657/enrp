@@ -4,20 +4,21 @@
 :root {
   --en-brand-name: "Emden Network";
 
-  --en-primary: #2F7DF6;
-  --en-accent: #22C3B5;
+  --en-primary: #1E9BF0;
+  --en-accent: #C2C8CF;
   --en-success: #2ECC71;
   --en-warning: #F5B841;
   --en-danger: #E5484D;
-  --en-gradient: linear-gradient(135deg, var(--en-primary), var(--en-accent));
+  --en-gradient: linear-gradient(135deg, var(--en-accent), var(--en-primary));
 
-  --en-bg: #0B1220;
-  --en-surface: #121A2B;
-  --en-surface-raised: #1A2438;
-  --en-border: #26324A;
-  --en-text: #E6EDF7;
-  --en-text-muted: #8E9BB3;
+  --en-bg: #050B16;
+  --en-surface: #0D1626;
+  --en-surface-raised: #142036;
+  --en-border: #22304A;
+  --en-text: #E8EDF4;
+  --en-text-muted: #8C99AE;
 
+  --en-font-display: "Cinzel", "Playfair Display", Georgia, serif;
   --en-font: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --en-font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --en-radius-sm: 6px;
@@ -32,9 +33,9 @@
   --en-surface: #FFFFFF;
   --en-surface-raised: #FFFFFF;
   --en-border: #D9E1EC;
-  --en-text: #0B1220;
+  --en-text: #050B16;
   --en-text-muted: #55627A;
-  --en-shadow: 0 8px 24px rgb(11 18 32 / 0.08);
+  --en-shadow: 0 8px 24px rgb(5 11 22 / 0.08);
   color-scheme: light;
 }
 

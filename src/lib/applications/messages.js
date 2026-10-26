@@ -44,8 +44,9 @@ function buildPanel(kind) {
       ),
     );
   }
-  if (panel.image) {
-    container.addSeparatorComponents(new SeparatorBuilder()).addMediaGalleryComponents(new MediaGalleryBuilder().addItems((item) => item.setURL(panel.image)));
+  const image = panel.image || branding.bannerUrl();
+  if (image) {
+    container.addSeparatorComponents(new SeparatorBuilder()).addMediaGalleryComponents(new MediaGalleryBuilder().addItems((item) => item.setURL(image)));
   }
 
   const components = [container];
