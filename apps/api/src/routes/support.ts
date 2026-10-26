@@ -2,7 +2,7 @@ import { type FastifyInstance } from 'fastify';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { moderation, requirePermission, support } from '@enrp/core';
-import { MODERATION_STATUS, MODERATION_TYPES, REPORT_STATUS, TICKET_PRIORITY, TICKET_STATUS } from '@enrp/shared';
+import { AppError, MODERATION_STATUS, MODERATION_TYPES, REPORT_STATUS, TICKET_PRIORITY, TICKET_STATUS } from '@enrp/shared';
 import { requireAuthenticated } from '../plugins/auth';
 import { csvList, idParam, isoDate, paginationQuery, reason, robloxUserId, snowflake } from './schemas';
 
@@ -25,6 +25,24 @@ export async function supportRoutes(fastify: FastifyInstance) {
       config: { idempotent: true, rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
     async (request) => support.createTicket(core, request.actor, request.body),
+  );
+  app.post(
+    '/tickets/sync',
+    {
+      schema: {
+        tags: ttags,
+        summary: 'Spiegelung aus dem Discord-Ticketpanel (nur Bot)',
+        body: z.discriminatedUnion('event', [
+          z.object({ event: z.literal('open'), channelId: snowflake, creatorId: snowflake, subject: text(150), category: z.string().max(40) }),
+          z.object({ event: z.literal('claim'), channelId: snowflake, assigneeId: snowflake.nullable() }),
+          z.object({ event: z.literal('close'), channelId: snowflake, closedBy: snowflake.nullable(), reason: z.string().max(1000).nullable() }),
+        ]),
+      },
+    },
+    async (request) => {
+      if (request.authMethod !== 'bot') throw new AppError('FORBIDDEN', 'Nur für den Bot.');
+      return { ticket: await support.syncDiscordTicket(core, request.body) };
+    },
   );
   app.get(
     '/tickets',

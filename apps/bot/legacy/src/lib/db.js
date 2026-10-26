@@ -50,11 +50,5 @@ function nextNumber(name, guildId) {
   return counters[name];
 }
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    if (timer) flush();
-    process.exit(0);
-  });
-}
-
+// Beim Beenden ruft der Bot flush() auf (siehe apps/bot/src/legacy.ts), damit nichts verloren geht.
 module.exports = { data, save, flush, bucket, nextNumber };

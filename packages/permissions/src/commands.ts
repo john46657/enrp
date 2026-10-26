@@ -7,11 +7,9 @@ import { can, type Subject } from './evaluate';
  * gelten pro Hauptbefehl oder pro Unterbefehl.
  */
 export const COMMAND_PERMISSIONS: Record<string, PermissionKey | null> = {
-  verify: null,
   'verify start': null,
   'verify status': null,
   'verify unlink': null,
-  profile: null,
   'profile me': null,
   'profile view': 'players:view',
   'profile history': 'player_private:view',
@@ -27,14 +25,6 @@ export const COMMAND_PERMISSIONS: Record<string, PermissionKey | null> = {
   'duty sessions': 'duty:view',
   'vehicle list': 'vehicles:view',
   'vehicle info': 'vehicles:view',
-  'ticket create': null,
-  'ticket claim': 'tickets:edit',
-  'ticket assign': 'tickets:edit',
-  'ticket note': 'ticket_internal:create',
-  'ticket status': 'tickets:edit',
-  'ticket close': 'tickets:edit',
-  'ticket view': 'tickets:view',
-  report: null,
   'report create': null,
   'report list': 'reports:view',
   'report resolve': 'reports:edit',

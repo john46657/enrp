@@ -484,3 +484,44 @@ export async function supportCounts(db: DbExecutor) {
   const [c] = await db.select({ count: sql<number>`count(*)::int` }).from(caseReports).where(eq(caseReports.status, 'open'));
   return { openTickets: t?.count ?? 0, openReports: r?.count ?? 0, openCases: c?.count ?? 0 };
 }
+
+/**
+ * Spiegelt Tickets aus dem Discord-Ticketpanel (Kanal je Ticket) in die Datenbank, damit sie im Dashboard
+ * sichtbar sind. Nur der Bot (Service-Token) ruft dies auf; Berechtigungen prüft das Ticketpanel selbst.
+ */
+export async function syncDiscordTicket(
+  ctx: CoreContext,
+  input:
+    | { event: 'open'; channelId: string; creatorId: string; subject: string; category: string }
+    | { event: 'claim'; channelId: string; assigneeId: string | null }
+    | { event: 'close'; channelId: string; closedBy: string | null; reason: string | null },
+) {
+  const now = ctx.now();
+  const actor = { kind: 'system' as const, name: 'discord-ticketpanel' };
+  return ctx.db.transaction(async (tx) => {
+    if (input.event === 'open') {
+      const [row] = await tx
+        .insert(tickets)
+        .values({ subject: input.subject.slice(0, 150), category: input.category, creatorDiscordId: input.creatorId, discordChannelId: input.channelId })
+        .onConflictDoNothing()
+        .returning();
+      if (!row) return null;
+      await addRecordEvent(tx, { recordType: 'ticket', recordId: row.id, type: 'created', actorId: input.creatorId, body: 'Über das Discord-Ticketpanel eröffnet', at: now });
+      await writeAudit(tx, actor, { action: 'ticket.create', resourceType: 'ticket', resourceId: row.id, metadata: { channelId: input.channelId } }, now);
+      ctx.realtime.publish('tickets', 'ticket.created', { id: row.id, number: row.number, subject: row.subject });
+      return row;
+    }
+    const [ticket] = await tx.select().from(tickets).where(eq(tickets.discordChannelId, input.channelId));
+    if (!ticket || ticket.status === 'closed') return null;
+    const patch =
+      input.event === 'claim'
+        ? { assigneeDiscordId: input.assigneeId, status: input.assigneeId ? ('claimed' as const) : ('open' as const) }
+        : { status: 'closed' as const, closedAt: now, closedBy: input.closedBy ?? 'system', closeReason: input.reason };
+    const [row] = await tx.update(tickets).set(patch).where(eq(tickets.id, ticket.id)).returning();
+    const actorRef = input.event === 'claim' ? input.assigneeId : input.closedBy;
+    await addRecordEvent(tx, { recordType: 'ticket', recordId: ticket.id, type: input.event === 'claim' ? (input.assigneeId ? 'claim' : 'unclaim') : 'close', actorId: actorRef, body: input.event === 'close' ? input.reason : null, at: now });
+    await writeAudit(tx, actor, { action: `ticket.${input.event}`, resourceType: 'ticket', resourceId: ticket.id, before: { status: ticket.status }, after: { status: row!.status }, metadata: { by: actorRef } }, now);
+    ctx.realtime.publish('tickets', 'ticket.updated', { id: ticket.id, status: row!.status });
+    return row!;
+  });
+}

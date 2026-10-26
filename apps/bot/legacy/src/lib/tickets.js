@@ -189,6 +189,14 @@ async function updateControls(channel, ticket) {
   await message?.edit({ components: [controls(ticket)] }).catch(() => {});
 }
 
+// Optionale Hooks: Der neue Bot spiegelt Ticket-Ereignisse über die API in die Datenbank (Dashboard).
+const hooks = {};
+function emitHook(name, payload) {
+  const fn = hooks[name];
+  if (!fn) return;
+  Promise.resolve(fn(payload)).catch((err) => console.error(`[ticket-hook:${name}]`, err.message));
+}
+
 async function openTicket(interaction, typeId) {
   const type = typeById(typeId);
   if (!type) return replyPrivate(interaction, 'Diese Kategorie gibt es nicht mehr.');
@@ -246,6 +254,7 @@ async function openTicket(interaction, typeId) {
   tickets[channel.id] = ticket;
   save();
 
+  emitHook('open', { channelId: channel.id, creatorId: interaction.user.id, number, category: type.id, subject: `${type.label} – Ticket #${number}` });
   await interaction.editReply(`✅ Dein Ticket wurde erstellt: ${channel}`);
   await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(channel.id, ticket)} geöffnet.`);
   await refreshPanels(interaction.guild);
@@ -311,6 +320,7 @@ async function closeTicket(channel, closedBy, reason) {
   if (!ticket) return;
   delete tickets[channel.id];
   save();
+  emitHook('close', { channelId: channel.id, closedBy: closedBy?.id ?? null, reason: reason ?? null });
 
   const { activities, transcripts } = settings.logging;
   const transcript = transcripts ? await buildTranscript(channel) : null;
@@ -403,6 +413,7 @@ async function claim(interaction) {
   ticket.claimedBy = interaction.user.id;
   ticket.claimerLastAt = Date.now();
   save();
+  emitHook('claim', { channelId: interaction.channelId, assigneeId: interaction.user.id });
   await interaction.update({ components: [controls(ticket)] });
   await interaction.followUp({ embeds: [embed('success').setDescription(`🙋 ${interaction.user} kümmert sich um dieses Ticket.`)] });
   await moveForClaim(interaction.channel, ticket, true);
@@ -418,6 +429,7 @@ async function unclaim(interaction) {
   delete ticket.claimedBy;
   delete ticket.claimerLastAt;
   save();
+  emitHook('claim', { channelId: interaction.channelId, assigneeId: null });
   await interaction.update({ components: [controls(ticket)] });
   await interaction.followUp({ embeds: [embed('warning').setDescription(`↩️ ${interaction.user} hat das Ticket wieder freigegeben.`)] });
   await moveForClaim(interaction.channel, ticket, false);
@@ -539,6 +551,7 @@ function startTicketWatcher(client) {
 }
 
 module.exports = {
+  hooks,
   ticketsOf,
   openTickets,
   postPanel,
