@@ -76,6 +76,15 @@ export async function createIncident(
         },
       });
     }
+    // Automatisch erzeugte Vorfälle lösen keine weitere Automatisierung aus (Schutz gegen Schleifen).
+    if (incident.source !== 'automation') {
+      const { fireTrigger } = await import('./automations');
+      await fireTrigger(ctx, 'incident_created', {
+        summary: `Vorfall #${incident.number}: ${incident.title}`,
+        dedupeKey: `incident:${incident.id}`,
+        depth: 1,
+      });
+    }
     return { incident, deduplicated: false };
   } catch (err) {
     if (input.dedupeKey && isUniqueViolation(err)) {

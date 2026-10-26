@@ -196,5 +196,12 @@ export async function markReleaseResult(
     { action: `release.${result.status}`, resourceType: 'release', resourceId: releaseId, metadata: result },
     ctx.now(),
   );
+  if (result.status === 'deployed') {
+    const { fireTrigger } = await import('./automations');
+    await fireTrigger(ctx, 'release_deployed', {
+      summary: `Release ${row.version} wurde ausgerollt.`,
+      dedupeKey: `release:${row.id}`,
+    });
+  }
   return row;
 }

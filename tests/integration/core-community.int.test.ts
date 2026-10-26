@@ -351,3 +351,42 @@ describe('Automatisierungen', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('Automatisierungen: Auslöser aus Vorfällen und Releases', () => {
+  it('manuelle Vorfälle lösen incident_created aus, automatische nicht; Release-Rückmeldung löst release_deployed aus', async () => {
+    const { incidents, releases } = await import('@enrp/core');
+    const ctx = createTestContext();
+    const admin = await owner(ctx);
+    const second = await userWithRole(ctx, MOD2, 'owner');
+    await automations.createAutomation(
+      ctx,
+      admin,
+      {
+        name: 'Vorfall melden',
+        trigger: 'incident_created',
+        action: 'notify_discord',
+        actionConfig: { channelId: '123456789012345678' },
+        cooldownSeconds: 60,
+      },
+      'x',
+    );
+    await automations.createAutomation(
+      ctx,
+      admin,
+      { name: 'Nach Release prüfen', trigger: 'release_deployed', action: 'run_health_check', cooldownSeconds: 60 },
+      'x',
+    );
+    await incidents.createIncident(ctx, admin, { title: 'Bot hängt' });
+    expect(ctx.queue.take('message.send')).toHaveLength(1);
+    await incidents.createIncident(ctx, systemActor('automation:x'), { title: 'Automatisch', source: 'automation' });
+    expect(ctx.queue.take('message.send')).toHaveLength(0);
+
+    const release = await releases.prepareRelease(ctx, admin, { version: '1.0.0', environment: 'staging' });
+    await expectAppError(releases.approveRelease(ctx, admin, release.id, 'selbst'), 'SELF_ACTION_FORBIDDEN');
+    await releases.approveRelease(ctx, second, release.id, 'ok');
+    expect(ctx.queue.take('release.dispatch')).toHaveLength(1);
+    await releases.markReleaseResult(ctx, release.id, { status: 'deployed' });
+    expect(ctx.queue.take('health.check')).toHaveLength(1);
+    expect((await releases.getEnvironment(ctx.db, 'staging')).currentVersion).toBe('1.0.0');
+  });
+});

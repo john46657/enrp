@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { monitoring, releases } from '@enrp/core';
+import { automations, monitoring, releases } from '@enrp/core';
 import { createDatabase, runMigrations, seedDatabase } from '@enrp/database';
 import { buildApp } from './app';
 import { createDeps } from './deps';
@@ -48,6 +48,19 @@ await releases
 await reportAlive();
 const heartbeat = setInterval(reportAlive, 30_000);
 
+// Hohe Fehlerquote dieser Instanz an die Automatisierungen melden (nur bei ausreichend vielen Anfragen).
+const errorWatch = setInterval(() => {
+  const { last5Minutes } = deps.metrics.snapshot();
+  if (last5Minutes.requests >= 20 && (last5Minutes.errorRate ?? 0) > 5) {
+    void automations
+      .fireTrigger(deps.core, 'error_rate_high', {
+        summary: `API-Fehlerquote ${last5Minutes.errorRate} % (${last5Minutes.requests} Anfragen in 5 Min.).`,
+        dedupeKey: 'api-error-rate',
+      })
+      .catch((err) => app.log.warn({ err }, 'Automatisierung fehlgeschlagen'));
+  }
+}, 60_000);
+
 await app.listen({ host: env.API_HOST, port: env.API_PORT });
 
 // Sauberes Herunterfahren: keine neuen Anfragen, laufende abschließen, Verbindungen schließen.
@@ -58,6 +71,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     shuttingDown = true;
     app.log.info({ signal }, 'Fahre herunter …');
     clearInterval(heartbeat);
+    clearInterval(errorWatch);
     const force = setTimeout(() => process.exit(1), 15_000);
     try {
       await app.close();
