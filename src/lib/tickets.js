@@ -7,11 +7,14 @@ const {
   ContainerBuilder,
   MediaGalleryBuilder,
   MessageFlags,
+  ModalBuilder,
   OverwriteType,
   PermissionFlagsBits,
   SeparatorBuilder,
   StringSelectMenuBuilder,
   TextDisplayBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require('discord.js');
 const config = require('../../config.json');
 const { bucket, save, nextNumber } = require('./db');
@@ -288,22 +291,67 @@ async function closeTicket(channel, closedBy, reason) {
   if (activities || transcripts) await sendTo(channel.guild, 'ticketLog', { embeds: [summary], files, allowedMentions: { parse: [] } });
   const owner = await channel.client.users.fetch(ticket.owner).catch(() => null);
   await owner
-    ?.send({ content: `Dein Ticket auf **${channel.guild.name}** wurde geschlossen.${transcript ? ' Hier ist der Verlauf:' : ''}`, files })
+    ?.send({
+      content: `Dein Ticket auf **${channel.guild.name}** wurde geschlossen.${reason ? `\n**Grund:** ${reason}` : ''}${transcript ? '\nHier ist der Verlauf:' : ''}`,
+      files,
+    })
     .catch(() => {});
 
   await refreshPanels(channel.guild);
   setTimeout(() => channel.delete('Ticket geschlossen').catch(() => {}), 5000);
 }
 
-async function closeFromInteraction(interaction) {
+function closeError(interaction) {
   const ticket = ticketsOf(interaction.guildId)[interaction.channelId];
-  if (!ticket) return replyPrivate(interaction, 'Das hier ist kein Ticket-Kanal.');
-  const team = isTicketTeam(interaction.member, ticket);
-  if (!team && (settings.onlyTeamCanClose || ticket.owner !== interaction.user.id)) {
-    return replyPrivate(interaction, settings.onlyTeamCanClose ? 'Nur das Team kann Tickets schließen.' : 'Nur der Ersteller oder das Team kann das Ticket schließen.');
+  if (!ticket) return 'Das hier ist kein Ticket-Kanal.';
+  if (isTicketTeam(interaction.member, ticket)) return null;
+  if (settings.onlyTeamCanClose) return 'Nur das Team kann Tickets schließen.';
+  if (ticket.owner !== interaction.user.id) return 'Nur der Ersteller oder das Team kann das Ticket schließen.';
+  return null;
+}
+
+// Schritt 1: Rückfrage (nur für den Klickenden sichtbar).
+async function closeFromInteraction(interaction) {
+  const error = closeError(interaction);
+  if (error) return replyPrivate(interaction, error);
+  return replyPrivate(interaction, {
+    embeds: [embed('danger').setDescription('🔒 Möchtest du dieses Ticket wirklich schließen?')],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket:closeyes').setLabel('Schließen').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+        new ButtonBuilder().setCustomId('ticket:closereason').setLabel('Mit Grund schließen').setStyle(ButtonStyle.Secondary).setEmoji('📝'),
+        new ButtonBuilder().setCustomId('ticket:closeno').setLabel('Abbrechen').setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+// Schritt 2: Antwort auf die Rückfrage (closeyes, closereason → Formular → closemodal, closeno).
+async function confirmClose(interaction, action) {
+  if (action === 'closeno') return interaction.update({ embeds: [embed().setDescription('Abgebrochen – das Ticket bleibt offen.')], components: [] });
+
+  const error = closeError(interaction);
+  if (error) return interaction.update({ embeds: [embed('danger').setDescription(error)], components: [] });
+
+  if (action === 'closereason') {
+    return interaction.showModal(
+      new ModalBuilder()
+        .setCustomId('ticket:closemodal')
+        .setTitle('Ticket schließen')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('reason').setLabel('Grund').setStyle(TextInputStyle.Paragraph).setMaxLength(1000),
+          ),
+        ),
+    );
   }
-  await interaction.reply({ embeds: [embed('danger').setDescription(`🔒 Ticket wird von ${interaction.user} geschlossen …`)] });
-  await closeTicket(interaction.channel, interaction.user);
+
+  const reason = action === 'closemodal' ? interaction.fields.getTextInputValue('reason') : null;
+  await interaction.update({ embeds: [embed('danger').setDescription('🔒 Wird geschlossen …')], components: [] });
+  await interaction.channel.send({
+    embeds: [embed('danger').setDescription(`🔒 Ticket wird von ${interaction.user} geschlossen …${reason ? `\n**Grund:** ${reason}` : ''}`)],
+  });
+  await closeTicket(interaction.channel, interaction.user, reason);
 }
 
 // ---------- Übernehmen / Freigeben ----------
@@ -460,6 +508,7 @@ module.exports = {
   openTicket,
   closeTicket,
   closeFromInteraction,
+  confirmClose,
   claim,
   unclaim,
   requestAddUser,

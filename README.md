@@ -10,8 +10,9 @@ und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer.
 |---|---|
 | 🎭 **Roleplay** | `/whitelist-panel`: Bewerbungsformular mit Annehmen/Ablehnen-Buttons fürs Team, Rolle + DM automatisch · `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
-| 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
+| 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
+| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart |
 | 📖 | `/hilfe` zeigt alle Befehle |
 
 ## 1. Bot bei Discord anlegen
@@ -80,6 +81,26 @@ GUILD_ID=id-deines-servers
 Nach jeder Änderung an `config.json` den Bot neu starten. Mit `npm run check` kannst du vorher
 prüfen, ob die Konfiguration gültig ist.
 
+### Einstellungen direkt in Discord (`/einstellungen`)
+
+Die meisten Werte kannst du auch ohne Dateizugriff ändern (nur mit „Server verwalten“). Änderungen gelten
+sofort, werden in `data/db.json` gespeichert und haben Vorrang vor der `config.json`.
+
+| Unterbefehl | Was du einstellst |
+|---|---|
+| `anzeigen` | Übersicht aller aktuellen Werte |
+| `kanal` / `rolle` | Log-, Willkommens- und Bewerbungskanäle bzw. Support-, Staff-, Whitelist- und Auto-Rolle (ohne Auswahl = entfernen) |
+| `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
+| `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
+| `ticket-kategorie` | Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
+| `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
+| `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
+| `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
+| `fivem` | Server-Adresse und Verbinden-Link |
+| `zuruecksetzen` | Alle Discord-Änderungen verwerfen, wieder die `config.json` verwenden |
+
+Neue Ticket-Kategorien und die Whitelist-Fragen legst du weiterhin in der `config.json` an.
+
 ## 3. Starten
 
 ### Lokal / VPS
@@ -95,7 +116,7 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit Token und Server-ID hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und `✅ 16 Slash-Commands … registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …` und `✅ 17 Slash-Commands … registriert` stehen.
 
 Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.

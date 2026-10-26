@@ -77,6 +77,22 @@ if (next?.toISOString() !== '2026-10-26T14:00:00.000Z') fail(`nextOpening falsch
 hours.enabled = wasEnabled;
 console.log('✅ Öffnungszeiten-Logik');
 
+// Einstellungen in Discord: setzen, lesen, zurücksetzen
+const settings = require('../src/lib/settings');
+const firstType = config.tickets.types[0].id;
+const before = { cap: config.tickets.types[0].capacity, log: config.channels.ticketLog };
+settings.set(`tickets.types.${firstType}.capacity`, 99);
+settings.set('channels.ticketLog', '123');
+settings.set('leveling.roleRewards.7', '456');
+if (config.tickets.types[0].capacity !== 99 || config.channels.ticketLog !== '123' || config.leveling.roleRewards[7] !== '456') {
+  fail('Einstellungen werden nicht übernommen');
+}
+settings.reset();
+if (config.tickets.types[0].capacity !== before.cap || config.channels.ticketLog !== before.log || '7' in config.leveling.roleRewards) {
+  fail('Einstellungen lassen sich nicht zurücksetzen');
+}
+console.log('✅ Einstellungen setzen/zurücksetzen');
+
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');
 process.exit(0);

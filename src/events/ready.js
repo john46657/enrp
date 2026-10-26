@@ -35,6 +35,6 @@ module.exports = {
       });
     };
     await updatePresence();
-    if (config.fivem.address) setInterval(updatePresence, 60_000);
+    setInterval(updatePresence, 60_000);
   },
 };

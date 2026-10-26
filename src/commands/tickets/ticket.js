@@ -58,6 +58,11 @@ module.exports = {
         }
         case 'close':
           return tickets.closeFromInteraction(interaction);
+        case 'closeyes':
+        case 'closereason':
+        case 'closemodal':
+        case 'closeno':
+          return tickets.confirmClose(interaction, action);
         case 'claim':
           return tickets.claim(interaction);
         case 'unclaim':

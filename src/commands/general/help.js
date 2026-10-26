@@ -6,6 +6,7 @@ const SECTIONS = {
   '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear'],
   '🎫 Tickets': ['ticket'],
   '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste'],
+  '⚙️ Verwaltung': ['einstellungen'],
 };
 
 module.exports = {
