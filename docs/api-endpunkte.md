@@ -271,7 +271,6 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | Methode | Pfad | Zweck |
 |---|---|---|
 | `GET` | `/api/v1/approvals` | Freigabeanfragen |
-| `POST` | `/api/v1/approvals` | /approval create – generische Freigabe beantragen |
 | `GET` | `/api/v1/approvals/{id}` | Freigabeanfrage |
 | `POST` | `/api/v1/approvals/{id}/decide` | Genehmigen oder ablehnen |
 | `POST` | `/api/v1/approvals/{id}/cancel` | Eigene Anfrage zurückziehen |

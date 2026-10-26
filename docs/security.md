@@ -6,7 +6,7 @@
 |---|---|
 | Dashboard | Discord-OAuth (Code-Flow, PKCE, state, Browser-Bindungs-Cookie). Sitzungstoken (256 Bit) nur als SHA-256 gespeichert; Cookie `httpOnly`, `SameSite=Lax`, `Secure` (außer lokal). 12 h Inaktivität, max. 7 Tage. Zugang nur mit mindestens einem Recht. |
 | Schreibzugriffe im Browser | Origin-Prüfung + Synchronizer-CSRF-Token (`X-CSRF-Token`) |
-| Discord-Bot | Service-Token (Vergleich in konstanter Zeit) + handelnde Person; Fehlversuche werden protokolliert |
+| Discord-Bot | Service-Token (Vergleich in konstanter Zeit) + handelnde Person; Fehlversuche werden protokolliert. Wer das Service-Token besitzt, kann im Namen beliebiger Personen handeln – es ist wie ein Root-Geheimnis zu behandeln (nur Bot und API, regelmäßig rotieren). |
 | Roblox-Spielserver | API-Schlüssel (nur Hash gespeichert, widerrufbar, optional auf Place-IDs beschränkt) + Zeitstempel ±5 Min. + einmalige Nonce (Replay → 409 + kritisches Sicherheitsereignis) |
 | CI/CD-Rückmeldung | gemeinsames Geheimnis `RELEASE_WEBHOOK_SECRET` |
 | `/metrics` | Bearer `METRICS_TOKEN`, sonst 404 |
@@ -16,7 +16,9 @@
 Jede geschützte Operation prüft serverseitig in `packages/core`. Nicht angemeldete Anfragen sind ein eigener
 Akteurtyp ohne Rechte. Rechteausweitung ist verhindert (siehe [permissions.md](permissions.md)); kritische
 Aktionen brauchen eine zweite Person; Selbstaktionen (eigener Einspruch, eigene Freigabe, eigenes Release,
-Selbstsanktion) sind ausgeschlossen.
+Selbstsanktion) sind ausgeschlossen. Freigabeanfragen entstehen nur aus den jeweiligen Fachabläufen (es gibt keinen
+generischen „beliebige Aktion beantragen“-Endpunkt); auch die genehmigende Person darf keine Rechte freigeben,
+die sie selbst nicht besitzt.
 
 ## Eingaben und Ausgaben
 

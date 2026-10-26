@@ -1,6 +1,6 @@
 import { and, approvalRequests, desc, eq, lt, sql, type DbExecutor } from '@enrp/database';
 import { AppError, errors } from '@enrp/shared';
-import { type Actor, actorId, hasPermission, requirePermission, requireUser } from './actor';
+import { type Actor, type UserActor, actorId, hasPermission, requirePermission, requireUser } from './actor';
 import { writeAudit } from './audit';
 import { type CoreContext, type TxContext } from './context';
 import { canonicalJson, sha256Hex } from './crypto';
@@ -12,6 +12,8 @@ export interface ApprovalExecutor {
     ctx: TxContext,
     payload: Record<string, unknown>,
     approval: { id: string; requestedBy: string; reason: string },
+    /** Genehmigende Person – Executor prüfen damit z. B., dass keine fremden Rechte freigegeben werden. */
+    approver: UserActor,
   ) => Promise<unknown>;
 }
 
@@ -149,11 +151,12 @@ export async function decideApproval(
       return row!;
     }
 
-    const result = await executor.execute({ ...ctx, db: tx }, approval.payload as Record<string, unknown>, {
-      id: approval.id,
-      requestedBy: approval.requestedBy,
-      reason: approval.reason,
-    });
+    const result = await executor.execute(
+      { ...ctx, db: tx },
+      approval.payload as Record<string, unknown>,
+      { id: approval.id, requestedBy: approval.requestedBy, reason: approval.reason },
+      user,
+    );
     const [row] = await tx
       .update(approvalRequests)
       .set({

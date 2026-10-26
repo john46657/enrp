@@ -21,7 +21,7 @@ import {
   type DbExecutor,
 } from '@enrp/database';
 import { AppError, errors } from '@enrp/shared';
-import { type Actor, actorId, requirePermission, requireUser } from '../actor';
+import { type Actor, type UserActor, actorId, requirePermission, requireUser } from '../actor';
 import { loadGrantsForRoles, loadSubject } from '../access';
 import { createApproval, registerApprovalExecutor } from '../approvals';
 import { writeAudit } from '../audit';
@@ -126,11 +126,21 @@ export async function updateRoleGrants(
   return { status: 'applied' as const };
 }
 
+/** Auch die genehmigende Person darf keine Rechte freigeben, die sie selbst nicht besitzt. */
+function assertApproverCovers(approver: UserActor, grants: Grant[]) {
+  const exceeding = grants.filter((g) => !covers(approver.subject, g));
+  if (exceeding.length)
+    throw new AppError('ESCALATION_DENIED', 'Du kannst keine Rechte freigeben, die du selbst nicht besitzt.', {
+      exceeding,
+    });
+}
+
 registerApprovalExecutor('permissions.role.update', {
   requiredPermission: 'permissions:approve',
-  execute: async (ctx, payload, approval) => {
+  execute: async (ctx, payload, approval, approver) => {
     const grants = payload.grants as Grant[];
     validateGrants(grants);
+    assertApproverCovers(approver, grants);
     await applyRoleGrants(
       ctx,
       { kind: 'system', name: `approval:${approval.id}` },
@@ -231,7 +241,8 @@ async function applyBinding(
 
 registerApprovalExecutor('permissions.role.bind', {
   requiredPermission: 'permissions:approve',
-  execute: async (ctx, payload, approval) => {
+  execute: async (ctx, payload, approval, approver) => {
+    assertApproverCovers(approver, await loadGrantsForRoles(ctx.db, [String(payload.roleId)]));
     const binding = await applyBinding(
       ctx,
       { kind: 'system', name: `approval:${approval.id}` },

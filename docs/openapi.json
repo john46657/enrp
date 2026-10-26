@@ -6809,53 +6809,6 @@
             "description": "Default Response"
           }
         }
-      },
-      "post": {
-        "summary": "/approval create – generische Freigabe beantragen",
-        "tags": [
-          "Freigabezentrum"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "actionType": {
-                    "type": "string",
-                    "maxLength": 60
-                  },
-                  "summary": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 300
-                  },
-                  "payload": {
-                    "type": "object",
-                    "additionalProperties": {}
-                  },
-                  "reason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 1000
-                  }
-                },
-                "required": [
-                  "actionType",
-                  "summary",
-                  "payload",
-                  "reason"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
       }
     },
     "/api/v1/approvals/{id}": {

@@ -6,3 +6,4 @@ packages/database/drizzle
 apps/bot/legacy
 roblox
 *.md
+docs/openapi.json

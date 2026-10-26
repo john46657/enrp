@@ -20,7 +20,6 @@ import {
   searchAudit,
   verifyAuditChain,
   writeAudit,
-  createApproval,
   safeEqual,
 } from '@enrp/core';
 import { adminSessions, and, auditEvents, desc, eq, gt, isNull, securityEvents, sql } from '@enrp/database';
@@ -238,25 +237,6 @@ export async function opsRoutes(fastify: FastifyInstance) {
       const row = await getApproval(core.db, request.params.id);
       if (!row) throw errors.notFound('Freigabeanfrage');
       return row;
-    },
-  );
-  app.post(
-    '/approvals',
-    {
-      schema: {
-        tags: atags,
-        summary: '/approval create – generische Freigabe beantragen',
-        body: z.object({
-          actionType: z.string().max(60),
-          summary: text(300),
-          payload: z.record(z.string(), z.unknown()),
-          reason,
-        }),
-      },
-    },
-    async (request) => {
-      requirePermission(request.actor, 'approvals:create');
-      return createApproval(core, request.actor, request.body);
     },
   );
   app.post(

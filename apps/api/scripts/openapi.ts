@@ -60,7 +60,14 @@ const md = [
   'Automatisch aus den Routen-Schemas erzeugt (`pnpm --filter @enrp/api openapi`). Vollständige Schemas: [openapi.json](openapi.json),',
   'interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOCS=true`).',
   '',
-  ...[...byTag.entries()].flatMap(([tag, rows]) => [`## ${tag}`, '', '| Methode | Pfad | Zweck |', '|---|---|---|', ...rows, '']),
+  ...[...byTag.entries()].flatMap(([tag, rows]) => [
+    `## ${tag}`,
+    '',
+    '| Methode | Pfad | Zweck |',
+    '|---|---|---|',
+    ...rows,
+    '',
+  ]),
 ].join('\n');
 writeFileSync(path.join(root, 'docs/api-endpunkte.md'), md);
 console.log(`${Object.keys(spec.paths).length} Pfade dokumentiert.`);

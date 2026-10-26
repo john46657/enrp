@@ -9,6 +9,7 @@ import {
   writeAudit,
   systemActor,
   expireApprovals,
+  getApproval,
 } from '@enrp/core';
 import { auditEvents, appRoles, eq, rolePermissions, sql } from '@enrp/database';
 import { advance, closeDb, createTestContext, db, expectAppError, owner, resetDatabase, userWithRole } from './helpers';
@@ -83,6 +84,23 @@ describe('Vier-Augen-Prinzip', () => {
     advance(ctx, 2 * 3600_000);
     await expectAppError(decideApproval(ctx, approver, second.id, 'approve', 'zu spät'), 'GONE');
     expect(await expireApprovals(ctx.db, ctx.now())).toBe(0); // bereits beim Versuch als abgelaufen markiert
+  });
+
+  it('auch die genehmigende Person darf keine Rechte freigeben, die sie selbst nicht hat', async () => {
+    const ctx = createTestContext();
+    const requester = await userWithRole(ctx, ADMIN, 'owner');
+    // Genehmigungsrecht, aber keine Backup-Rechte
+    const approver = await userWithRole(ctx, MOD);
+    approver.subject.grants = [{ permission: 'approvals:approve' }, { permission: 'permissions:approve' }];
+    const [role] = await ctx.db.select().from(appRoles).where(eq(appRoles.key, 'read_only'));
+    const approval = await createApproval(ctx, requester, {
+      actionType: 'permissions.role.update',
+      summary: 'Backup-Rechte vergeben',
+      payload: { roleId: role!.id, grants: [{ permission: 'backups:approve' }] },
+      reason: 'Test',
+    });
+    await expectAppError(decideApproval(ctx, approver, approval.id, 'approve', 'ok'), 'ESCALATION_DENIED');
+    expect((await getApproval(ctx.db, approval.id))!.status).toBe('pending');
   });
 
   it('der DB-Constraint verhindert Selbstfreigabe auch bei direkten Schreibzugriffen', async () => {

@@ -41,6 +41,11 @@ describe('API: Grundlagen', () => {
     expect(forbidden.statusCode).toBe(403);
     const ok = await app.inject({ url: '/api/v1/audit', headers: botHeaders(OWNER_ID) });
     expect(ok.statusCode).toBe(200);
+    // Es gibt keinen generischen Endpunkt zum Beantragen beliebiger Freigaben.
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/v1/approvals', headers: botHeaders(OWNER_ID), payload: {} }))
+        .statusCode,
+    ).toBe(404);
     await app.close();
   });
 
