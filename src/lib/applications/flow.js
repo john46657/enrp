@@ -210,11 +210,12 @@ async function handleDirectMessage(message) {
   const error = checkAnswer(q, content);
   if (error) return message.reply(`❌ ${error}`);
 
-  if (q.type === 'TEXT') return saveAnswer(message.client, session, { display: content, raw: content });
-
-  // ROBLOX: Konto suchen und bestätigen lassen
+  // busy verhindert, dass zwei schnell hintereinander geschickte Nachrichten zwei Fragen beantworten.
   session.busy = true;
   try {
+    if (q.type === 'TEXT') return await saveAnswer(message.client, session, { display: content, raw: content });
+
+    // ROBLOX: Konto suchen und bestätigen lassen
     const found = await findRobloxUser(content);
     if (!found) return message.reply(`❌ Ich finde kein Roblox-Konto „${content}“. Prüfe die Schreibweise und schicke den Namen erneut.`);
     session.pendingRoblox = found;
@@ -232,6 +233,7 @@ async function handleDirectMessage(message) {
       ],
     });
   } catch (err) {
+    if (q.type === 'TEXT') throw err;
     console.error('[roblox]', err.message);
     return message.reply('⚠️ Roblox ist gerade nicht erreichbar. Bitte schicke deinen Namen gleich noch einmal.');
   } finally {

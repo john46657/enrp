@@ -329,7 +329,7 @@ oder sind durch Discord-Funktionen ersetzt:
 | Team-Chance (Bewerbungsphasen) | nicht enthalten – `enabled` per `/einstellungen bewerbung` umschalten |
 | Personal-/Dienstnummern-Automatik | nicht enthalten |
 | SEK-Mitgliedschaft über verknüpftes Konto | Rolle per `acceptAdd` |
-| Einstellungen je Discord-Server (`…@guildId`) | ein Satz Einstellungen für den Bot; Daten (Bewerbungen, Sperren) sind je Server getrennt |
+| Einstellungen je Discord-Server (`…@guildId`) | `/einstellungen` gilt je Server; Daten (Bewerbungen, Sperren) sind ebenfalls je Server getrennt |
 
 ---
 
