@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from './client';
 
-export const MIGRATIONS_FOLDER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
+/** Im gebündelten Container per MIGRATIONS_DIR überschreibbar (siehe Dockerfile). */
+export const MIGRATIONS_FOLDER =
+  process.env.MIGRATIONS_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
 
 /** Führt alle ausstehenden Migrationen aus (idempotent, in einer Transaktion je Migration). */
 export async function runMigrations(url: string, migrationsFolder = MIGRATIONS_FOLDER): Promise<void> {

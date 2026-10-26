@@ -16,7 +16,7 @@
     "@enrp/database": "workspace:*",
     "@enrp/permissions": "workspace:*",
     "@enrp/shared": "workspace:*",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.4",
     "zod": "^4.1.13"
   }
 }

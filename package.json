@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm --filter @enrp/api --filter @enrp/worker --filter @enrp/bot --filter @enrp/dashboard build",
+    "typecheck": "pnpm -r --filter=!@enrp/dashboard typecheck && pnpm --filter @enrp/dashboard typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -35,5 +35,11 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.48.1",
     "vitest": "3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.31",
+      "@fastify/static": "^10.1.7"
+    }
   }
 }
