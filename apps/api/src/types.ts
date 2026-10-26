@@ -38,5 +38,7 @@ declare module 'fastify' {
     idempotent?: boolean;
     /** Nur über Roblox-Server-Schlüssel erreichbar. */
     roblox?: boolean;
+    /** Eigene Authentifizierung (z. B. /metrics mit METRICS_TOKEN). */
+    skipAuth?: boolean;
   }
 }

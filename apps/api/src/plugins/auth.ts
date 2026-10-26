@@ -1,5 +1,5 @@
 import { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { buildUserActor, recordSecurityEvent, safeEqual, sha256Hex, verification, type Actor, type UserActor } from '@enrp/core';
+import { anonymousActor, buildUserActor, recordSecurityEvent, safeEqual, sha256Hex, verification, type Actor, type UserActor } from '@enrp/core';
 import { adminSessions, and, eq, gt, isNull, memberRoleCache } from '@enrp/database';
 import { AppError } from '@enrp/shared';
 
@@ -8,7 +8,6 @@ const SESSION_IDLE_MS = 12 * 3600_000;
 const SESSION_ABSOLUTE_MS = 7 * 86400_000;
 const ROLE_CACHE_MS = 5 * 60_000;
 const SNOWFLAKE = /^\d{15,22}$/;
-const anonymous: Actor = { kind: 'system', name: 'anonymous' };
 
 /** Kurzlebiger Cache für Bot-Akteure (gleiche Person + Rollen innerhalb weniger Sekunden). */
 const actorCache = new Map<string, { at: number; actor: UserActor }>();
@@ -87,12 +86,13 @@ const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** Ermittelt für jede Anfrage den Akteur. Rollenprüfungen erfolgen anschließend in der Geschäftslogik. */
 export function registerAuth(app: FastifyInstance) {
-  app.decorateRequest('actor', null as unknown as Actor);
+  app.decorateRequest('actor', null as never);
   app.decorateRequest('authMethod', 'none');
   app.decorateRequest('session', undefined);
 
-  app.addHook('preHandler', async (request) => {
-    request.actor = anonymous;
+  app.addHook('preValidation', async (request) => {
+    request.actor = anonymousActor;
+    if (request.routeOptions.config.skipAuth) return;
     const token = bearer(request);
     const { env, core } = app.deps;
     if (token && !token.startsWith('enrp_rbx_')) {

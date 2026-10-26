@@ -26,7 +26,14 @@ export interface SystemActor {
   name: string;
 }
 
-export type Actor = UserActor | ServiceActor | RobloxServerActor | SystemActor;
+/** Nicht angemeldete Anfrage – hat keinerlei Rechte. */
+export interface AnonymousActor {
+  kind: 'anonymous';
+}
+
+export type Actor = UserActor | ServiceActor | RobloxServerActor | SystemActor | AnonymousActor;
+
+export const anonymousActor: AnonymousActor = { kind: 'anonymous' };
 
 export const systemActor = (name: string): SystemActor => ({ kind: 'system', name });
 
@@ -41,11 +48,13 @@ export function actorId(actor: Actor): string {
       return `roblox-key:${actor.apiKeyId}`;
     case 'system':
       return `system:${actor.name}`;
+    case 'anonymous':
+      return 'anonymous';
   }
 }
 
 export function actorTypeOf(actor: Actor): ActorType {
-  return actor.kind === 'user' ? 'user' : actor.kind;
+  return actor.kind === 'anonymous' ? 'system' : actor.kind;
 }
 
 export function requireUser(actor: Actor): UserActor {
@@ -61,6 +70,7 @@ export function hasPermission(actor: Actor, permission: string, resource?: Resou
 }
 
 export function requirePermission(actor: Actor, permission: string, resource?: ResourceContext): void {
+  if (actor.kind === 'anonymous') throw errors.unauthenticated();
   if (actor.kind === 'service' || actor.kind === 'roblox_server') {
     throw new AppError('FORBIDDEN', 'Dienstkonten dürfen diese Aktion nicht ohne handelnde Person ausführen.');
   }

@@ -22,7 +22,7 @@ export function registerErrorHandling(app: FastifyInstance) {
           code: 'VALIDATION_FAILED',
           message: 'Die Eingaben sind ungültig.',
           requestId,
-          details: error.validation.map((v) => ({ path: v.instancePath || v.params?.issue?.path?.join('.') || '', message: v.message })),
+          details: error.validation.map((v) => ({ path: v.instancePath || '', message: v.message })),
         },
       };
     } else if (error instanceof ZodError) {

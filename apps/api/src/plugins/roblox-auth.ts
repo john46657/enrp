@@ -7,7 +7,7 @@ import { AppError } from '@enrp/shared';
  * X-Roblox-Nonce. Fehler werden als Sicherheitsereignis protokolliert – ohne Schlüssel.
  */
 export function registerRobloxAuth(app: FastifyInstance) {
-  app.addHook('preHandler', async (request) => {
+  app.addHook('preValidation', async (request) => {
     if (!request.routeOptions.config.roblox) return;
     const { core } = app.deps;
     const header = request.headers.authorization;
