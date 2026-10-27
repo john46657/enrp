@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { replyPrivate, embed } = require('../../lib/util');
-const { checkHierarchy, notifyUser, logAction } = require('../../lib/moderation');
+const { guard, checkHierarchy, notifyUser, logAction } = require('../../lib/moderation');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -10,10 +10,11 @@ module.exports = {
     .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500))
     .addIntegerOption((o) =>
       o.setName('nachrichten_tage').setDescription('Nachrichten der letzten X Tage löschen (0–7)').setMinValue(0).setMaxValue(7),
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+    ),
 
   async execute(interaction) {
+    const denied = guard(interaction, 'ban');
+    if (denied) return replyPrivate(interaction, denied);
     const user = interaction.options.getUser('user');
     const member = interaction.options.getMember('user');
     const reason = interaction.options.getString('grund') ?? 'Kein Grund angegeben';

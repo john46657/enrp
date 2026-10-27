@@ -7,6 +7,7 @@ const { sweep } = require('../lib/applications/flow');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
 const { startStatsWatcher } = require('../lib/stats');
+const { sweepExpired } = require('../lib/warnings');
 
 module.exports = {
   name: Events.ClientReady,
@@ -30,6 +31,14 @@ module.exports = {
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
     startTicketWatcher(client);
     startStatsWatcher(client);
+    // Abgelaufene Verwarnungen (Moderation und Team) markieren und Warn-Rollen anpassen.
+    setInterval(async () => {
+      for (const guild of client.guilds.cache.values()) {
+        const config = settings.forGuild(guild.id);
+        await sweepExpired(guild, 'warnings', config.moderation.warnings, 'Verwarnung').catch((err) => console.error('[warnings]', err));
+        await sweepExpired(guild, 'teamWarnings', config.team.warnings, 'Team-Verwarnung').catch((err) => console.error('[teamWarnings]', err));
+      }
+    }, 60_000);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
     // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.

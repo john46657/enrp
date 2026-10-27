@@ -5,6 +5,7 @@ const { levelInfo } = require('../lib/leveling');
 const { embed, getChannel } = require('../lib/util');
 const { trackMessage } = require('../lib/tickets');
 const { handleDirectMessage } = require('../lib/applications/flow');
+const automod = require('../lib/automod');
 
 const cooldowns = new Map();
 
@@ -13,6 +14,7 @@ module.exports = {
   async execute(message) {
     if (message.author.bot) return;
     if (!message.inGuild()) return handleDirectMessage(message);
+    if (await automod.handleMessage(message)) return; // Auto-Mod oder Honeypot hat die Nachricht entfernt
     trackMessage(message);
 
     const config = forGuild(message.guildId);

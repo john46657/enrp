@@ -1,16 +1,17 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { replyPrivate, embed } = require('../../lib/util');
-const { checkHierarchy, notifyUser, logAction } = require('../../lib/moderation');
+const { guard, checkHierarchy, notifyUser, logAction } = require('../../lib/moderation');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('kick')
     .setDescription('Wirft ein Mitglied vom Server.')
     .addUserOption((o) => o.setName('user').setDescription('Mitglied').setRequired(true))
-    .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500))
-    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+    .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500)),
 
   async execute(interaction) {
+    const denied = guard(interaction, 'kick');
+    if (denied) return replyPrivate(interaction, denied);
     const member = interaction.options.getMember('user');
     const reason = interaction.options.getString('grund') ?? 'Kein Grund angegeben';
     if (!member) return replyPrivate(interaction, 'Diese Person ist nicht auf dem Server.');

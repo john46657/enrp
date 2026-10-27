@@ -11,7 +11,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 |---|---|
 | 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
-| 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
+| 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` `/melden` · Berechtigungen per Rolle · Warn-Limit, Ablauf, Warn-Rollen, öffentliche Verwarnung · Honeypot-Köderkanal · Auto-Mod (Hoisting, Einladungen, Links, Spam, Caps, Pings) · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
 | 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
@@ -108,6 +108,28 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 
 Darf nur das Team schließen (`onlyTeamCanClose`), bekommt der Ersteller beim Schließen keine Fehlermeldung, sondern
 stellt eine **Schließungs-Anfrage**: Ein Teammitglied stimmt zu oder lässt das Ticket offen.
+
+### Moderation (`moderation`)
+
+| Feld | Bedeutung |
+|---|---|
+| `enabled` | Aus = Moderationsbefehle, Auto-Mod und Honeypot sind abgeschaltet |
+| `dmOnAction` / `logEnabled` | Betroffene per DM informieren / Aktionen in `channels.modLog` protokollieren |
+| `ignoredRoles` | Mitglieder mit diesen Rollen können nicht bestraft werden |
+| `permissions` | Rollen je Aktion: `timeout` `warn` `kick` `ban` `viewLogs`. Admins und Mitglieder mit dem passenden Discord-Recht dürfen immer. |
+| `warnings.expire` | `enabled`, `days`: Verwarnungen laufen ab und zählen dann nicht mehr (mit `/warn ablauf:` je Verwarnung anders) |
+| `warnings.dmOnExpire` | Mitglied per DM informieren, wenn eine Verwarnung abläuft |
+| `warnings.roles` | Bis zu 5 Rollen „Warn 1“ … „Warn 5“, passend zur Anzahl aktiver Verwarnungen |
+| `warnings.publicChannel` | Jede Verwarnung zusätzlich öffentlich in diesen Kanal posten (leer = aus) |
+| `warnings.limit` | `enabled`, `count`, `action` (`kick` `ban` `timeout`), `timeoutMinutes` |
+| `report` | `/melden`: `enabled`, `channel`, `pingRoles` – das Team markiert Meldungen als erledigt oder abgelehnt |
+| `honeypot` | Köderkanal gegen Scam-Konten: `enabled`, `channel`, `action` (`kick` `ban` `timeout`), `deleteMessages` (`none` `hour` `day`), `dm`, `dmTitle`, `dmText` (`{user}` `{server}` `{action}` `{invite}`), `invite` (einmaliger Link nach einem Kick), `warnTitle`/`warnText` (Hinweis im Kanal) |
+| `automod` | `ignoredRoles` und Regeln `hoisting`, `invites`, `links` (`allowed` = erlaubte Domains), `spam` (`messages` in `seconds`), `caps` (`percent`, `minLength`), `ping` (`roles` = geschützte Rollen) – jeweils mit `enabled` |
+
+Teammitglieder (Admin, Nachrichten verwalten, Kicken, Bannen, Timeout), der Server-Besitzer und ignorierte Rollen lösen
+den Honeypot nicht aus. Von Auto-Mod sind Admins, „Nachrichten verwalten“ und `automod.ignoredRoles` ausgenommen.
+Die Moderationsbefehle sind jetzt für alle sichtbar und prüfen die Berechtigung selbst, damit Rollen aus
+`permissions` sie nutzen können.
 
 ### Server-Statistiken (`stats`)
 

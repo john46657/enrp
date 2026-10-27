@@ -421,7 +421,10 @@
     "roles": [],
     "warnings": {
       "enabled": true,
-      "expireDays": 30,
+      "expire": {
+        "enabled": false,
+        "days": 30
+      },
       "dmOnExpire": true,
       "roles": [
         "",
@@ -435,10 +438,103 @@
     "rank": {
       "reasonRequired": false,
       "announceChannel": "",
+      "announceTitle": "⬆️ Rang-Änderung",
+      "announceText": "{user} ist jetzt {newrole}.",
       "offer": {
         "enabled": false,
         "channel": "",
         "hours": 72
+      }
+    },
+    "teamList": {
+      "enabled": false,
+      "channel": "",
+      "roles": []
+    },
+    "absence": {
+      "enabled": false,
+      "channel": "",
+      "role": ""
+    }
+  },
+  "moderation": {
+    "enabled": true,
+    "dmOnAction": true,
+    "logEnabled": true,
+    "ignoredRoles": [],
+    "permissions": {
+      "timeout": [],
+      "warn": [],
+      "kick": [],
+      "ban": [],
+      "viewLogs": []
+    },
+    "warnings": {
+      "expire": {
+        "enabled": false,
+        "days": 30
+      },
+      "dmOnExpire": true,
+      "roles": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "publicChannel": "",
+      "limit": {
+        "enabled": false,
+        "count": 3,
+        "action": "ban",
+        "timeoutMinutes": 60
+      }
+    },
+    "report": {
+      "enabled": false,
+      "channel": "",
+      "pingRoles": []
+    },
+    "honeypot": {
+      "enabled": false,
+      "channel": "",
+      "action": "kick",
+      "deleteMessages": "hour",
+      "dm": true,
+      "dmTitle": "",
+      "dmText": "",
+      "invite": false,
+      "warnTitle": "⛔ Hier nicht schreiben!",
+      "warnText": "Dieser Kanal ist eine **Sicherheits-Falle** gegen Scam-Konten und Bots. Wer hier eine Nachricht schreibt, wird **automatisch vom Server entfernt** und seine Nachrichten werden gelöscht. Bitte nutze die anderen Kanäle."
+    },
+    "automod": {
+      "ignoredRoles": [],
+      "hoisting": {
+        "enabled": false
+      },
+      "invites": {
+        "enabled": false
+      },
+      "links": {
+        "enabled": false,
+        "allowed": [
+          "tenor.com",
+          "giphy.com"
+        ]
+      },
+      "spam": {
+        "enabled": false,
+        "messages": 5,
+        "seconds": 5
+      },
+      "caps": {
+        "enabled": false,
+        "percent": 70,
+        "minLength": 10
+      },
+      "ping": {
+        "enabled": false,
+        "roles": []
       }
     }
   }

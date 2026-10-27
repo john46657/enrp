@@ -1,11 +1,13 @@
 const { Events } = require('discord.js');
 const { forGuild } = require('../lib/settings');
 const { embed, sendTo, fill } = require('../lib/util');
+const { checkHoisting } = require('../lib/automod');
 
 module.exports = {
   name: Events.GuildMemberAdd,
   async execute(member) {
     const config = forGuild(member.guild.id);
+    await checkHoisting(member);
     if (config.roles.autoRole) {
       await member.roles.add(config.roles.autoRole, 'Auto-Rolle').catch((err) => console.error('[autoRole]', err.message));
     }
