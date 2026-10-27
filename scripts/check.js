@@ -125,6 +125,16 @@ if (reset.tickets.types[0].capacity !== before.cap || reset.channels.ticketLog !
 }
 console.log('✅ Einstellungen je Server setzen/zurücksetzen');
 
+// Statistik-Namen und ganze Listen ersetzen
+const { statName, TYPES } = require('../src/lib/stats');
+if (statName('👥 Mitglieder: {count}', 1284) !== '👥 Mitglieder: 1.284') fail(`statName falsch: ${statName('👥 Mitglieder: {count}', 1284)}`);
+for (const c of config.stats.counters) if (!TYPES[c.type]) fail(`Unbekannte Statistik-Art: ${c.type}`);
+settings.set(a, `tickets.types.${firstType}.capacity`, 5);
+settings.set(a, 'tickets.types', [{ ...config.tickets.types[0], capacity: 7 }]);
+if (settings.forGuild(a).tickets.types.length !== 1 || settings.forGuild(a).tickets.types[0].capacity !== 7) fail('Liste ersetzen funktioniert nicht');
+settings.reset(a);
+console.log('✅ Statistik-Namen');
+
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');
 process.exit(0);

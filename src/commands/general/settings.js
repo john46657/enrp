@@ -3,6 +3,7 @@ const settings = require('../../lib/settings');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
+const stats = require('../../lib/stats');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -131,6 +132,10 @@ function overview(guild) {
               .join('\n'),
           1024,
         ),
+      },
+      {
+        name: 'Server-Statistiken',
+        value: `${onOff(config.stats.enabled)} · Kategorie ${channel(config.stats.categoryId)}\n${config.stats.counters.map((c) => `\`${c.name}\``).join('\n') || '—'}`,
       },
       { name: 'Willkommensnachricht', value: truncate(config.welcome.message, 1024) },
     );
@@ -344,6 +349,21 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('statistik')
+      .setDescription('Server-Statistiken: Sprachkanäle mit Zählern (- = Standardname).')
+      .addBooleanOption((o) => o.setName('aktiv').setDescription('Statistik-Kanäle anlegen und aktualisieren?'))
+      .addChannelOption((o) => o.setName('kategorie').setDescription('Hier legt der Bot neue Statistik-Kanäle an').addChannelTypes(ChannelType.GuildCategory))
+      .addStringOption((o) =>
+        o
+          .setName('art')
+          .setDescription('Welche Statistik hinzufügen/ändern?')
+          .addChoices(...Object.entries(stats.TYPES).map(([value, t]) => ({ name: t.label, value }))),
+      )
+      .addStringOption((o) => o.setName('name').setDescription('Kanalname mit {count}, z. B. 👥 Mitglieder: {count}').setMaxLength(90))
+      .addBooleanOption((o) => o.setName('entfernen').setDescription('Diese Statistik und ihren Kanal löschen')),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('zuruecksetzen')
       .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
       .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
@@ -526,6 +546,31 @@ function changesFor(interaction, sub) {
       else if (o.getRole('belohnung_rolle')) throw new Error('Gib zur Belohnungs-Rolle auch `belohnung_level` an.');
       return changes;
     }
+    case 'statistik': {
+      const changes = collect(interaction, [
+        ['aktiv', 'stats.enabled', 'getBoolean'],
+        ['kategorie', 'stats.categoryId', 'getChannel', (c) => c.id],
+      ]);
+      const type = o.getString('art');
+      if (!type) {
+        if (o.getString('name') || o.getBoolean('entfernen')) throw new Error('Gib dazu die `art` an.');
+        return changes;
+      }
+      const counters = structuredClone(settings.forGuild(interaction.guildId).stats.counters);
+      const index = counters.findIndex((c) => c.type === type);
+      if (o.getBoolean('entfernen')) {
+        if (index < 0) throw new Error('Diese Statistik ist nicht eingerichtet.');
+        counters.splice(index, 1);
+      } else {
+        const name = o.getString('name');
+        const counter = { type, name: name && name.trim() !== '-' ? name.trim() : stats.TYPES[type].name };
+        if (!counter.name.includes('{count}')) throw new Error('Der Name braucht `{count}` für die Zahl.');
+        if (index < 0) counters.push(counter);
+        else counters[index] = counter;
+      }
+      changes.push(['stats.counters', counters]);
+      return changes;
+    }
     case 'fivem':
       return collect(interaction, [
         ['adresse', 'fivem.address', 'getString', (v) => clearable(v).replace(/^https?:\/\//, '')],
@@ -567,5 +612,6 @@ module.exports = {
     });
     if (sub.startsWith('ticket') || sub === 'oeffnungszeiten') await refreshPanels(interaction.guild);
     if (sub === 'bewerbung') await appMessages.refreshPanels(interaction.guild);
+    if (sub === 'statistik') await stats.updateStats(interaction.guild);
   },
 };

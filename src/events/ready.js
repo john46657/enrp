@@ -6,6 +6,7 @@ const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
+const { startStatsWatcher } = require('../lib/stats');
 
 module.exports = {
   name: Events.ClientReady,
@@ -28,6 +29,7 @@ module.exports = {
 
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
     startTicketWatcher(client);
+    startStatsWatcher(client);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
     // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.

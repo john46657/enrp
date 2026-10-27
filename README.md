@@ -14,6 +14,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
+| 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
 | ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
 
@@ -108,6 +109,17 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 Darf nur das Team schließen (`onlyTeamCanClose`), bekommt der Ersteller beim Schließen keine Fehlermeldung, sondern
 stellt eine **Schließungs-Anfrage**: Ein Teammitglied stimmt zu oder lässt das Ticket offen.
 
+### Server-Statistiken (`stats`)
+
+| Feld | Bedeutung |
+|---|---|
+| `enabled` | Statistik-Kanäle anlegen und aktualisieren. Aus = bestehende Kanäle bleiben unverändert. |
+| `categoryId` | Discord-Kategorie für neue Statistik-Kanäle (leer = ganz oben) |
+| `counters[]` | `type` (`members` `humans` `bots` `boosts` `channels` `roles` `tickets`) und `name` mit `{count}`. Entfernte Zähler löschen ihren Kanal. |
+
+Der Bot braucht dafür „Kanäle verwalten“. Discord erlaubt nur zwei Umbenennungen je Kanal in 10 Minuten, daher
+aktualisiert sich ein Kanal höchstens alle 5 Minuten.
+
 Nach jeder Änderung an `config.json` den Bot neu starten. Mit `npm run check` kannst du vorher
 prüfen, ob die Konfiguration gültig ist.
 
@@ -129,6 +141,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
 | `fivem` | Server-Adresse und Verbinden-Link |
+| `statistik` | Server-Statistiken an/aus, Kategorie für neue Kanäle, Statistik hinzufügen/umbenennen/entfernen |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
 Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
