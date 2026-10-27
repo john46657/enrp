@@ -55,6 +55,24 @@ try {
   fail(`Ticket-Panel: ${err.message}`);
 }
 
+// Ticket-Kategorien: Formular beim Schließen und Panel ohne aktive Kategorie
+for (const t of config.tickets.types) {
+  if ((t.closeForm ?? []).length > 5) fail(`Ticket-Kategorie ${t.id}: höchstens 5 Formularfelder`);
+  for (const field of t.closeForm ?? []) if (!field.label) fail(`Ticket-Kategorie ${t.id}: Formularfeld ohne label`);
+}
+const { closeFormModal } = require('../src/lib/tickets');
+try {
+  closeFormModal([{ label: 'Wurde dir geholfen?', style: 'short' }, { label: 'Feedback', style: 'paragraph', required: false, maxLength: 1000 }]).toJSON();
+  for (const t of config.tickets.types) settings.set('check', `tickets.types.${t.id}.enabled`, false);
+  const empty = buildPanel(fakeGuild);
+  if (empty.components.length !== 1) fail('Panel ohne aktive Kategorie darf kein Auswahlmenü haben');
+  empty.components[0].toJSON();
+  settings.reset('check');
+  console.log('✅ Schließ-Formular und Panel ohne aktive Kategorie');
+} catch (err) {
+  fail(`Ticket-Kategorien: ${err.message}`);
+}
+
 // Öffnungszeiten mit festen Zeitpunkten testen
 const hours = {
   enabled: true,

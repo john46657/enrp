@@ -18,7 +18,7 @@ const {
 } = require('discord.js');
 const { base, forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
-const { embed, sendTo, isStaff, replyPrivate } = require('./util');
+const { embed, sendTo, isStaff, replyPrivate, fill, truncate } = require('./util');
 const { isOpen, nextOpening } = require('./openingHours');
 
 // Ticket-Einstellungen eines Servers.
@@ -31,6 +31,9 @@ const MEMBER_PERMS = [
 ];
 
 const typeById = (guildId, id) => settingsOf(guildId).types.find((t) => t.id === id);
+const activeTypes = (guildId) => settingsOf(guildId).types.filter((t) => t.enabled !== false);
+// Einstellung einer Kategorie, sonst die allgemeine Ticket-Einstellung (z. B. onCreatorLeave, autoClose).
+const option = (guildId, ticket, key) => typeById(guildId, ticket.type)?.[key] ?? settingsOf(guildId)[key];
 const ticketsOf = (guildId) => bucket('tickets', guildId);
 const panelsOf = (guildId) => bucket('ticketPanels', guildId);
 
@@ -91,15 +94,18 @@ function loadLine(type, count) {
 function buildPanel(guild) {
   const settings = settingsOf(guild.id);
   const { panel } = settings;
+  const types = activeTypes(guild.id);
   const container = new ContainerBuilder()
     .setAccentColor(parseInt(base.colors.primary.slice(1), 16))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`))
     .addSeparatorComponents(new SeparatorBuilder())
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(settings.types.map((t) => `- [${t.emoji}] **${t.label}**\n${t.description}`).join('\n\n')),
+      new TextDisplayBuilder().setContent(
+        types.map((t) => `- [${t.emoji}] **${t.label}**\n${t.description}`).join('\n\n') || 'Gerade können keine Tickets erstellt werden.',
+      ),
     );
 
-  const withCapacity = settings.types.filter((t) => t.capacity > 0);
+  const withCapacity = types.filter((t) => t.capacity > 0);
   if (panel.showLoad && withCapacity.length) {
     const tickets = Object.values(openTickets(guild));
     const lines = withCapacity.map((t) => loadLine(t, tickets.filter((x) => x.type === t.id).length));
@@ -127,12 +133,12 @@ function buildPanel(guild) {
     container.addSeparatorComponents(new SeparatorBuilder()).addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${panel.footer}`));
   }
 
+  // Ohne aktive Kategorie kein Auswahlmenü (Discord verlangt mindestens eine Option).
+  if (!types.length) return { components: [container], flags: MessageFlags.IsComponentsV2 };
   const menu = new StringSelectMenuBuilder()
     .setCustomId('ticket:open')
     .setPlaceholder(panel.placeholder)
-    .addOptions(
-      settings.types.slice(0, 25).map((t) => ({ label: t.label, value: t.id, emoji: t.emoji, description: t.description.slice(0, 100) })),
-    );
+    .addOptions(types.slice(0, 25).map((t) => ({ label: t.label, value: t.id, emoji: t.emoji, description: t.description.slice(0, 100) })));
 
   return { components: [container, new ActionRowBuilder().addComponents(menu)], flags: MessageFlags.IsComponentsV2 };
 }
@@ -176,30 +182,49 @@ function channelName(type, member, number, caseNumber) {
   return name.trim() || `ticket-${values.TICKET_NUMBER}`;
 }
 
-function controls(ticket) {
+function controls(guildId, ticket) {
+  const close = new ButtonBuilder().setCustomId('ticket:close').setLabel('Schließen').setStyle(ButtonStyle.Danger).setEmoji('🔒');
+  if (typeById(guildId, ticket.type)?.allowClaim === false) return new ActionRowBuilder().addComponents(close);
   const claim = ticket.claimedBy
     ? new ButtonBuilder().setCustomId('ticket:unclaim').setLabel('Freigeben').setStyle(ButtonStyle.Secondary).setEmoji('↩️')
     : new ButtonBuilder().setCustomId('ticket:claim').setLabel('Übernehmen').setStyle(ButtonStyle.Success).setEmoji('🙋');
-  return new ActionRowBuilder().addComponents(
-    claim,
-    new ButtonBuilder().setCustomId('ticket:close').setLabel('Schließen').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
-  );
+  return new ActionRowBuilder().addComponents(claim, close);
 }
 
 async function updateControls(channel, ticket) {
   const message = await channel.messages.fetch(ticket.controlsMessageId).catch(() => null);
-  await message?.edit({ components: [controls(ticket)] }).catch(() => {});
+  await message?.edit({ components: [controls(channel.guild.id, ticket)] }).catch(() => {});
 }
 
-async function openTicket(interaction, typeId) {
+// Eröffnungs-Embed einer Kategorie (openEmbed), sonst der Standardtext.
+function openingEmbed(guildId, type, owner, number) {
+  const { title, description, image } = type.openEmbed ?? {};
+  const vars = { user: `${owner}`, username: owner.user.username, category: type.label, emoji: type.emoji, number };
+  const result = embed()
+    .setTitle(title ? fill(title, vars).slice(0, 256) : `${type.emoji} ${type.label} – Ticket #${number}`)
+    .setDescription(
+      (description ? fill(description, vars) : `Danke für dein Ticket, ${owner}! Beschreibe dein Anliegen bitte so genau wie möglich.`) +
+        (settingsOf(guildId).creatorCanAddUsers ? '\n\nWeitere Personen kannst du mit `/ticket hinzufuegen` anfragen.' : ''),
+    );
+  if (image) result.setImage(image);
+  return result;
+}
+
+// owner = Mitglied, für das das Ticket ist. Weicht es vom Klickenden ab, öffnet das Team im Auftrag (/ticket fuer).
+async function openTicket(interaction, typeId, owner = interaction.member) {
   const settings = settingsOf(interaction.guildId);
   const type = typeById(interaction.guildId, typeId);
   if (!type) return replyPrivate(interaction, 'Diese Kategorie gibt es nicht mehr.');
+  if (type.enabled === false) return replyPrivate(interaction, 'Diese Kategorie ist gerade deaktiviert.');
+  const onBehalf = owner.id !== interaction.user.id;
 
   const tickets = openTickets(interaction.guild);
-  const own = Object.keys(tickets).filter((id) => tickets[id].owner === interaction.user.id);
+  const own = Object.keys(tickets).filter((id) => tickets[id].owner === owner.id);
   if (settings.maxOpenPerUser > 0 && own.length >= settings.maxOpenPerUser) {
-    return replyPrivate(interaction, `Du hast bereits ${own.length} offene(s) Ticket(s): ${own.map((id) => `<#${id}>`).join(', ')}`);
+    return replyPrivate(
+      interaction,
+      `${onBehalf ? `${owner} hat` : 'Du hast'} bereits ${own.length} offene(s) Ticket(s): ${own.map((id) => `<#${id}>`).join(', ')}`,
+    );
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -208,28 +233,25 @@ async function openTicket(interaction, typeId) {
   const roles = teamRoles(interaction.guildId, type);
 
   const channel = await interaction.guild.channels.create({
-    name: channelName(type, interaction.member, number, caseNumber),
+    name: channelName(type, owner, number, caseNumber),
     type: ChannelType.GuildText,
     parent: type.categoryId || settings.categoryId || null,
-    topic: `Ticket #${number} von ${interaction.user.tag} – ${type.label}`,
+    topic: `Ticket #${number} von ${owner.user.tag} – ${type.label}`,
     permissionOverwrites: [
       { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-      { id: interaction.user.id, allow: MEMBER_PERMS },
+      { id: owner.id, allow: MEMBER_PERMS },
+      ...(onBehalf ? [{ id: interaction.user.id, allow: MEMBER_PERMS }] : []),
       { id: interaction.client.user.id, allow: [...MEMBER_PERMS, PermissionFlagsBits.ManageChannels] },
       ...roles.map((id) => ({ id, allow: MEMBER_PERMS })),
     ],
   });
 
-  const ticket = { owner: interaction.user.id, type: type.id, number, openedAt: Date.now() };
+  const now = Date.now();
+  const ticket = { owner: owner.id, type: type.id, number, openedAt: now, lastActivityAt: now };
+  if (onBehalf) ticket.openedBy = interaction.user.id;
   const teamAvailable = isOpen(settings.openingHours);
-  const embeds = [
-    embed()
-      .setTitle(`${type.emoji} ${type.label} – Ticket #${number}`)
-      .setDescription(
-        `Danke für dein Ticket, ${interaction.user}! Beschreibe dein Anliegen bitte so genau wie möglich.\n\n` +
-          (settings.creatorCanAddUsers ? 'Weitere Personen kannst du mit `/ticket hinzufuegen` anfragen.' : ''),
-      ),
-  ];
+  const embeds = [openingEmbed(interaction.guildId, type, owner, number)];
+  if (onBehalf) embeds.push(embed().setDescription(`📨 ${interaction.user} hat dieses Ticket für dich geöffnet.`));
   if (!teamAvailable) {
     const next = nextOpening(settings.openingHours);
     embeds.push(
@@ -242,16 +264,33 @@ async function openTicket(interaction, typeId) {
     );
   }
 
-  const ping = settings.pingTeam && teamAvailable ? roleMentions(interaction.guildId, type) : '';
-  const message = await channel.send({ content: `${interaction.user} ${ping}`.trim(), embeds, components: [controls(ticket)] });
+  const ping = settings.pingTeam && teamAvailable && !onBehalf ? roleMentions(interaction.guildId, type) : '';
+  const message = await channel.send({ content: `${owner} ${ping}`.trim(), embeds, components: [controls(interaction.guildId, ticket)] });
   ticket.controlsMessageId = message.id;
   ticket.parentId = channel.parentId;
   tickets[channel.id] = ticket;
   save();
 
-  await interaction.editReply(`✅ Dein Ticket wurde erstellt: ${channel}`);
-  await logActivity(interaction.guild, 'primary', `🎫 ${interaction.user} hat ${ticketRef(interaction.guildId, channel.id, ticket)} geöffnet.`);
+  await interaction.editReply(`✅ ${onBehalf ? `Ticket für ${owner}` : 'Dein Ticket'} wurde erstellt: ${channel}`);
+  await logActivity(
+    interaction.guild,
+    'primary',
+    onBehalf
+      ? `🎫 ${interaction.user} hat ${ticketRef(interaction.guildId, channel.id, ticket)} für ${owner} geöffnet.`
+      : `🎫 ${interaction.user} hat ${ticketRef(interaction.guildId, channel.id, ticket)} geöffnet.`,
+  );
   await refreshPanels(interaction.guild);
+}
+
+// /ticket fuer: Das Team öffnet ein Ticket im Auftrag eines Mitglieds.
+async function openOnBehalf(interaction, typeId, member) {
+  const type = typeById(interaction.guildId, typeId);
+  if (!type) return replyPrivate(interaction, 'Diese Kategorie gibt es nicht.');
+  const team = isStaff(interaction.member) || teamRoles(interaction.guildId, type).some((id) => interaction.member.roles.cache.has(id));
+  if (!team) return replyPrivate(interaction, 'Nur das Team dieser Kategorie kann Tickets im Auftrag öffnen.');
+  if (type.allowOnBehalf === false) return replyPrivate(interaction, 'In dieser Kategorie sind Tickets im Auftrag ausgeschaltet.');
+  if (!member || member.user.bot) return replyPrivate(interaction, 'Wähle ein Mitglied dieses Servers.');
+  return openTicket(interaction, typeId, member);
 }
 
 // Ticket zwischen Bewerber und Team, geöffnet aus einer Bewerbung. Wer es öffnet, übernimmt es direkt.
@@ -277,7 +316,7 @@ async function openApplicationTicket(interaction, applicant, { roles, name, titl
   const message = await channel.send({
     content: `${applicant} ${interaction.user}`,
     embeds: [embed().setTitle(title).setDescription(`${interaction.user} möchte mit dir über deine Bewerbung sprechen, ${applicant}.`)],
-    components: [controls(ticket)],
+    components: [controls(interaction.guildId, ticket)],
   });
   ticket.controlsMessageId = message.id;
   ticket.parentId = channel.parentId;
@@ -327,13 +366,13 @@ async function closeTicket(channel, closedBy, reason) {
       { name: 'Geöffnet', value: `<t:${Math.floor(ticket.openedAt / 1000)}:f>`, inline: true },
     );
   if (ticket.claimedBy) summary.addFields({ name: 'Bearbeitet von', value: `<@${ticket.claimedBy}>`, inline: true });
-  if (reason) summary.addFields({ name: 'Grund', value: reason });
+  if (reason) summary.addFields({ name: 'Grund', value: truncate(reason, 1024) });
 
   if (activities || transcripts) await sendTo(channel.guild, 'ticketLog', { embeds: [summary], files, allowedMentions: { parse: [] } });
   const owner = await channel.client.users.fetch(ticket.owner).catch(() => null);
   await owner
     ?.send({
-      content: `Dein Ticket auf **${channel.guild.name}** wurde geschlossen.${reason ? `\n**Grund:** ${reason}` : ''}${transcript ? '\nHier ist der Verlauf:' : ''}`,
+      content: `Dein Ticket auf **${channel.guild.name}** wurde geschlossen.${reason ? `\n**Grund:** ${truncate(reason, 1500)}` : ''}${transcript ? '\nHier ist der Verlauf:' : ''}`,
       files,
     })
     .catch(() => {});
@@ -342,38 +381,100 @@ async function closeTicket(channel, closedBy, reason) {
   setTimeout(() => channel.delete('Ticket geschlossen').catch(() => {}), 5000);
 }
 
+const closeFormOf = (guildId, ticket) => typeById(guildId, ticket.type)?.closeForm?.slice(0, 5) ?? [];
+
 function closeError(interaction) {
   const ticket = ticketsOf(interaction.guildId)[interaction.channelId];
   if (!ticket) return 'Das hier ist kein Ticket-Kanal.';
   if (isTicketTeam(interaction.member, ticket)) return null;
-  if (settingsOf(interaction.guildId).onlyTeamCanClose) return 'Nur das Team kann Tickets schließen.';
+  if (option(interaction.guildId, ticket, 'onlyTeamCanClose')) return 'Nur das Team kann Tickets schließen.';
   if (ticket.owner !== interaction.user.id) return 'Nur der Ersteller oder das Team kann das Ticket schließen.';
   return null;
 }
 
-// Schritt 1: Rückfrage (nur für den Klickenden sichtbar).
+// Schließen nur durch das Team: Der Ersteller bittet darum, ein Teammitglied stimmt zu (closeaccept) oder lehnt ab.
+async function requestClose(interaction, ticket) {
+  return interaction.reply({
+    content: mentions(ticketTeamRoles(interaction.guildId, ticket)) || undefined,
+    embeds: [embed('warning').setDescription(`🔒 ${interaction.user} möchte dieses Ticket schließen. Ein Teammitglied muss zustimmen.`)],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket:closeaccept').setLabel('Zustimmen').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+        new ButtonBuilder().setCustomId('ticket:closedeny').setLabel('Offen lassen').setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+    allowedMentions: { parse: ['roles'] },
+  });
+}
+
+// Formular beim Schließen (closeForm der Kategorie, max. 5 Felder).
+function closeFormModal(fields) {
+  return new ModalBuilder()
+    .setCustomId('ticket:closeformmodal')
+    .setTitle('Ticket schließen')
+    .addComponents(
+      fields.map((field, i) => {
+        const input = new TextInputBuilder()
+          .setCustomId(`f${i}`)
+          .setLabel(field.label.slice(0, 45))
+          .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+          .setRequired(field.required !== false)
+          .setMaxLength(Math.min(Math.max(field.maxLength || 500, 1), 4000));
+        if (field.placeholder) input.setPlaceholder(field.placeholder.slice(0, 100));
+        return new ActionRowBuilder().addComponents(input);
+      }),
+    );
+}
+
+// Schritt 1: Rückfrage (nur für den Klickenden sichtbar) oder, wenn nur das Team schließen darf, eine Schließungs-Anfrage.
 async function closeFromInteraction(interaction) {
+  const ticket = ticketsOf(interaction.guildId)[interaction.channelId];
+  if (
+    ticket &&
+    ticket.owner === interaction.user.id &&
+    !isTicketTeam(interaction.member, ticket) &&
+    option(interaction.guildId, ticket, 'onlyTeamCanClose')
+  ) {
+    return requestClose(interaction, ticket);
+  }
   const error = closeError(interaction);
   if (error) return replyPrivate(interaction, error);
+  const buttons = closeFormOf(interaction.guildId, ticket).length
+    ? [new ButtonBuilder().setCustomId('ticket:closeform').setLabel('Schließen').setStyle(ButtonStyle.Danger).setEmoji('🔒')]
+    : [
+        new ButtonBuilder().setCustomId('ticket:closeyes').setLabel('Schließen').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+        new ButtonBuilder().setCustomId('ticket:closereason').setLabel('Mit Grund schließen').setStyle(ButtonStyle.Secondary).setEmoji('📝'),
+      ];
   return replyPrivate(interaction, {
     embeds: [embed('danger').setDescription('🔒 Möchtest du dieses Ticket wirklich schließen?')],
     components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket:closeyes').setLabel('Schließen').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
-        new ButtonBuilder().setCustomId('ticket:closereason').setLabel('Mit Grund schließen').setStyle(ButtonStyle.Secondary).setEmoji('📝'),
-        new ButtonBuilder().setCustomId('ticket:closeno').setLabel('Abbrechen').setStyle(ButtonStyle.Secondary),
-      ),
+      new ActionRowBuilder().addComponents(...buttons, new ButtonBuilder().setCustomId('ticket:closeno').setLabel('Abbrechen').setStyle(ButtonStyle.Secondary)),
     ],
   });
 }
 
-// Schritt 2: Antwort auf die Rückfrage (closeyes, closereason → Formular → closemodal, closeno).
+// Schritt 2: closeyes, closereason → closemodal, closeform → closeformmodal, closeno;
+// bei einer Schließungs-Anfrage closeaccept (wie closeyes bzw. closeform) und closedeny.
 async function confirmClose(interaction, action) {
   if (action === 'closeno') return interaction.update({ embeds: [embed().setDescription('Abgebrochen – das Ticket bleibt offen.')], components: [] });
+
+  const ticket = ticketsOf(interaction.guildId)[interaction.channelId];
+  if ((action === 'closeaccept' || action === 'closedeny') && ticket && !isTicketTeam(interaction.member, ticket)) {
+    return replyPrivate(interaction, 'Nur das Team kann über diese Anfrage entscheiden.');
+  }
+  if (action === 'closedeny') {
+    return interaction.update({
+      content: null,
+      embeds: [embed().setDescription(`🔓 ${interaction.user} hat die Anfrage abgelehnt – das Ticket bleibt offen.`)],
+      components: [],
+    });
+  }
 
   const error = closeError(interaction);
   if (error) return interaction.update({ embeds: [embed('danger').setDescription(error)], components: [] });
 
+  const form = closeFormOf(interaction.guildId, ticket);
+  if (action === 'closeform' || (action === 'closeaccept' && form.length)) return interaction.showModal(closeFormModal(form));
   if (action === 'closereason') {
     return interaction.showModal(
       new ModalBuilder()
@@ -387,10 +488,19 @@ async function confirmClose(interaction, action) {
     );
   }
 
-  const reason = action === 'closemodal' ? interaction.fields.getTextInputValue('reason') : null;
-  await interaction.update({ embeds: [embed('danger').setDescription('🔒 Wird geschlossen …')], components: [] });
+  let reason = null;
+  if (action === 'closemodal') reason = interaction.fields.getTextInputValue('reason');
+  if (action === 'closeformmodal') {
+    reason =
+      form
+        .map((field, i) => [field.label, interaction.fields.getTextInputValue(`f${i}`)?.trim()])
+        .filter(([, answer]) => answer)
+        .map(([label, answer]) => `**${label}:** ${answer}`)
+        .join('\n') || null;
+  }
+  await interaction.update({ content: null, embeds: [embed('danger').setDescription('🔒 Wird geschlossen …')], components: [] });
   await interaction.channel.send({
-    embeds: [embed('danger').setDescription(`🔒 Ticket wird von ${interaction.user} geschlossen …${reason ? `\n**Grund:** ${reason}` : ''}`)],
+    embeds: [embed('danger').setDescription(truncate(`🔒 Ticket wird von ${interaction.user} geschlossen …${reason ? `\n${action === 'closeformmodal' ? '' : '**Grund:** '}${reason}` : ''}`, 4096))],
   });
   await closeTicket(interaction.channel, interaction.user, reason);
 }
@@ -402,11 +512,12 @@ async function claim(interaction) {
   if (!ticket) return replyPrivate(interaction, 'Das hier ist kein Ticket-Kanal.');
   if (!isTicketTeam(interaction.member, ticket)) return replyPrivate(interaction, 'Nur das Team kann Tickets übernehmen.');
   if (ticket.claimedBy) return replyPrivate(interaction, `Das Ticket wird bereits von <@${ticket.claimedBy}> bearbeitet.`);
+  if (typeById(interaction.guildId, ticket.type)?.allowClaim === false) return replyPrivate(interaction, 'In dieser Kategorie können Tickets nicht übernommen werden.');
 
   ticket.claimedBy = interaction.user.id;
   ticket.claimerLastAt = Date.now();
   save();
-  await interaction.update({ components: [controls(ticket)] });
+  await interaction.update({ components: [controls(interaction.guildId, ticket)] });
   await interaction.followUp({ embeds: [embed('success').setDescription(`🙋 ${interaction.user} kümmert sich um dieses Ticket.`)] });
   await moveForClaim(interaction.channel, ticket, true);
   await logActivity(interaction.guild, 'success', `🙋 ${interaction.user} hat ${ticketRef(interaction.guildId, interaction.channelId, ticket)} übernommen.`);
@@ -421,7 +532,7 @@ async function unclaim(interaction) {
   delete ticket.claimedBy;
   delete ticket.claimerLastAt;
   save();
-  await interaction.update({ components: [controls(ticket)] });
+  await interaction.update({ components: [controls(interaction.guildId, ticket)] });
   await interaction.followUp({ embeds: [embed('warning').setDescription(`↩️ ${interaction.user} hat das Ticket wieder freigegeben.`)] });
   await moveForClaim(interaction.channel, ticket, false);
   await logActivity(interaction.guild, 'warning', `↩️ ${interaction.user} hat ${ticketRef(interaction.guildId, interaction.channelId, ticket)} freigegeben.`);
@@ -484,25 +595,41 @@ async function answerAddRequest(interaction, userId, accepted) {
 function trackMessage(message) {
   const ticket = ticketsOf(message.guildId)[message.channelId];
   if (!ticket || message.author.bot) return;
+  ticket.lastActivityAt = Date.now();
   if (message.author.id !== ticket.owner && message.member && isTicketTeam(message.member, ticket)) ticket.teamRepliedAt = Date.now();
   if (message.author.id === ticket.claimedBy) ticket.claimerLastAt = Date.now();
   save();
 }
 
 async function checkReminders(guild) {
-  const { autoTeamAlert, autoUnclaim, openingHours } = settingsOf(guild.id);
-  if (!isOpen(openingHours)) return; // Außerhalb der Öffnungszeiten pausieren die Erinnerungen
+  const { autoUnclaim, openingHours } = settingsOf(guild.id);
+  if (!isOpen(openingHours)) return; // Außerhalb der Öffnungszeiten pausieren Erinnerungen und Auto-Close
   const now = Date.now();
   for (const [channelId, ticket] of Object.entries(openTickets(guild))) {
     const channel = guild.channels.cache.get(channelId);
 
-    if (autoTeamAlert.enabled && !ticket.alerted && !ticket.teamRepliedAt && !ticket.claimedBy && now - ticket.openedAt >= autoTeamAlert.afterMinutes * 60_000) {
+    // Auto-Close: so lange hat niemand im Ticket geschrieben.
+    const autoClose = option(guild.id, ticket, 'autoClose');
+    if (autoClose?.enabled && now - (ticket.lastActivityAt ?? ticket.openedAt) >= autoClose.afterHours * 3_600_000) {
+      const reason = `Automatisch geschlossen: ${autoClose.afterHours} Std. ohne Aktivität`;
+      await channel.send({ embeds: [embed('danger').setDescription(`🔒 ${reason}.`)] }).catch(() => {});
+      await closeTicket(channel, null, reason);
+      continue;
+    }
+
+    const alert = option(guild.id, ticket, 'autoTeamAlert');
+    if (alert?.enabled && !ticket.alerted && !ticket.teamRepliedAt && !ticket.claimedBy && now - ticket.openedAt >= alert.afterMinutes * 60_000) {
       ticket.alerted = true;
       save();
+      const since = `<t:${Math.floor(ticket.openedAt / 1000)}:R>`;
       await channel
         .send({
           content: mentions(ticketTeamRoles(guild.id, ticket)) || undefined,
-          embeds: [embed('warning').setDescription(`⏰ Dieses Ticket wartet seit <t:${Math.floor(ticket.openedAt / 1000)}:R> auf eine Antwort vom Team.`)],
+          embeds: [
+            embed('warning').setDescription(
+              alert.message ? fill(alert.message, { user: `<@${ticket.owner}>`, since }) : `⏰ Dieses Ticket wartet seit ${since} auf eine Antwort vom Team.`,
+            ),
+          ],
         })
         .catch(() => {});
     }
@@ -526,6 +653,23 @@ async function checkReminders(guild) {
   }
 }
 
+// Ersteller verlässt den Server: onCreatorLeave "nothing", "notify" (Hinweis) oder "close" (Hinweis als Grund, dann schließen).
+async function handleCreatorLeave(member) {
+  const tickets = openTickets(member.guild);
+  for (const channelId of Object.keys(tickets).filter((id) => tickets[id].owner === member.id)) {
+    const ticket = tickets[channelId];
+    const mode = option(member.guild.id, ticket, 'onCreatorLeave');
+    if (mode !== 'notify' && mode !== 'close') continue;
+    const channel = member.guild.channels.cache.get(channelId);
+    const text = fill(option(member.guild.id, ticket, 'leaveMessage') || '👋 {user} hat den Server verlassen.', {
+      user: `${member}`,
+      username: member.user.username,
+    });
+    await channel?.send({ embeds: [embed('warning').setDescription(text)], allowedMentions: { parse: [] } }).catch(() => {});
+    if (mode === 'close') await closeTicket(channel, null, text);
+  }
+}
+
 const lastOpenState = new Map(); // guildId → Team erreichbar?
 function startTicketWatcher(client) {
   setInterval(async () => {
@@ -545,7 +689,9 @@ module.exports = {
   postPanel,
   refreshPanels,
   openTicket,
+  openOnBehalf,
   openApplicationTicket,
+  handleCreatorLeave,
   closeTicket,
   closeFromInteraction,
   confirmClose,
@@ -555,6 +701,7 @@ module.exports = {
   answerAddRequest,
   isTicketTeam,
   buildPanel,
+  closeFormModal,
   logActivity,
   trackMessage,
   startTicketWatcher,

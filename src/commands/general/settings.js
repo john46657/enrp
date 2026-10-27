@@ -43,6 +43,26 @@ const formatPeriods = (periods) => periods.map((p) => `${p.days.join(',')} ${p.f
 const channel = (id) => (id ? `<#${id}>` : '—');
 const role = (id) => (id ? `<@&${id}>` : '—');
 const onOff = (value) => (value ? '✅' : '❌');
+const LEAVE_LABELS = { nothing: 'nichts', notify: 'Hinweis', close: 'schließen' };
+
+// Eine Zeile je Ticket-Kategorie, abweichende Einstellungen werden angehängt.
+function typeLine(x) {
+  const extras = [
+    x.enabled === false && 'deaktiviert',
+    x.allowClaim === false && 'ohne Claim',
+    x.allowOnBehalf === false && 'kein /ticket fuer',
+    x.onlyTeamCanClose !== undefined && `nur Team schließt ${onOff(x.onlyTeamCanClose)}`,
+    x.onCreatorLeave && `Verlassen: ${LEAVE_LABELS[x.onCreatorLeave]}`,
+    x.autoClose && `Auto-Close ${x.autoClose.enabled ? `${x.autoClose.afterHours} Std.` : '❌'}`,
+    x.autoTeamAlert && `Erinnerung ${x.autoTeamAlert.enabled ? `${x.autoTeamAlert.afterMinutes} Min.` : '❌'}`,
+    x.closeForm?.length && `Formular ${x.closeForm.length} Feld(er)`,
+    (x.openEmbed?.title || x.openEmbed?.description) && 'eigenes Eröffnungs-Embed',
+  ].filter(Boolean);
+  return (
+    `${x.emoji} **${x.label}** – Kapazität ${x.capacity || '—'}, Team: ${x.roles?.length ? x.roles.map(role).join(' ') : 'Standard'}` +
+    (extras.length ? ` · ${extras.join(' · ')}` : '')
+  );
+}
 
 // Einstellungen dieses Servers (jeder Server hat seine eigenen).
 function overview(guild) {
@@ -67,18 +87,17 @@ function overview(guild) {
           `Max. offen pro Nutzer: ${t.maxOpenPerUser || 'kein Limit'}`,
           `Kanalname: \`${t.channelName}\``,
           `Team markieren: ${onOff(t.pingTeam)} · Nur Team schließt: ${onOff(t.onlyTeamCanClose)}`,
-          `Ersteller fügt hinzu: ${onOff(t.creatorCanAddUsers)} · Schließen bei Verlassen: ${onOff(t.onCreatorLeave === 'close')}`,
+          `Ersteller fügt hinzu: ${onOff(t.creatorCanAddUsers)} · Bei Verlassen: ${LEAVE_LABELS[t.onCreatorLeave] ?? t.onCreatorLeave}`,
           `Aktivitäten loggen: ${onOff(t.logging.activities)} · Transkripte: ${onOff(t.logging.transcripts)}`,
           `Auslastung anzeigen: ${onOff(t.panel.showLoad)}`,
           `Auto-Team-Alert: ${t.autoTeamAlert.enabled ? `nach ${t.autoTeamAlert.afterMinutes} Min.` : '❌'}`,
           `Auto-Unclaim: ${t.autoUnclaim.enabled ? `nach ${t.autoUnclaim.afterHours} Std.` : '❌'}`,
+          `Auto-Close: ${t.autoClose?.enabled ? `nach ${t.autoClose.afterHours} Std. ohne Nachricht` : '❌'}`,
         ].join('\n'),
       },
       {
         name: 'Ticket-Kategorien',
-        value: t.types
-          .map((x) => `${x.emoji} **${x.label}** – Kapazität ${x.capacity || '—'}, Team: ${x.roles?.length ? x.roles.map(role).join(' ') : 'Standard'}`)
-          .join('\n'),
+        value: truncate(t.types.map(typeLine).join('\n'), 1024),
       },
       {
         name: 'Öffnungszeiten',
@@ -174,7 +193,10 @@ const builder = new SlashCommandBuilder()
       .addBooleanOption((o) => o.setName('team_markieren').setDescription('Team beim Öffnen markieren?'))
       .addBooleanOption((o) => o.setName('nur_team_schliesst').setDescription('Darf nur das Team schließen?'))
       .addBooleanOption((o) => o.setName('ersteller_fuegt_hinzu').setDescription('Dürfen Ersteller Personen anfragen?'))
-      .addBooleanOption((o) => o.setName('schliessen_bei_verlassen').setDescription('Ticket schließen, wenn der Ersteller den Server verlässt?'))
+      .addStringOption((o) =>
+        o.setName('bei_verlassen').setDescription('Wenn der Ersteller den Server verlässt').addChoices({ name: 'Nichts', value: 'nothing' }, { name: 'Hinweis im Ticket', value: 'notify' }, { name: 'Schließen', value: 'close' }),
+      )
+      .addStringOption((o) => o.setName('verlassen_text').setDescription('Hinweis/Grund beim Verlassen ({user} {username})').setMaxLength(500))
       .addBooleanOption((o) => o.setName('aktivitaeten_loggen').setDescription('Ticket-Aktivitäten in den Ticket-Log schreiben?'))
       .addBooleanOption((o) => o.setName('transkripte').setDescription('Verlauf beim Schließen speichern?'))
       .addBooleanOption((o) => o.setName('auslastung_anzeigen').setDescription('Auslastung im Panel anzeigen?'))
@@ -182,7 +204,9 @@ const builder = new SlashCommandBuilder()
         o.setName('kanalname').setDescription('z. B. %PREFIX% %USERNAME% – Platzhalter siehe README').setMaxLength(90),
       )
       .addIntegerOption((o) => o.setName('auto_alert_minuten').setDescription('Team erneut markieren nach X Minuten (0 = aus)').setMinValue(0).setMaxValue(10_080))
-      .addIntegerOption((o) => o.setName('auto_unclaim_stunden').setDescription('Freigeben nach X Stunden Inaktivität (0 = aus)').setMinValue(0).setMaxValue(720)),
+      .addIntegerOption((o) => o.setName('auto_unclaim_stunden').setDescription('Freigeben nach X Stunden Inaktivität (0 = aus)').setMinValue(0).setMaxValue(720))
+      .addStringOption((o) => o.setName('auto_alert_text').setDescription('Text der Erinnerung ({user} {since}, - = Standard)').setMaxLength(500))
+      .addIntegerOption((o) => o.setName('auto_close_stunden').setDescription('Schließen nach X Stunden ohne Nachricht (0 = aus)').setMinValue(0).setMaxValue(2160)),
   )
   .addSubcommand((s) =>
     s
@@ -211,7 +235,41 @@ const builder = new SlashCommandBuilder()
       .addChannelOption((o) =>
         o.setName('discord_kategorie').setDescription('Eigene Discord-Kategorie für diese Tickets').addChannelTypes(ChannelType.GuildCategory),
       )
-      .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel').setMaxLength(500)),
+      .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel').setMaxLength(500))
+      .addBooleanOption((o) => o.setName('aktiv').setDescription('Kategorie im Panel anbieten?'))
+      .addBooleanOption((o) => o.setName('claimen').setDescription('Dürfen Tickets übernommen werden?'))
+      .addBooleanOption((o) => o.setName('im_auftrag').setDescription('Darf das Team Tickets mit /ticket fuer öffnen?'))
+      .addBooleanOption((o) => o.setName('nur_team_schliesst').setDescription('Ersteller kann nur um Schließung bitten, das Team stimmt zu'))
+      .addStringOption((o) => o.setName('bei_verlassen').setDescription('Wenn der Ersteller den Server verlässt').addChoices({ name: 'Nichts', value: 'nothing' }, { name: 'Hinweis im Ticket', value: 'notify' }, { name: 'Schließen', value: 'close' }))
+      .addStringOption((o) => o.setName('verlassen_text').setDescription('Hinweis/Grund beim Verlassen ({user} {username})').setMaxLength(500))
+      .addIntegerOption((o) => o.setName('auto_close_stunden').setDescription('Schließen nach X Stunden ohne Nachricht (0 = aus)').setMinValue(0).setMaxValue(2160))
+      .addIntegerOption((o) => o.setName('erinnerung_minuten').setDescription('Team erinnern, wenn niemand antwortet (0 = aus)').setMinValue(0).setMaxValue(10_080))
+      .addStringOption((o) => o.setName('erinnerung_text').setDescription('Text der Erinnerung ({user} {since}, - = Standard)').setMaxLength(500))
+      .addStringOption((o) => o.setName('eroeffnung_titel').setDescription('Titel des Eröffnungs-Embeds (- = Standard)').setMaxLength(200))
+      .addStringOption((o) => o.setName('eroeffnung_text').setDescription('Text ({user} {username} {category} {number}, - = Standard)').setMaxLength(1500))
+      .addStringOption((o) => o.setName('eroeffnung_bild').setDescription('Bild-URL im Eröffnungs-Embed (- = keins)'))
+      .addBooleanOption((o) => o.setName('allgemein_verwenden').setDescription('Automationen und Schließ-Regeln wieder aus /einstellungen tickets')),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('ticket-formular')
+      .setDescription('Formular beim Schließen einer Kategorie (max. 5 Felder).')
+      .addStringOption((o) =>
+        o
+          .setName('kategorie')
+          .setDescription('Welche Kategorie?')
+          .setRequired(true)
+          .addChoices(...settings.base.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
+      )
+      .addIntegerOption((o) => o.setName('feld').setDescription('Feld 1–5').setRequired(true).setMinValue(1).setMaxValue(5))
+      .addStringOption((o) => o.setName('frage').setDescription('Frage / Label').setMaxLength(45))
+      .addStringOption((o) =>
+        o.setName('art').setDescription('Eingabefeld').addChoices({ name: 'Einzeiliger Text', value: 'short' }, { name: 'Mehrzeiliger Text', value: 'paragraph' }),
+      )
+      .addStringOption((o) => o.setName('platzhalter').setDescription('Platzhalter (- = keiner)').setMaxLength(100))
+      .addIntegerOption((o) => o.setName('max_laenge').setDescription('Maximale Länge').setMinValue(1).setMaxValue(4000))
+      .addBooleanOption((o) => o.setName('pflicht').setDescription('Pflichtfeld?'))
+      .addBooleanOption((o) => o.setName('entfernen').setDescription('Dieses Feld löschen')),
   )
   .addSubcommand((s) =>
     s
@@ -307,7 +365,9 @@ function changesFor(interaction, sub) {
         ['team_markieren', 'tickets.pingTeam', 'getBoolean'],
         ['nur_team_schliesst', 'tickets.onlyTeamCanClose', 'getBoolean'],
         ['ersteller_fuegt_hinzu', 'tickets.creatorCanAddUsers', 'getBoolean'],
-        ['schliessen_bei_verlassen', 'tickets.onCreatorLeave', 'getBoolean', (v) => (v ? 'close' : 'nothing')],
+        ['bei_verlassen', 'tickets.onCreatorLeave', 'getString'],
+        ['verlassen_text', 'tickets.leaveMessage', 'getString', clearable],
+        ['auto_alert_text', 'tickets.autoTeamAlert.message', 'getString', clearable],
         ['aktivitaeten_loggen', 'tickets.logging.activities', 'getBoolean'],
         ['transkripte', 'tickets.logging.transcripts', 'getBoolean'],
         ['auslastung_anzeigen', 'tickets.panel.showLoad', 'getBoolean'],
@@ -323,6 +383,8 @@ function changesFor(interaction, sub) {
         changes.push(['tickets.autoUnclaim.enabled', unclaim > 0]);
         if (unclaim > 0) changes.push(['tickets.autoUnclaim.afterHours', unclaim]);
       }
+      const autoClose = o.getInteger('auto_close_stunden');
+      if (autoClose !== null) changes.push(['tickets.autoClose', { enabled: autoClose > 0, afterHours: autoClose || 48 }]);
       return changes;
     }
     case 'ticket-panel': {
@@ -338,14 +400,72 @@ function changesFor(interaction, sub) {
     }
     case 'ticket-kategorie': {
       const base = `tickets.types.${o.getString('kategorie')}`;
-      const changes = collect(interaction, [
-        ['kapazitaet', `${base}.capacity`, 'getInteger'],
-        ['team_rolle', `${base}.roles`, 'getRole', (r) => [r.id]],
-        ['discord_kategorie', `${base}.categoryId`, 'getChannel', (c) => c.id],
-        ['beschreibung', `${base}.description`, 'getString'],
-      ]);
+      const tickets = settings.forGuild(interaction.guildId).tickets;
+      const type = tickets.types.find((t) => t.id === o.getString('kategorie'));
+      const image = o.getString('eroeffnung_bild');
+      if (image && image.trim() !== '-' && !/^https?:\/\/\S+$/.test(image.trim())) throw new Error('Das Bild muss eine URL sein (https://…).');
+
+      const changes = [];
+      // Zuerst zurücksetzen, damit danach angegebene Werte gelten.
+      if (o.getBoolean('allgemein_verwenden')) {
+        for (const key of ['onlyTeamCanClose', 'onCreatorLeave', 'leaveMessage', 'autoClose', 'autoTeamAlert']) changes.push([`${base}.${key}`, undefined]);
+      }
+      changes.push(
+        ...collect(interaction, [
+          ['kapazitaet', `${base}.capacity`, 'getInteger'],
+          ['team_rolle', `${base}.roles`, 'getRole', (r) => [r.id]],
+          ['discord_kategorie', `${base}.categoryId`, 'getChannel', (c) => c.id],
+          ['beschreibung', `${base}.description`, 'getString'],
+          ['aktiv', `${base}.enabled`, 'getBoolean'],
+          ['claimen', `${base}.allowClaim`, 'getBoolean'],
+          ['im_auftrag', `${base}.allowOnBehalf`, 'getBoolean'],
+          ['nur_team_schliesst', `${base}.onlyTeamCanClose`, 'getBoolean'],
+          ['bei_verlassen', `${base}.onCreatorLeave`, 'getString'],
+          ['verlassen_text', `${base}.leaveMessage`, 'getString', clearable],
+        ]),
+      );
       if (o.getBoolean('standard_team')) changes.push([`${base}.roles`, []]);
+
+      const autoClose = o.getInteger('auto_close_stunden');
+      if (autoClose !== null) changes.push([`${base}.autoClose`, { enabled: autoClose > 0, afterHours: autoClose || 48 }]);
+      const minutes = o.getInteger('erinnerung_minuten');
+      const alertText = o.getString('erinnerung_text');
+      if (minutes !== null || alertText !== null) {
+        const current = { ...(type.autoTeamAlert ?? tickets.autoTeamAlert) };
+        if (minutes !== null) Object.assign(current, { enabled: minutes > 0 }, minutes > 0 && { afterMinutes: minutes });
+        if (alertText !== null) current.message = clearable(alertText);
+        changes.push([`${base}.autoTeamAlert`, current]);
+      }
+      const embedOptions = { title: o.getString('eroeffnung_titel'), description: o.getString('eroeffnung_text'), image };
+      if (Object.values(embedOptions).some((v) => v !== null)) {
+        const current = { title: '', description: '', image: '', ...type.openEmbed };
+        for (const [key, value] of Object.entries(embedOptions)) if (value !== null) current[key] = clearable(value);
+        changes.push([`${base}.openEmbed`, current]);
+      }
       return changes;
+    }
+    case 'ticket-formular': {
+      const id = o.getString('kategorie');
+      const type = settings.forGuild(interaction.guildId).tickets.types.find((t) => t.id === id);
+      const form = structuredClone(type.closeForm ?? []);
+      const index = Math.min(o.getInteger('feld') - 1, form.length);
+      if (o.getBoolean('entfernen')) {
+        if (index >= form.length) throw new Error(`Feld ${index + 1} gibt es nicht.`);
+        form.splice(index, 1);
+      } else {
+        const field = { style: 'short', placeholder: '', maxLength: 500, required: true, ...form[index] };
+        const values = {
+          label: o.getString('frage'),
+          style: o.getString('art'),
+          placeholder: o.getString('platzhalter') === null ? null : clearable(o.getString('platzhalter')),
+          maxLength: o.getInteger('max_laenge'),
+          required: o.getBoolean('pflicht'),
+        };
+        for (const [key, value] of Object.entries(values)) if (value !== null) field[key] = value;
+        if (!field.label) throw new Error('Ein neues Feld braucht eine `frage`.');
+        form[index] = field;
+      }
+      return [[`tickets.types.${id}.closeForm`, form]];
     }
     case 'oeffnungszeiten': {
       const zone = o.getString('zeitzone')?.trim();

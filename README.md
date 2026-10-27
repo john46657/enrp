@@ -12,7 +12,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
-| 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
+| 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
 | ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
@@ -83,14 +83,30 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 | `channelName` | Kanalname, Platzhalter: `%PREFIX%` `%USERNAME%` `%USER_ID%` `%USER_NICK_NAME%` `%DISPLAY_NAME%` `%EMOTE%` `%TICKET_NUMBER%` (fortlaufend) `%CASEID%` (fortlaufend je Kategorie) |
 | `onlyTeamCanClose` | `true` = Ersteller darf sein Ticket nicht selbst schließen |
 | `creatorCanAddUsers` | Ersteller darf Personen anfragen, das Team bestätigt |
-| `onCreatorLeave` | `"close"` = Ticket schließen, wenn der Ersteller den Server verlässt, `"nothing"` = offen lassen |
+| `onCreatorLeave` | Wenn der Ersteller den Server verlässt: `"nothing"` = nichts, `"notify"` = Hinweis im Ticket, `"close"` = Hinweis als Grund und schließen |
+| `leaveMessage` | Text dazu, Platzhalter `{user}` `{username}` |
 | `logging.activities` | Öffnen, Übernehmen, Freigeben, Hinzufügen, Schließen in `channels.ticketLog` protokollieren |
 | `logging.transcripts` | Verlauf beim Schließen als `.txt` speichern (Log-Kanal + DM an Ersteller) |
 | `claimCategory.enabled` / `categoryId` | Übernommene Tickets in diese Kategorie verschieben (beim Freigeben zurück) |
 | `openingHours` | `enabled`, `timezone` und `periods` mit Tagen `mo di mi do fr sa so` und Zeiten `"15:00"`–`"23:00"` (auch über Mitternacht, `"24:00"` = Tagesende). Außerhalb bekommt jedes neue Ticket einen Hinweis, wann das Team wieder da ist, und Erinnerungen pausieren. |
-| `autoTeamAlert` | Team erneut markieren, wenn nach `afterMinutes` noch niemand geantwortet hat |
+| `autoTeamAlert` | Team erneut markieren, wenn nach `afterMinutes` noch niemand geantwortet hat; `message` = eigener Text (`{user}` `{since}`) |
+| `autoClose` | Ticket schließen, wenn `afterHours` lang niemand geschrieben hat (pausiert außerhalb der Öffnungszeiten) |
 | `autoUnclaim` | Ticket automatisch freigeben, wenn der Bearbeiter `afterHours` lang nichts schreibt |
-| `types[]` | Kategorien: `id`, `prefix`, `label`, `emoji`, `description`, `capacity` (für die Auslastung, `0` = ausblenden), `roles` (eigene Team-Rollen, leer = `roles.support`), optional `categoryId` |
+| `types[]` | Kategorien: `id`, `prefix`, `label`, `emoji`, `description`, `capacity` (für die Auslastung, `0` = ausblenden), `roles` (eigene Team-Rollen, leer = `roles.support`), optional `categoryId` – weitere Felder siehe unten |
+
+**Je Kategorie (`types[]`)** gibt es zusätzlich:
+
+| Feld | Bedeutung |
+|---|---|
+| `enabled` | `false` = Kategorie nicht im Panel anbieten |
+| `allowClaim` | `false` = kein „Übernehmen“-Button |
+| `allowOnBehalf` | Team darf mit `/ticket fuer` ein Ticket für ein Mitglied öffnen |
+| `openEmbed` | Eröffnungs-Embed: `title`, `description`, `image`; Platzhalter `{user}` `{username}` `{category}` `{emoji}` `{number}` (leer = Standardtext) |
+| `closeForm` | Formular beim Schließen, max. 5 Felder: `label`, `style` (`short`/`paragraph`), `placeholder`, `maxLength`, `required`. Die Antworten landen im Log und in der DM. |
+| `onlyTeamCanClose`, `onCreatorLeave`, `leaveMessage`, `autoClose`, `autoTeamAlert` | Wie oben, gelten nur für diese Kategorie. Fehlen sie, gilt der allgemeine Wert. |
+
+Darf nur das Team schließen (`onlyTeamCanClose`), bekommt der Ersteller beim Schließen keine Fehlermeldung, sondern
+stellt eine **Schließungs-Anfrage**: Ein Teammitglied stimmt zu oder lässt das Ticket offen.
 
 Nach jeder Änderung an `config.json` den Bot neu starten. Mit `npm run check` kannst du vorher
 prüfen, ob die Konfiguration gültig ist.
@@ -105,9 +121,10 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `anzeigen` | Übersicht aller aktuellen Werte |
 | `kanal` / `rolle` | Log- und Willkommenskanäle bzw. Support-, Staff- und Auto-Rolle (ohne Auswahl = entfernen) |
 | `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
-| `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
+| `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Verhalten beim Verlassen, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert (mit Text), Auto-Unclaim, Auto-Close |
 | `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
-| `ticket-kategorie` | Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
+| `ticket-kategorie` | je Kategorie: Kapazität, Team-Rolle, Discord-Kategorie, Beschreibung, aktiv, Claimen, `/ticket fuer`, nur Team schließt, Verhalten beim Verlassen, Auto-Close, Erinnerung, Eröffnungs-Embed; `allgemein_verwenden` setzt die eigenen Regeln zurück |
+| `ticket-formular` | Formular beim Schließen je Kategorie: Feld 1–5 mit Frage, Art, Platzhalter, Länge, Pflicht (oder `entfernen`) |
 | `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |

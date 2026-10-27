@@ -271,6 +271,7 @@
     "onlyTeamCanClose": false,
     "creatorCanAddUsers": true,
     "onCreatorLeave": "close",
+    "leaveMessage": "👋 {user} hat den Server verlassen.",
     "logging": {
       "activities": true,
       "transcripts": true
@@ -306,7 +307,12 @@
     },
     "autoTeamAlert": {
       "enabled": true,
-      "afterMinutes": 30
+      "afterMinutes": 30,
+      "message": ""
+    },
+    "autoClose": {
+      "enabled": false,
+      "afterHours": 48
     },
     "autoUnclaim": {
       "enabled": true,
@@ -320,7 +326,16 @@
         "emoji": "📩",
         "capacity": 20,
         "roles": [],
-        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du allgemeine Fragen oder Anliegen hast."
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du allgemeine Fragen oder Anliegen hast.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       },
       {
         "id": "shader",
@@ -329,7 +344,16 @@
         "emoji": "🌆",
         "capacity": 20,
         "roles": [],
-        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Probleme mit dem Shader hast. Egal ob einfache Fragen zur Installation oder Einrichtung bis hin zu Bugs."
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Probleme mit dem Shader hast. Egal ob einfache Fragen zur Installation oder Einrichtung bis hin zu Bugs.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       },
       {
         "id": "moderation",
@@ -338,7 +362,16 @@
         "emoji": "💎",
         "capacity": 20,
         "roles": [],
-        "description": "Hier kannst du dich an uns wenden, wenn du andere Nutzer reporten möchtest oder dich an unser vertrautes Team wenden möchtest."
+        "description": "Hier kannst du dich an uns wenden, wenn du andere Nutzer reporten möchtest oder dich an unser vertrautes Team wenden möchtest.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       },
       {
         "id": "leitung",
@@ -347,7 +380,16 @@
         "emoji": "🔮",
         "capacity": 10,
         "roles": [],
-        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Fragen hast, die sich eher die Leitungsebene anschauen sollte."
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Fragen hast, die sich eher die Leitungsebene anschauen sollte.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       }
     ]
   },
@@ -361,5 +403,43 @@
     "xpMax": 25,
     "cooldownSeconds": 60,
     "roleRewards": {}
+  },
+  "stats": {
+    "enabled": false,
+    "categoryId": "",
+    "counters": [
+      {
+        "type": "members",
+        "name": "👥 Mitglieder: {count}"
+      }
+    ]
+  },
+  "team": {
+    "enabled": false,
+    "logChannel": "",
+    "dmNotify": false,
+    "roles": [],
+    "warnings": {
+      "enabled": true,
+      "expireDays": 30,
+      "dmOnExpire": true,
+      "roles": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "publicChannel": ""
+    },
+    "rank": {
+      "reasonRequired": false,
+      "announceChannel": "",
+      "offer": {
+        "enabled": false,
+        "channel": "",
+        "hours": 72
+      }
+    }
   }
 }
