@@ -14,6 +14,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` `/melden` · Berechtigungen per Rolle · Warn-Limit, Ablauf, Warn-Rollen, öffentliche Verwarnung · Honeypot-Köderkanal · Auto-Mod (Hoisting, Einladungen, Links, Spam, Caps, Pings) · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
+| 👥 **Teamverwaltung** | Team-Rollen mit Rechten · `/team verwarnen\|verwarnungen\|verwarnung-entfernen` mit Ablauf, Warn-Rollen, öffentlichem Post · `/team rang` (Up-/Downrank mit Fall-Nummer, Log, DM, Ankündigung, optional Angebot zum Annehmen) · Live-Teamliste · `/abwesend` `/zurueck` mit Abwesenheitsliste und -rolle |
 | 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
 | ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
@@ -130,6 +131,20 @@ Teammitglieder (Admin, Nachrichten verwalten, Kicken, Bannen, Timeout), der Serv
 den Honeypot nicht aus. Von Auto-Mod sind Admins, „Nachrichten verwalten“ und `automod.ignoredRoles` ausgenommen.
 Die Moderationsbefehle sind jetzt für alle sichtbar und prüfen die Berechtigung selbst, damit Rollen aus
 `permissions` sie nutzen können.
+
+### Teamverwaltung (`team`)
+
+| Feld | Bedeutung |
+|---|---|
+| `enabled` | Aus = `/team`, `/abwesend`, `/zurueck` antworten nur mit einem Hinweis |
+| `logChannel` / `dmNotify` | Log für Rang-Änderungen und Team-Verwarnungen / Mitglied per DM informieren |
+| `roles[]` | Team-Rollen: `{ "id": "ROLLEN_ID", "perms": ["absence", "warn", "rank"] }`. Admins („Server verwalten“) dürfen immer. |
+| `warnings` | Team-Verwarnungen: `enabled`, `expire`, `dmOnExpire`, `roles` (Warn 1–5), `publicChannel` – wie bei der Moderation |
+| `rank` | `reasonRequired`, `announceChannel` (öffentliche Ankündigung, leer = aus), `announceTitle`/`announceText` (`{user}` `{username}` `{oldrole}` `{newrole}` `{server}`), `offer` (`enabled`, `channel`, `hours`): Upranks erst nach „Annehmen“ durch das Mitglied |
+| `teamList` | `enabled`, `channel`, `roles`: Nachricht mit allen Mitgliedern je Rolle, aktualisiert sich bei Rollenänderungen |
+| `absence` | `enabled`, `channel` (Liste der Abwesenden), `role` (wird während der Abwesenheit vergeben) |
+
+Rang-Aufstieg mit automatischen Laufbahnen und der Team-Kalender sind (noch) nicht enthalten.
 
 ### Server-Statistiken (`stats`)
 
