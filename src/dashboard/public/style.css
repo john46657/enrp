@@ -65,7 +65,7 @@ h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.02em; }
 .chip { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 6px 14px; border-radius: 999px; font-size: 14px; }
 .chip:hover { border-color: var(--accent); }
 
-input[type='text'], input[type='number'], input[type='url'], textarea, select {
+input[type='text'], input[type='number'], input[type='url'], input[type='time'], textarea, select {
   width: 100%; background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 11px 14px; font: inherit;
 }
 textarea { min-height: 84px; resize: vertical; }

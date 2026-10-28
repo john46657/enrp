@@ -135,6 +135,18 @@ if (settings.forGuild(a).tickets.types.length !== 1 || settings.forGuild(a).tick
 settings.reset(a);
 console.log('✅ Statistik-Namen');
 
+// Giveaways: Dauer und gewichtete Ziehung
+const gw = require('../src/lib/giveaways');
+const durations = [['30m', 1_800_000], ['1d12h', 129_600_000], ['2w', 1_209_600_000], ['10s', null], ['abc', null], ['100d', null]];
+for (const [text, ms] of durations) if (gw.parseDuration(text) !== ms) fail(`parseDuration(${text}) = ${gw.parseDuration(text)}`);
+const seq = [0.0, 0.99];
+const drawn = gw.drawWinners([{ id: 'a', weight: 1 }, { id: 'b', weight: 3 }, { id: 'c', weight: 1 }], 2, () => seq.shift());
+if (drawn.join() !== 'a,c' || new Set(drawn).size !== 2) fail(`drawWinners falsch: ${drawn}`);
+if (gw.drawWinners([{ id: 'a', weight: 1 }], 3).length !== 1) fail('drawWinners zieht mehr Gewinner als Teilnehmer');
+const day = gw.berlinNow(new Date('2026-10-30T17:00:00Z'));
+if (day.day !== 'fr' || day.time !== '18:00') fail(`berlinNow falsch: ${JSON.stringify(day)}`);
+console.log('✅ Giveaways: Dauer, Ziehung, Wochentag');
+
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');
 process.exit(0);

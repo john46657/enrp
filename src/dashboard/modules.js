@@ -9,6 +9,7 @@ const stats = require('../lib/stats');
 const team = require('../lib/team');
 const automod = require('../lib/automod');
 const security = require('../lib/security');
+const giveaways = require('../lib/giveaways');
 const appMessages = require('../lib/applications/messages');
 
 const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
@@ -86,4 +87,27 @@ registerRoute((app, { rateLimited }) => {
     PROVIDERS.webhook.report({ username: name, status, url: link, title: typeof title === 'string' ? title.slice(0, 200) : undefined });
     res.json({ ok: true });
   });
+});
+
+// ---------- Giveaways ----------
+
+registerLive('giveaways', (guild) => ({
+  stats: giveaways.statsOf(guild.id),
+  list: Object.values(giveaways.giveawaysOf(guild.id))
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, 100)
+    .map((g) => ({ messageId: g.messageId, channel: guild.channels.cache.get(g.channelId)?.name, prize: g.prize, winners: g.winnerIds, entries: Object.keys(g.entries).length, endsAt: g.endsAt, startedAt: g.startedAt, ended: g.ended, cancelled: g.cancelled, claims: g.claims })),
+}));
+const findGiveaway = (guild, messageId) => {
+  const g = giveaways.giveawaysOf(guild.id)[String(messageId)];
+  if (!g) throw new Error('Giveaway nicht gefunden.');
+  return g;
+};
+registerAction('giveaway-end', (guild, { messageId }) => giveaways.endGiveaway(guild, findGiveaway(guild, messageId)).then(() => null));
+registerAction('giveaway-reroll', (guild, { messageId }) => giveaways.reroll(guild, findGiveaway(guild, messageId), 1));
+registerAction('giveaway-cancel', (guild, { messageId }) => giveaways.cancelGiveaway(guild, findGiveaway(guild, messageId)));
+registerAction('giveaway-template-start', (guild, { templateId }, member) => {
+  const template = require('../lib/settings').forGuild(guild.id).giveaways.templates.find((t) => t.id === templateId);
+  if (!template) throw new Error('Vorlage nicht gefunden – erst speichern.');
+  return giveaways.startFromTemplate(guild, template, member.id).then(() => null);
 });

@@ -301,6 +301,203 @@ page({
   ],
 });
 
+// ---------- Giveaways ----------
+
+function templateEditor(t, i) {
+  const list = state.draft.giveaways.templates;
+  const b = (key) => bindItem('giveaways.templates', t, key);
+  const open = openItems.has(`tpl-${i}`);
+  t.bonus ??= [];
+  t.weekly ??= { enabled: false, day: 'fr', time: '18:00' };
+  return listItem(
+    {
+      title: t.name || 'Neue Vorlage',
+      subtitle: `${t.prize || '—'} · ${t.duration} · ${t.winners} Gewinner${t.weekly.enabled ? ` · jeden ${t.weekly.day} ${t.weekly.time}` : ''}`,
+      open,
+      onToggle: toggleOpen(`tpl-${i}`),
+      onRemove: () => confirm('Vorlage entfernen?') && (list.splice(i, 1), markDirty('giveaways.templates'), render()),
+      badges: [h('button', { class: 'btn small', onclick: (e) => (e.stopPropagation(), runAction('giveaway-template-start', { templateId: t.id }, 'Giveaway gestartet')) }, 'Jetzt starten')],
+    },
+    open && [
+      ui.field({ label: 'Name (für /giveaway vorlage)' }, ui.text(b('name'), { max: 100 })),
+      ui.field({ label: 'Preis' }, ui.text(b('prize'), { max: 200 })),
+      ui.field({ label: 'Beschreibung (optional)', wide: true }, ui.textarea(b('description'), { max: 1000 })),
+      ui.field({ label: 'Dauer', help: 'z. B. 30m, 2h, 1d, 1d12h, 1w' }, ui.text(b('duration'), { max: 20 })),
+      ui.field({ label: 'Anzahl Gewinner' }, ui.number(b('winners'), { min: 1, max: 20 })),
+      ui.field({ label: 'Kanal' }, ui.channel(b('channel'), { empty: '— Standard-Kanal —' })),
+      ui.field({ label: 'Bild (optional)' }, ui.text(b('image'), { placeholder: 'https://…' })),
+      h('h3', { class: 'field wide' }, 'Teilnahmebedingungen'),
+      ui.field({ label: 'Pflicht-Rollen', help: 'Leer = alle dürfen teilnehmen.' }, ui.roles(b('requiredRoles'))),
+      ui.field({ label: 'Gesperrte Rollen' }, ui.roles(b('blockedRoles'))),
+      ui.field({ label: 'Bei mehreren Pflicht-Rollen' }, ui.select({ get: () => (t.requireAll ? 'all' : 'any'), set: (v) => b('requireAll').set(v === 'all') }, [['any', 'Eine davon reicht'], ['all', 'Alle nötig']])),
+      ui.field({ label: 'Mind. Tage auf dem Server' }, ui.number(b('minServerDays'), { max: 3650 })),
+      ui.field({ label: 'Mind. Account-Alter (Tage)', help: 'Schützt vor Zweitaccounts.' }, ui.number(b('minAccountDays'), { max: 3650 })),
+      h(
+        'div',
+        { class: 'field wide' },
+        h('label', {}, 'Bonus-Lose (Rolle · zusätzliche Lose, 1–10)'),
+        [0, 1, 2].map((k) =>
+          h(
+            'div',
+            { class: 'card-body', style: 'padding:0 0 8px' },
+            ui.role({ get: () => t.bonus[k]?.role ?? '', set: (v) => ((t.bonus[k] = { role: v, entries: t.bonus[k]?.entries ?? 1 }), (t.bonus = t.bonus.filter((x) => x?.role)), markDirty('giveaways.templates')) }, { empty: '— Keine Bonus-Rolle —' }),
+            ui.number({ get: () => t.bonus[k]?.entries ?? 1, set: (v) => t.bonus[k] && ((t.bonus[k].entries = v), markDirty('giveaways.templates')) }, { min: 1, max: 10 }),
+          ),
+        ),
+      ),
+      h('h3', { class: 'field wide' }, 'Automatisch wiederholen'),
+      ui.field({ wide: true }, ui.toggle(bindItem('giveaways.templates', t.weekly, 'enabled'), 'Wöchentlich automatisch starten (deutsche Zeit)')),
+      ui.field({ label: 'Tag' }, ui.select(bindItem('giveaways.templates', t.weekly, 'day'), DAYS)),
+      ui.field({ label: 'Uhrzeit' }, h('input', { type: 'time', value: t.weekly.time, onchange: (e) => bindItem('giveaways.templates', t.weekly, 'time').set(e.target.value) })),
+    ],
+  );
+}
+
+page({
+  id: 'giveaways',
+  group: 'Community',
+  title: 'Giveaways',
+  icon: '🎁',
+  requires: 'giveaways',
+  enabledPath: 'giveaways.enabled',
+  offText: 'Neue Giveaways sind gesperrt. Laufende Giveaways laufen normal zu Ende.',
+  desc: 'Verlosungen mit Teilnahme-Button, Bedingungen, Bonus-Losen und automatischer Ziehung. Gestartet wird mit <code>/giveaway start</code> oder aus einer Vorlage.',
+  sections: () => [
+    {
+      title: 'Statistik',
+      render: () =>
+        liveBlock('giveaways', ({ stats }) =>
+          h(
+            'div',
+            { class: 'stats-grid' },
+            [
+              ['Giveaways', stats.total],
+              ['Laufend', stats.running],
+              ['Teilnahmen gesamt', stats.entries],
+              ['Ø Teilnehmer', stats.average ?? '—'],
+              ['Gewinner', stats.winners],
+              ['Einlösequote', stats.claimRate === null ? '—' : `${stats.claimRate} %`],
+            ].map(([label, value]) => h('div', { class: 'stat' }, h('div', { class: 'label' }, label), h('div', { class: 'value' }, value))),
+          ),
+        ),
+    },
+    {
+      title: 'Giveaways',
+      render: () => {
+        const filters = [['active', 'Laufend'], ['ended', 'Beendet'], ['cancelled', 'Abgebrochen'], ['all', 'Alle']];
+        let filter = 'active';
+        const box = h('div');
+        const act = (name, messageId, msg) => runAction(name, { messageId }, msg).then(render);
+        const draw = (list) => {
+          const shown = list.filter((g) => filter === 'all' || (filter === 'active' ? !g.ended : filter === 'cancelled' ? g.cancelled : g.ended && !g.cancelled));
+          setChildren(
+            box,
+            h('div', { class: 'chips' }, filters.map(([id, label]) => h('button', { class: 'chip', style: id === filter ? 'border-color:var(--accent);color:#8fb6ff' : '', onclick: () => ((filter = id), draw(list)) }, label))),
+            shown.length
+              ? h(
+                  'table',
+                  {},
+                  h('tr', {}, h('th', {}, 'Preis'), h('th', {}, 'Kanal'), h('th', {}, 'Teilnehmer'), h('th', {}, 'Ende'), h('th', {}, 'Gewinner'), h('th', {})),
+                  shown.map((g) =>
+                    h(
+                      'tr',
+                      {},
+                      h('td', {}, g.prize),
+                      h('td', {}, `#${g.channel ?? '?'}`),
+                      h('td', {}, g.entries),
+                      h('td', {}, fmtTime(g.endsAt)),
+                      h('td', {}, g.cancelled ? 'abgebrochen' : g.winners.length ? `${g.winners.length} (${g.winners.filter((id) => g.claims?.[id]?.claimed).length} eingelöst)` : '—'),
+                      h(
+                        'td',
+                        { style: 'white-space:nowrap' },
+                        !g.ended && h('button', { class: 'btn ghost small', onclick: () => act('giveaway-end', g.messageId, 'Beendet') }, 'Beenden'),
+                        !g.ended && h('button', { class: 'btn ghost small', onclick: () => confirm('Ohne Gewinner abbrechen?') && act('giveaway-cancel', g.messageId, 'Abgebrochen') }, 'Abbrechen'),
+                        g.ended && !g.cancelled && h('button', { class: 'btn ghost small', onclick: () => act('giveaway-reroll', g.messageId, 'Neu gezogen') }, 'Neu ziehen'),
+                      ),
+                    ),
+                  ),
+                )
+              : h('div', { class: 'empty' }, 'Keine Giveaways in dieser Ansicht.'),
+          );
+        };
+        live('giveaways').then(({ list }) => draw(list)).catch((err) => setChildren(box, err.message));
+        return box;
+      },
+    },
+    {
+      title: 'Vorlagen',
+      desc: 'Starten mit <code>/giveaway vorlage name</code>, hier mit „Jetzt starten“ (nach dem Speichern) oder automatisch jede Woche.',
+      actions: () =>
+        h(
+          'button',
+          {
+            class: 'btn primary small',
+            onclick: () => {
+              const list = state.draft.giveaways.templates;
+              list.push({ id: `t${Date.now().toString(36)}`, name: `Vorlage ${list.length + 1}`, prize: '', description: '', duration: '1d', winners: 1, channel: '', image: '', requiredRoles: [], requireAll: false, blockedRoles: [], minServerDays: 0, minAccountDays: 0, bonus: [], weekly: { enabled: false, day: 'fr', time: '18:00' } });
+              openItems.add(`tpl-${list.length - 1}`);
+              markDirty('giveaways.templates');
+              render();
+            },
+          },
+          '+ Neue Vorlage',
+        ),
+      render: () => (state.draft.giveaways.templates.length ? h('div', {}, state.draft.giveaways.templates.map(templateEditor)) : h('div', { class: 'empty' }, 'Noch keine Vorlagen erstellt.')),
+    },
+    {
+      title: 'Verwaltung & Kanäle',
+      fields: [
+        { t: 'roles', p: 'giveaways.managerRoles', label: 'Giveaway-Manager-Rollen', help: 'Dürfen /giveaway nutzen. Admins dürfen immer.' },
+        { t: 'channel', p: 'giveaways.defaultChannel', label: 'Standard-Kanal' },
+        { t: 'channel', p: 'giveaways.logChannel', label: 'Log-Kanal (optional)', empty: '— Keiner —' },
+      ],
+    },
+    {
+      title: 'Ankündigung',
+      fields: [
+        { t: 'select', p: 'giveaways.ping', label: 'Ping beim Start', options: [['none', 'Niemand'], ['role', 'Bestimmte Rolle'], ['here', '@here'], ['everyone', '@everyone']] },
+        { t: 'role', p: 'giveaways.pingRole', label: 'Ping-Rolle', help: 'Nur bei „Bestimmte Rolle“.' },
+      ],
+    },
+    {
+      title: 'Aussehen',
+      fields: [
+        { t: 'text', p: 'giveaways.color', label: 'Standard-Farbe', max: 7, placeholder: '#2F7BFF' },
+        { t: 'text', p: 'giveaways.image', label: 'Standard-Bild (optional)', placeholder: 'https://…' },
+        { t: 'text', p: 'giveaways.buttonEmoji', label: 'Emoji des Teilnehmen-Buttons', max: 60, help: 'Unicode-Emoji oder eigenes Emoji als &lt;:name:id&gt;' },
+        { t: 'text', p: 'giveaways.buttonLabel', label: 'Text des Teilnehmen-Buttons', max: 80 },
+        { t: 'toggle', p: 'giveaways.showCount', label: 'Teilnehmerzahl im Giveaway anzeigen' },
+      ],
+    },
+    {
+      title: 'Gewinner',
+      fields: [
+        { t: 'select', p: 'giveaways.notify', label: 'Gewinner benachrichtigen', options: [['channel_dm', 'Ping im Kanal und DM'], ['channel', 'Nur Ping im Kanal'], ['dm', 'Nur DM']] },
+        { t: 'textarea', p: 'giveaways.winnerMessage', label: 'Gewinner-Nachricht (DM)', wide: true, help: '<code>{user}</code> <code>{username}</code> <code>{prize}</code> <code>{server}</code> <code>{giveaway}</code>' },
+        { t: 'role', p: 'giveaways.winnerRole', label: 'Gewinner-Rolle', help: 'Die Rolle des Bots muss darüber stehen.' },
+        { t: 'number', p: 'giveaways.winnerRoleDays', label: 'Rolle wieder entfernen nach (Tagen)', max: 365, help: '0 = Rolle bleibt dauerhaft.' },
+        { t: 'toggle', p: 'giveaways.claim.enabled', label: 'Einlösefrist: Gewinner müssen per Button bestätigen, sonst wird neu gezogen' },
+        { t: 'number', p: 'giveaways.claim.hours', label: 'Frist (Stunden)', min: 1, max: 720 },
+        {
+          t: 'select',
+          p: 'giveaways.winnerTicket',
+          label: 'Ticket für Gewinner',
+          options: [['', '— Kein Ticket —'], ...state.draft.tickets.types.map((x) => [x.id, `${x.emoji} ${x.label}`])],
+          help: 'Öffnet beim Einlösen ein Ticket zur Preisübergabe (nur mit Einlösefrist).',
+        },
+      ],
+    },
+    {
+      title: 'Blacklist',
+      desc: 'Ausgeschlossene können nicht teilnehmen und werden nie gezogen.',
+      fields: [
+        { t: 'roles', p: 'giveaways.blacklist.roles', label: 'Ausgeschlossene Rollen' },
+        { t: 'lines', p: 'giveaways.blacklist.users', label: 'Ausgeschlossene Mitglieder (User-IDs)', placeholder: 'Eine ID pro Zeile', help: 'Einfacher in Discord mit <code>/giveaway blacklist add</code>.' },
+      ],
+    },
+  ],
+});
+
 // ---------- Tickets ----------
 
 function ticketTypeEditor(t, index) {

@@ -582,5 +582,32 @@
       "seconds": 60,
       "pingRoles": []
     }
+  },
+  "giveaways": {
+    "enabled": false,
+    "managerRoles": [],
+    "defaultChannel": "",
+    "logChannel": "",
+    "ping": "none",
+    "pingRole": "",
+    "color": "#2F7BFF",
+    "image": "",
+    "buttonEmoji": "🎉",
+    "buttonLabel": "Teilnehmen",
+    "showCount": true,
+    "notify": "channel_dm",
+    "winnerMessage": "🎉 Glückwunsch {user}! Du hast **{prize}** auf **{server}** gewonnen!",
+    "winnerRole": "",
+    "winnerRoleDays": 0,
+    "claim": {
+      "enabled": false,
+      "hours": 24
+    },
+    "winnerTicket": "",
+    "blacklist": {
+      "roles": [],
+      "users": []
+    },
+    "templates": []
   }
 }
