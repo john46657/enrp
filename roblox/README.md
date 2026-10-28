@@ -57,6 +57,10 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 
 7. Dienst-Button im eigenen UI: `ReplicatedStorage.ENRP.DutyToggle:InvokeServer()` liefert `(ok, meldung)`.
 
+Schritt-für-Schritt-Anleitung für einen Test vom eigenen PC aus (Docker + Cloudflare-Tunnel + Studio):
+[docs/roblox-test.md](../docs/roblox-test.md). In Studio ist `game.JobId` leer – die Skripte verwenden dann eine
+eigene Kennung `studio-…`; Testspieler mit negativer ID (lokaler Mehrspieler-Test) werden nicht gemeldet.
+
 ## Testcheckliste (privater Server)
 
 - [ ] Dashboard zeigt den Server unter *Roblox-Server* als online, Spielerzahl stimmt.

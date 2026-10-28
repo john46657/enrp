@@ -48,6 +48,12 @@ function Api.newId(): string
 	return HttpService:GenerateGUID(false)
 end
 
+-- In Roblox Studio ist game.JobId leer; dann gilt für die Sitzung eine eigene Kennung.
+local studioJobId = "studio-" .. HttpService:GenerateGUID(false)
+function Api.jobId(): string
+	return if game.JobId ~= "" then game.JobId else studioJobId
+end
+
 -- Führt eine Anfrage aus. Wiederholt bei Netzwerkfehlern, 429 und 5xx mit exponentiellem Backoff.
 -- idempotencyKey sorgt dafür, dass Wiederholungen keine doppelten Wirkungen haben.
 function Api.request(method: string, path: string, body: any?, idempotencyKey: string?): Response

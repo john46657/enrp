@@ -59,7 +59,10 @@ end
 
 -- Zugangsprüfung beim Betreten: Bann (Backend maßgeblich), Fraktion, erlaubte Fahrzeuge.
 local function checkAccess(player: Player)
-	local response = Api.request("POST", "/api/v1/game/players/access", { jobId = game.JobId, userId = player.UserId })
+	if player.UserId <= 0 then
+		return -- Studio-Testspieler
+	end
+	local response = Api.request("POST", "/api/v1/game/players/access", { jobId = Api.jobId(), userId = player.UserId })
 	if not response.ok then
 		if Config.DenyJoinWhenBackendDown then
 			player:Kick("Die Spielerprüfung ist gerade nicht erreichbar. Bitte versuche es gleich erneut.")
@@ -127,7 +130,7 @@ local function applySanction(sanction: any)
 	if not ok then
 		warn("[ENRP] Sanktion fehlgeschlagen: " .. tostring(err))
 	end
-	Api.request("POST", ("/api/v1/game/sanctions/%s/ack"):format(sanction.id), { jobId = game.JobId, success = ok, error = if ok then nil else tostring(err) })
+	Api.request("POST", ("/api/v1/game/sanctions/%s/ack"):format(sanction.id), { jobId = Api.jobId(), success = ok, error = if ok then nil else tostring(err) })
 end
 
 -- Befehle aus dem Dashboard (Nachricht an Server/Spieler, Herunterfahren). Jede ID wird nur einmal ausgeführt.
@@ -165,11 +168,11 @@ local function applyCommand(command: any)
 	if not ok then
 		warn("[ENRP] Befehl fehlgeschlagen: " .. tostring(err))
 	end
-	Api.request("POST", ("/api/v1/game/commands/%s/ack"):format(command.id), { jobId = game.JobId, success = ok, error = if ok then nil else tostring(err) })
+	Api.request("POST", ("/api/v1/game/commands/%s/ack"):format(command.id), { jobId = Api.jobId(), success = ok, error = if ok then nil else tostring(err) })
 end
 
 local function pollCommands()
-	local response = Api.request("POST", "/api/v1/game/commands/poll", { jobId = game.JobId })
+	local response = Api.request("POST", "/api/v1/game/commands/poll", { jobId = Api.jobId() })
 	if response.ok and response.body then
 		for _, command in response.body.commands or {} do
 			task.spawn(applyCommand, command)
@@ -180,10 +183,12 @@ end
 local function heartbeat()
 	local players = {}
 	for _, p in Players:GetPlayers() do
-		table.insert(players, { userId = p.UserId, username = p.Name, displayName = p.DisplayName })
+		if p.UserId > 0 then
+			table.insert(players, { userId = p.UserId, username = p.Name, displayName = p.DisplayName })
+		end
 	end
 	local response = Api.request("POST", "/api/v1/game/heartbeat", {
-		jobId = game.JobId,
+		jobId = Api.jobId(),
 		placeId = tostring(game.PlaceId),
 		placeVersion = game.PlaceVersion,
 		maxPlayers = Players.MaxPlayers,
@@ -271,7 +276,7 @@ game:BindToClose(function()
 		end
 		EventQueue.flush()
 	end
-	Api.request("POST", "/api/v1/game/shutdown", { jobId = game.JobId })
+	Api.request("POST", "/api/v1/game/shutdown", { jobId = Api.jobId() })
 end)
 
 if not HttpService.HttpEnabled then
