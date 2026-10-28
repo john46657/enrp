@@ -13,6 +13,7 @@ const giveaways = require('../lib/giveaways');
 const suggestions = require('../lib/suggestions');
 const careers = require('../lib/careers');
 const meetings = require('../lib/meetings');
+const scamImages = require('../lib/scamImages');
 const settingsLib = require('../lib/settings');
 const appMessages = require('../lib/applications/messages');
 
@@ -160,3 +161,8 @@ registerAction('meeting-create', (guild, body, member) => {
     .then((m) => m.id);
 });
 registerAction('meeting-cancel', (guild, { id }, member) => meetings.cancelMeeting(guild, String(id), member.id));
+
+// ---------- Scam-Bilder ----------
+
+registerLive('scam-images', (guild) => scamImages.knownOf(guild.id).map((k) => ({ ...k, addedByName: k.addedBy ? guild.members.cache.get(k.addedBy)?.user.username ?? k.addedBy : null })));
+registerAction('scam-image-remove', (guild, { hash }) => scamImages.removeKnown(guild.id, String(hash)));

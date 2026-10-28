@@ -1342,7 +1342,7 @@ page({
   requires: 'security',
   enabledPath: 'security.enabled',
   offText: 'Keine der folgenden Maßnahmen greift, solange das Modul deaktiviert ist.',
-  desc: 'Verify-System, Mindest-Account-Alter und Anti-Raid-Meldungen.',
+  desc: 'Verify-System, Scam-Bilder-Schutz, Mindest-Account-Alter und Anti-Raid-Meldungen.',
   sections: [
     {
       title: 'Verify-System',
@@ -1357,6 +1357,43 @@ page({
         { t: 'text', p: 'security.verify.button', label: 'Button-Text', max: 80 },
         { t: 'textarea', p: 'security.verify.text', label: 'Text', wide: true, max: 2000 },
       ],
+    },
+    {
+      title: 'Scam-Bilder-Schutz',
+      desc: 'Erkennt bekannte Betrugsbilder (z. B. gefälschte Casino-/Krypto-„Werbung“) per Bild-Vergleich und entfernt sie – gemeldete und selbst erkannte, wenn dasselbe Bild kurz hintereinander von mehreren Mitgliedern gepostet wird. Melden per Rechtsklick auf die Nachricht → Apps → „Als Scam-Bild melden“. Admins und „Nachrichten verwalten“ sind ausgenommen. Unterstützt PNG, JPEG, GIF, BMP und TIFF.',
+      fields: [
+        { t: 'toggle', p: 'security.scamImages.enabled', label: 'Bekannte Scam-Bilder automatisch erkennen' },
+        { t: 'select', p: 'security.scamImages.action', label: 'Aktion', options: [['delete', 'Nur löschen'], ['timeout', 'Löschen + Timeout'], ['kick', 'Löschen + Kicken'], ['ban', 'Bannen']] },
+        { t: 'number', p: 'security.scamImages.timeoutMinutes', label: 'Timeout-Dauer (Minuten)', min: 1, max: 40320 },
+        { t: 'number', p: 'security.scamImages.threshold', label: 'Toleranz (0–16)', min: 0, max: 16, help: 'Wie stark sich ein Bild unterscheiden darf und trotzdem als gleich gilt. 6 ist ein guter Wert; höher = mehr Treffer, aber mehr Fehlalarme.' },
+        { t: 'toggle', p: 'security.scamImages.autoDetect.enabled', label: 'Selbst erkennen: gleiches Bild von mehreren Mitgliedern in kurzer Zeit' },
+        { t: 'number', p: 'security.scamImages.autoDetect.members', label: 'Ab Mitgliedern', min: 2, max: 50 },
+        { t: 'number', p: 'security.scamImages.autoDetect.minutes', label: 'innerhalb von Minuten', min: 1, max: 1440 },
+      ],
+    },
+    {
+      title: 'Bekannte Scam-Bilder',
+      render: () =>
+        liveBlock('scam-images', (list) =>
+          list.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Bild-Hash'), h('th', {}, 'Quelle'), h('th', {}, 'Hinzugefügt'), h('th', {}, 'Treffer'), h('th', {})),
+                list.map((k) =>
+                  h(
+                    'tr',
+                    {},
+                    h('td', {}, h('code', {}, k.hash), k.name && h('div', { class: 'muted small' }, k.name)),
+                    h('td', {}, k.source === 'auto' ? 'automatisch' : `gemeldet${k.addedByName ? ` von ${k.addedByName}` : ''}`),
+                    h('td', {}, fmtTime(k.addedAt)),
+                    h('td', {}, k.hits),
+                    h('td', {}, h('button', { class: 'btn ghost small', onclick: () => confirm('Aus der Liste entfernen?') && runAction('scam-image-remove', { hash: k.hash }, 'Entfernt').then(render) }, 'Entfernen')),
+                  ),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Scam-Bilder bekannt.'),
+        ),
     },
     {
       title: 'Mindest-Account-Alter',

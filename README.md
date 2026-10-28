@@ -17,7 +17,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 👥 **Teamverwaltung** | `/meeting erstellen\|liste\|absagen\|anwesenheit` (Team-Kalender mit Zu-/Absage, Erinnerung, Anwesenheit im Sprachkanal) · Rang-Aufstieg mit Laufbahnen · Team-Rollen mit Rechten · `/team verwarnen\|verwarnungen\|verwarnung-entfernen` mit Ablauf, Warn-Rollen, öffentlichem Post · `/team rang` (Up-/Downrank mit Fall-Nummer, Log, DM, Ankündigung, optional Angebot zum Annehmen) · Live-Teamliste · `/abwesend` `/zurueck` mit Abwesenheitsliste und -rolle |
 | 💡 **Vorschläge** | `/vorschlag` mit bis zu 4 Kategorien und eigenem Formular · Abstimmung per Button · Team nimmt an/lehnt ab (optional mit Pflicht-Grund), „In Bearbeitung“ → „Fertiggestellt“ · Thread, DM und Log angenommener Vorschläge – Einstellungen `suggestions` bzw. Dashboard |
 | 🎁 **Giveaways** | `/giveaway start\|vorlage\|ende\|neu-ziehen\|abbrechen\|liste\|blacklist` · Teilnahme-Button · Bedingungen (Rollen, Tage auf dem Server, Account-Alter) · Bonus-Lose · Gewinner-DM und -Rolle (optional befristet) · Einlösefrist mit Neuziehung und Ticket · Vorlagen, auch wöchentlich automatisch – Einstellungen `giveaways` bzw. Dashboard |
-| 🔒 **Server-Sicherheit** | Verify-Button (`/sicherheit verify-panel`) · Mindest-Account-Alter (Kick, Timeout oder nur melden) · Anti-Raid-Alarm · eigener Log-Kanal – Einstellungen `security` bzw. Dashboard |
+| 🔒 **Server-Sicherheit** | Verify-Button (`/sicherheit verify-panel`) · Scam-Bilder-Schutz (Bild-Vergleich, Rechtsklick „Als Scam-Bild melden“, Erkennung von Massen-Posts) · Mindest-Account-Alter (Kick, Timeout oder nur melden) · Anti-Raid-Alarm · eigener Log-Kanal – Einstellungen `security` bzw. Dashboard |
 | 🎵 **TikTok LIVE** | `/tiktok-live add\|remove\|list\|channel\|role\|test\|announce\|status\|settings` · LIVE-Ankündigung und optionale Endmeldung · austauschbare Erkennung (keine offizielle TikTok-API → manuell oder autorisierter Webhook) – **[docs/tiktok-live.md](docs/tiktok-live.md)** |
 | 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
 | ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
@@ -115,6 +115,23 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 
 Darf nur das Team schließen (`onlyTeamCanClose`), bekommt der Ersteller beim Schließen keine Fehlermeldung, sondern
 stellt eine **Schließungs-Anfrage**: Ein Teammitglied stimmt zu oder lässt das Ticket offen.
+
+### Server-Sicherheit (`security`)
+
+| Feld | Bedeutung |
+|---|---|
+| `enabled`, `logChannel` | Modul an/aus, Log-Kanal (leer = Mod-Log) |
+| `verify` | `enabled`, `channel`, `role`, `removeRole`, `title`, `text`, `button` |
+| `scamImages` | `enabled`, `action` (`delete` `timeout` `kick` `ban`), `timeoutMinutes`, `threshold` (0–16, Standard 6), `autoDetect` (`enabled`, `members`, `minutes`) |
+| `accountAge` | `enabled`, `minDays`, `action` (`kick` `timeout` `log`), `dm` |
+| `antiRaid` | `enabled`, `joins` in `seconds`, `pingRoles` – nur Alarm, kein Massen-Kick |
+
+**Scam-Bilder:** Der Bot vergleicht Bild-Anhänge über einen Differenz-Hash (verkleinerte Graustufen-Version). Kopien in
+anderer Größe oder Kompression werden erkannt. Bilder kommen in die Liste per Rechtsklick auf eine Nachricht →
+*Apps* → **Als Scam-Bild melden** (braucht „Nachrichten verwalten“) oder automatisch, wenn dasselbe Bild in kurzer Zeit
+von mehreren verschiedenen Mitgliedern gepostet wird. Admins und „Nachrichten verwalten“ sind ausgenommen. Lesbar sind
+PNG, JPEG, GIF, BMP und TIFF (kein WebP). Bilder ohne Struktur (z. B. einfarbig) werden ignoriert, damit es keine
+Fehlalarme gibt. Die Liste verwaltest du im Dashboard.
 
 ### Moderation (`moderation`)
 

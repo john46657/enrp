@@ -592,6 +592,17 @@
       "text": "Klicke auf den Button, um Zugriff auf den Server zu bekommen.",
       "button": "Verifizieren"
     },
+    "scamImages": {
+      "enabled": false,
+      "action": "delete",
+      "timeoutMinutes": 60,
+      "threshold": 6,
+      "autoDetect": {
+        "enabled": true,
+        "members": 3,
+        "minutes": 10
+      }
+    },
     "accountAge": {
       "enabled": false,
       "minDays": 7,
