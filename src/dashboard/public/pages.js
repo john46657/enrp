@@ -800,6 +800,60 @@ page({
   ],
 });
 
+// ---------- Server-Sicherheit ----------
+
+page({
+  id: 'security',
+  group: 'Moderation',
+  title: 'Server-Sicherheit',
+  icon: '🔒',
+  requires: 'security',
+  enabledPath: 'security.enabled',
+  offText: 'Keine der folgenden Maßnahmen greift, solange das Modul deaktiviert ist.',
+  desc: 'Verify-System, Mindest-Account-Alter und Anti-Raid-Meldungen.',
+  sections: [
+    {
+      title: 'Verify-System',
+      desc: 'Neue Mitglieder bekommen nach einem Klick die Verify-Rolle. Die eigentliche Kanal-Sperre richtest du über Discords Berechtigungen ein; der Bot vergibt nur die Rolle.',
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('verify-post', {}, 'Verify-Nachricht gepostet') }, 'Nachricht posten'),
+      fields: [
+        { t: 'toggle', p: 'security.verify.enabled', label: 'Verify-System aktivieren' },
+        { t: 'channel', p: 'security.verify.channel', label: 'Verify-Kanal' },
+        { t: 'role', p: 'security.verify.role', label: 'Rolle nach dem Verifizieren' },
+        { t: 'role', p: 'security.verify.removeRole', label: 'Rolle entfernen (optional)', empty: '— Keine —', help: 'z. B. „Unverifiziert“' },
+        { t: 'text', p: 'security.verify.title', label: 'Titel', max: 200 },
+        { t: 'text', p: 'security.verify.button', label: 'Button-Text', max: 80 },
+        { t: 'textarea', p: 'security.verify.text', label: 'Text', wide: true, max: 2000 },
+      ],
+    },
+    {
+      title: 'Mindest-Account-Alter',
+      desc: 'Sehr neue Discord-Accounts beim Beitritt automatisch behandeln – gegen Raid- und Wegwerf-Accounts.',
+      fields: [
+        { t: 'toggle', p: 'security.accountAge.enabled', label: 'Mindest-Account-Alter prüfen' },
+        { t: 'number', p: 'security.accountAge.minDays', label: 'Mindestalter (Tage)', min: 1, max: 365 },
+        { t: 'select', p: 'security.accountAge.action', label: 'Aktion', options: [['kick', 'Kicken'], ['timeout', 'Timeout bis zum Mindestalter (max. 28 Tage)'], ['log', 'Nur melden']] },
+        { t: 'toggle', p: 'security.accountAge.dm', label: 'Betroffene per DM informieren' },
+      ],
+    },
+    {
+      title: 'Anti-Raid',
+      desc: 'Viele Beitritte in kurzer Zeit lösen eine Meldung aus – bewusst nur ein Alarm, kein automatischer Massen-Kick.',
+      fields: [
+        { t: 'toggle', p: 'security.antiRaid.enabled', label: 'Ungewöhnlich viele Beitritte erkennen' },
+        { t: 'number', p: 'security.antiRaid.joins', label: 'Beitritte', min: 3, max: 500 },
+        { t: 'number', p: 'security.antiRaid.seconds', label: 'in Sekunden', min: 5, max: 3600 },
+        { t: 'roles', p: 'security.antiRaid.pingRoles', label: 'Bei Alarm markieren' },
+      ],
+    },
+    {
+      title: 'Log-Kanal',
+      desc: 'Verifizierungen, neue Accounts und Raid-Alarm. Leer = Mod-Log.',
+      fields: [{ t: 'channel', p: 'security.logChannel', label: 'Log-Kanal', empty: '— Mod-Log verwenden —' }],
+    },
+  ],
+});
+
 // ---------- Social Media: TikTok LIVE ----------
 
 const TT_STATUS = { live: ['🔴 Live', 'red'], offline: ['⚫ Offline', ''], unknown: ['❔ Unbekannt', 'yellow'] };

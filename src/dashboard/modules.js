@@ -8,6 +8,7 @@ const tickets = require('../lib/tickets');
 const stats = require('../lib/stats');
 const team = require('../lib/team');
 const automod = require('../lib/automod');
+const security = require('../lib/security');
 const appMessages = require('../lib/applications/messages');
 
 const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
@@ -19,6 +20,7 @@ onSave(async (guild, paths) => {
   if (touched(paths, 'channels') || touched(paths, 'roles')) await appMessages.refreshPanels(guild);
 });
 
+registerAction('verify-post', (guild) => security.postVerifyMessage(guild));
 registerAction('honeypot-notice', (guild) => automod.postHoneypotNotice(guild));
 registerAction('ticket-panels-refresh', (guild) => tickets.refreshPanels(guild));
 registerAction('stats-update', (guild) => stats.updateStats(guild));

@@ -4,7 +4,7 @@ const { embed, replyPrivate } = require('../../lib/util');
 const SECTIONS = {
   '📋 Bewerbungen': ['bewerbung', 'bewerbungspanel', 'qualipanel', 'bewerbungen', 'bewerbungssperre'],
   '🎭 Roleplay': ['serverstatus', 'ankuendigung'],
-  '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear', 'melden'],
+  '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear', 'melden', 'sicherheit'],
   '🎫 Tickets': ['ticket'],
   '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste'],
   '🎵 Social Media': ['tiktok-live'],

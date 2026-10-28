@@ -557,5 +557,30 @@
       "title": "⚫ {brand} – LIVE beendet",
       "text": "Der TikTok-Livestream von @{creator} ist beendet."
     }
+  },
+  "security": {
+    "enabled": false,
+    "logChannel": "",
+    "verify": {
+      "enabled": false,
+      "channel": "",
+      "role": "",
+      "removeRole": "",
+      "title": "✅ Verifizierung",
+      "text": "Klicke auf den Button, um Zugriff auf den Server zu bekommen.",
+      "button": "Verifizieren"
+    },
+    "accountAge": {
+      "enabled": false,
+      "minDays": 7,
+      "action": "kick",
+      "dm": true
+    },
+    "antiRaid": {
+      "enabled": false,
+      "joins": 10,
+      "seconds": 60,
+      "pingRoles": []
+    }
   }
 }
