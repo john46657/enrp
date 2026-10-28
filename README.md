@@ -28,26 +28,33 @@ Nicht im Umfang: Dispatch-/Leitstellensystem sowie Personal- oder Ausbildungssys
 apps/
   api/          Emden Network Backend (Fastify, TypeScript)
   dashboard/    Emden Network Control Center (Next.js, React, TypeScript)
+  bot/          Discord-Bot – Platzhalter, geplant für Phase 4/5
+  worker/       Hintergrundjobs – Platzhalter, optional
 packages/
   shared/       Gemeinsame Typen, Zod-Schemas, Navigationsdefinition
+roblox/         Serverseitige Luau-Skripte – Platzhalter, geplant für Phase 3
 docs/           Architektur, Einrichtung, Tests, Sicherheit, Deployment
 legacy/
   discord-bot/  Bisheriger ENRP-Discord-Bot (unverändert verschoben, siehe legacy/README.md)
 ```
 
-Geplant, aber noch nicht angelegt: `apps/bot` (Phase 4), `apps/worker` (bei Bedarf), `roblox/` (Phase 3).
+Die Platzhalter-Ordner enthalten bisher nur eine README mit dem geplanten Umfang, noch keinen Code.
 
 ## Schnellstart
 
-Voraussetzung: **Node.js 22.12 oder neuer** (`node -v`).
+> **Neu dabei oder auf einem Mac?** Die Schritt-für-Schritt-Anleitung von der Installation der Werkzeuge
+> bis zum ersten Start steht in [docs/mac-setup.md](docs/mac-setup.md).
+
+Voraussetzung: **Node.js 22.12 oder neuer** (getestet mit Node.js 22 und 24 LTS, prüfen mit `node -v`).
 
 ```bash
 npm install                 # Abhängigkeiten aller Workspaces installieren
-cp .env.example .env        # Konfiguration anlegen (enthält nur Platzhalter)
+cp -n .env.example .env     # Konfiguration anlegen (überschreibt keine vorhandene .env)
 npm run dev:api             # Terminal 1: Backend auf http://127.0.0.1:4000
-npm run dev:dashboard       # Terminal 2: Dashboard auf http://localhost:3000
+npm run dev:dashboard       # Terminal 2: Dashboard auf http://127.0.0.1:3000
 ```
 
+Beide Entwicklungsserver sind absichtlich nur auf dem eigenen Rechner erreichbar (`127.0.0.1`).
 Ausführlich: [docs/local-setup.md](docs/local-setup.md).
 
 ## Wichtige Befehle
@@ -64,6 +71,7 @@ Ausführlich: [docs/local-setup.md](docs/local-setup.md).
 ## Dokumentation
 
 - [Architektur](docs/architecture.md)
+- [Einrichtung auf dem Mac (für Einsteiger)](docs/mac-setup.md)
 - [Lokale Einrichtung](docs/local-setup.md)
 - [API](docs/api.md)
 - [Datenbank & Migrationen](docs/database.md) (Phase 2)

@@ -11,15 +11,15 @@
 
 ## Komponenten
 
-| Komponente                   | Ordner               | Status            | Aufgabe                                                          |
-| ---------------------------- | -------------------- | ----------------- | ---------------------------------------------------------------- |
-| Emden Network Backend        | `apps/api`           | Phase 1           | REST-API, einzige Stelle mit Datenbankzugriff und Geschäftslogik |
-| Emden Network Control Center | `apps/dashboard`     | Phase 1           | Weboberfläche; holt Daten serverseitig vom Backend               |
-| Gemeinsame Bibliothek        | `packages/shared`    | Phase 1           | Zod-Schemas und Typen, die Backend und Dashboard teilen          |
-| Discord-Bot                  | `apps/bot`           | geplant (Phase 4) | Slash-Commands, Benachrichtigungen, Security Center              |
-| Worker                       | `apps/worker`        | optional          | Hintergrundjobs, nur wenn ein konkreter Bedarf entsteht          |
-| Roblox-Skripte               | `roblox/`            | geplant (Phase 3) | Serverseitige Luau-Beispielskripte                               |
-| Legacy-Bot                   | `legacy/discord-bot` | bestehend         | Bisheriger Bot, unverändert verschoben                           |
+| Komponente                   | Ordner               | Status                                        | Aufgabe                                                          |
+| ---------------------------- | -------------------- | --------------------------------------------- | ---------------------------------------------------------------- |
+| Emden Network Backend        | `apps/api`           | Phase 1                                       | REST-API, einzige Stelle mit Datenbankzugriff und Geschäftslogik |
+| Emden Network Control Center | `apps/dashboard`     | Phase 1                                       | Weboberfläche; holt Daten serverseitig vom Backend               |
+| Gemeinsame Bibliothek        | `packages/shared`    | Phase 1                                       | Zod-Schemas und Typen, die Backend und Dashboard teilen          |
+| Discord-Bot                  | `apps/bot`           | geplant (Phase 4), Ordner mit README angelegt | Slash-Commands, Benachrichtigungen, Security Center              |
+| Worker                       | `apps/worker`        | optional, Ordner mit README angelegt          | Hintergrundjobs, nur wenn ein konkreter Bedarf entsteht          |
+| Roblox-Skripte               | `roblox/`            | geplant (Phase 3), Ordner mit README angelegt | Serverseitige Luau-Beispielskripte                               |
+| Legacy-Bot                   | `legacy/discord-bot` | bestehend                                     | Bisheriger Bot, unverändert verschoben                           |
 
 ## Entscheidungen (und warum)
 

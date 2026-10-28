@@ -5,3 +5,5 @@ coverage
 package-lock.json
 # Der bestehende Bot behält seine eigene Formatierung
 legacy
+# Wird von Next.js (next dev) erzeugt und verwaltet
+apps/dashboard/AGENTS.md

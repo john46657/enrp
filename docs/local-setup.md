@@ -13,7 +13,7 @@
 git clone <repository-url> emden-network
 cd emden-network
 npm install
-cp .env.example .env
+cp -n .env.example .env
 ```
 
 `npm install` baut dabei automatisch `packages/shared`.
@@ -30,7 +30,7 @@ npm run dev:dashboard   # Dashboard
 ```
 
 - Backend: <http://127.0.0.1:4000/health> und <http://127.0.0.1:4000/ready>
-- Dashboard: <http://localhost:3000> – die Übersicht zeigt „Backend erreichbar“. Stoppst du das Backend,
+- Dashboard: <http://127.0.0.1:3000> – die Übersicht zeigt „Backend erreichbar“. Stoppst du das Backend,
   erscheint nach einem Neuladen „Backend nicht erreichbar“.
 
 ## Starten (Produktions-Build lokal)
@@ -40,6 +40,18 @@ npm run build
 NODE_ENV=production npm run start:api
 npm run start:dashboard
 ```
+
+> `start:dashboard` ist für das Hosting gedacht: Es nutzt den Port aus `PORT` (sonst 3000) und lauscht auf
+> **allen** Netzwerkschnittstellen. Andere Geräte im selben Netzwerk könnten es also erreichen. Zum lokalen
+> Arbeiten deshalb `npm run dev:dashboard` verwenden, das nur auf `127.0.0.1` lauscht.
+
+## Hinweis zu npm 11 (kommt mit Node.js 24)
+
+npm 11 führt Installationsskripte von Abhängigkeiten nur noch aus, wenn sie im Feld `allowScripts` der
+`package.json` freigegeben sind. Für `esbuild` und `fsevents` ist dort bewusst `false` eingetragen: Beide
+funktionieren ohne ihr Skript (getestet), und so läuft bei der Installation weniger fremder Code.
+Meldet `npm install` künftig ein neues Paket, das nicht in dieser Liste steht, bitte nicht pauschal mit
+`--all` freigeben, sondern einzeln prüfen (`npm install-scripts ls`).
 
 ## Häufige Probleme
 

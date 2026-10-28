@@ -2,19 +2,21 @@
 
 ## Stand Phase 1
 
-| Maßnahme                              | Umsetzung                                                                                                           |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Keine Geheimnisse im Repository       | `.env` ist in `.gitignore`; `.env.example` enthält nur Platzhalter                                                  |
-| Konfiguration wird beim Start geprüft | `apps/api/src/config.ts` (Zod); Fehlermeldungen nennen Variablen, nie Werte                                         |
-| Sicherheits-Header (API)              | `@fastify/helmet`, strikte CSP `default-src 'none'` für die reine JSON-API                                          |
-| Sicherheits-Header (Dashboard)        | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, Referrer- und Permissions-Policy, kein `X-Powered-By` |
-| CORS                                  | Nur ausdrücklich konfigurierte Ursprünge; `*` wird abgelehnt; in Produktion nur HTTPS                               |
-| Rate Limit                            | 100 Anfragen/Minute/IP (konfigurierbar); Health-Endpunkte ausgenommen                                               |
-| Fehlerantworten                       | Einheitlich, ohne Stacktraces oder interne Meldungen                                                                |
-| Logs                                  | Strukturiert (JSON); `authorization`, `cookie`, `x-api-key` werden geschwärzt                                       |
-| Request-IDs                           | Fremde IDs nur, wenn sie `^[A-Za-z0-9-]{8,64}$` entsprechen (Schutz vor Log-Injection)                              |
-| Body-Limit                            | 64 KB pro Anfrage                                                                                                   |
-| Proxy-Vertrauen                       | `TRUST_PROXY` standardmäßig aus, damit IP-Adressen nicht gefälscht werden können                                    |
+| Maßnahme                                | Umsetzung                                                                                                                           |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Keine Geheimnisse im Repository         | `.env` ist in `.gitignore`; `.env.example` enthält nur Platzhalter                                                                  |
+| Konfiguration wird beim Start geprüft   | `apps/api/src/config.ts` (Zod); Fehlermeldungen nennen Variablen, nie Werte                                                         |
+| Sicherheits-Header (API)                | `@fastify/helmet`, strikte CSP `default-src 'none'` für die reine JSON-API                                                          |
+| Sicherheits-Header (Dashboard)          | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, Referrer- und Permissions-Policy, kein `X-Powered-By`                 |
+| CORS                                    | Nur ausdrücklich konfigurierte Ursprünge; `*` wird abgelehnt; in Produktion nur HTTPS                                               |
+| Rate Limit                              | 100 Anfragen/Minute/IP (konfigurierbar); Health-Endpunkte ausgenommen                                                               |
+| Fehlerantworten                         | Einheitlich, ohne Stacktraces oder interne Meldungen                                                                                |
+| Logs                                    | Strukturiert (JSON); `authorization`, `cookie`, `x-api-key` werden geschwärzt                                                       |
+| Request-IDs                             | Fremde IDs nur, wenn sie `^[A-Za-z0-9-]{8,64}$` entsprechen (Schutz vor Log-Injection)                                              |
+| Body-Limit                              | 64 KB pro Anfrage                                                                                                                   |
+| Proxy-Vertrauen                         | `TRUST_PROXY` standardmäßig aus, damit IP-Adressen nicht gefälscht werden können                                                    |
+| Installationsskripte von Abhängigkeiten | npm 11: nur ausdrücklich freigegebene Skripte laufen (`allowScripts` in `package.json`); `esbuild` und `fsevents` bewusst abgelehnt |
+| Entwicklungsserver                      | Backend und Dashboard lauschen lokal nur auf `127.0.0.1`, nicht im WLAN                                                             |
 
 ## Bekannte Einschränkungen
 
