@@ -24,6 +24,12 @@ const config: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
+  // Der Browser erreicht vom Backend nur die Anmeldung (Discord-Weiterleitung, Cookies). Alle anderen
+  // Daten holt der Dashboard-Server selbst – das Backend muss dafür nicht öffentlich erreichbar sein.
+  async rewrites() {
+    const api = (process.env.API_INTERNAL_URL || 'http://127.0.0.1:4000').replace(/\/+$/, '');
+    return [{ source: '/api/auth/:path*', destination: `${api}/auth/:path*` }];
+  },
 };
 
 export default config;

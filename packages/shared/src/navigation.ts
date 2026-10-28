@@ -1,7 +1,10 @@
+import type { Permission } from './permissions.js';
+
 /**
  * Navigationsbereiche des Emden Network Control Center.
  * `phase` gibt an, in welcher Implementierungsphase der Bereich umgesetzt wird.
  * `available: false` bedeutet: Der Bereich ist geplant und zeigt keine (erfundenen) Daten.
+ * `permission`: Der Bereich erscheint nur für Personen mit dieser Berechtigung (Prüfung zusätzlich im Backend).
  */
 export interface NavSection {
   slug: string;
@@ -10,6 +13,7 @@ export interface NavSection {
   description: string;
   phase: number;
   available: boolean;
+  permission?: Permission;
 }
 
 export const NAV_SECTIONS = [
@@ -91,22 +95,24 @@ export const NAV_SECTIONS = [
     label: 'Audit-Log',
     description: 'Nachvollziehbare Protokollierung kritischer Aktionen.',
     phase: 2,
-    available: false,
+    available: true,
+    permission: 'audit.read',
   },
   {
     slug: 'users',
     href: '/users',
     label: 'Benutzer und Rollen',
-    description: 'Dashboard-Benutzer, Rollen (Owner bis Viewer) und Berechtigungen.',
+    description: 'Freigeschaltete Personen, ihre Rollen (Owner bis Viewer) und Berechtigungen.',
     phase: 2,
-    available: false,
+    available: true,
+    permission: 'users.read',
   },
   {
     slug: 'settings',
     href: '/settings',
     label: 'Einstellungen',
-    description: 'Systemkonfiguration der Plattform.',
-    phase: 2,
+    description: 'Discord-Kanäle, Discord-Rollen und weitere Einstellungen der Plattform.',
+    phase: 4,
     available: false,
   },
   {
@@ -124,6 +130,9 @@ export type NavSlug = (typeof NAV_SECTIONS)[number]['slug'];
 export function findNavSection(slug: string): NavSection | undefined {
   return NAV_SECTIONS.find((section) => section.slug === slug);
 }
+
+/** Bis einschließlich dieser Phase ist alles umgesetzt und getestet. */
+export const COMPLETED_PHASE = 2;
 
 /** Implementierungsphasen laut Projektplan. */
 export const PHASES = {

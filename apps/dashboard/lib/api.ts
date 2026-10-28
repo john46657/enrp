@@ -5,6 +5,7 @@ import {
   type HealthResponse,
   type ReadinessResponse,
 } from '@emden/shared';
+import { apiBaseUrl } from './config';
 
 export type BackendStatus =
   | { state: 'online'; health: HealthResponse; readiness: ReadinessResponse | null; checkedAt: string }
@@ -13,11 +14,6 @@ export type BackendStatus =
   | { state: 'invalid'; reason: string; checkedAt: string };
 
 const TIMEOUT_MS = 3000;
-
-/** Basis-URL des Backends. Wird nur serverseitig gelesen und nie an den Browser ausgeliefert. */
-export function apiBaseUrl(): string {
-  return (process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4000').replace(/\/+$/, '');
-}
 
 async function getJson(path: string): Promise<{ status: number; body: unknown }> {
   const res = await fetch(`${apiBaseUrl()}${path}`, {

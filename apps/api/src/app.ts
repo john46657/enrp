@@ -6,6 +6,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { ReadinessCheck } from '@emden/shared';
 import { cookieSettings, type CookieSettings } from './auth/cookies.js';
+import { authenticate } from './auth/guards.js';
 import { createDiscordOAuth, type DiscordOAuth } from './auth/discord.js';
 import type { AppConfig } from './config.js';
 import type { DatabaseHandle } from './db/database.js';
@@ -32,6 +33,8 @@ const withoutDatabase = async (): Promise<ReadinessCheck[]> => [
 ];
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+/** Angemeldete Personen dürfen ein Vielfaches an Anfragen stellen (eine Dashboard-Seite = mehrere Anfragen). */
+const AUTHENTICATED_RATE_FACTOR = 6;
 
 export async function buildApp(config: AppConfig, options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -70,11 +73,6 @@ export async function buildApp(config: AppConfig, options: BuildAppOptions = {})
     origin: config.corsOrigins.length > 0 ? config.corsOrigins : false,
     credentials: true,
   });
-  await app.register(rateLimit, {
-    max: config.rateLimit.max,
-    timeWindow: config.rateLimit.windowMs,
-  });
-
   await app.register(cookie);
 
   registerErrorHandling(app);
@@ -85,6 +83,23 @@ export async function buildApp(config: AppConfig, options: BuildAppOptions = {})
   app.decorate('cookieSettings', cookieSettings(config.dashboardOrigin));
 
   const { db } = options;
+  if (db) {
+    // Sitzung früh erkennen, damit das Rate Limit angemeldete Personen getrennt zählen kann.
+    app.addHook('onRequest', async (request) => {
+      if (request.cookies[app.cookieSettings.session]) await authenticate(request);
+    });
+  }
+
+  // Das Dashboard spricht die API über seinen eigenen Server an – alle Besucher kämen von dessen Adresse.
+  // Daher: Angemeldete Anfragen zählen pro Sitzung (nur vom Backend ausgestellte, also nicht fälschbar),
+  // alle anderen pro IP-Adresse. Die Prüfung hängt an den Routen, also nach den globalen Hooks oben.
+  await app.register(rateLimit, {
+    keyGenerator: (request) => (request.auth ? `session:${request.auth.sessionId}` : `ip:${request.ip}`),
+    max: (request) =>
+      request.auth ? config.rateLimit.max * AUTHENTICATED_RATE_FACTOR : config.rateLimit.max,
+    timeWindow: config.rateLimit.windowMs,
+  });
+
   if (db) {
     // Die Verbindung gehört dem Aufrufer (server.ts schließt sie).
     app.decorate('db', db);

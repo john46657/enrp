@@ -351,3 +351,30 @@ describe('Rate Limit', () => {
     expect(codes[20]).toBe(429);
   });
 });
+
+describe('Rate Limit für angemeldete Personen', () => {
+  it('zählt angemeldete Personen pro Sitzung – gefälschte Sitzungen zählen wie Unbekannte', async () => {
+    await insertUser(handle.db, { discordUserId: ALICE.id });
+    const { app } = await start(fakeDiscord(), { rateLimit: { max: 2, windowMs: 60_000 } });
+    const { session } = await login(app);
+
+    // Unbekannte (auch mit erfundenem Cookie) teilen sich das IP-Limit: 2 pro Minute.
+    const anonymous = [];
+    for (let i = 0; i < 3; i++) {
+      anonymous.push(
+        (await app.inject({ url: '/auth/me', cookies: { en_session: 'x'.repeat(43) } })).statusCode,
+      );
+    }
+    expect(anonymous).toEqual([401, 401, 429]);
+
+    // Die angemeldete Person hat ihr eigenes, höheres Limit (2 × 6 = 12) – trotz gleicher IP.
+    const own = [];
+    for (let i = 0; i < 13; i++) {
+      own.push(
+        (await app.inject({ url: '/auth/me', cookies: { en_session: session as string } })).statusCode,
+      );
+    }
+    expect(own.slice(0, 12).every((code) => code === 200)).toBe(true);
+    expect(own[12]).toBe(429);
+  });
+});

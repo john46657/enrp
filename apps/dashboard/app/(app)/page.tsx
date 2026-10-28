@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { NAV_SECTIONS, PHASES } from '@emden/shared';
+import { COMPLETED_PHASE, PHASES } from '@emden/shared';
 import { PageHeader } from '@/components/PageHeader';
 import { SignalLight } from '@/components/SignalLight';
 import { StatusBadge, type StatusTone } from '@/components/StatusBadge';
 import { getBackendStatus, type BackendStatus } from '@/lib/api';
+import { getSession } from '@/lib/backend';
+import { visibleSections } from '@/lib/navigation';
 import { formatDateTime, formatUptime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -30,12 +32,13 @@ function describe(status: BackendStatus): { tone: StatusTone; headline: string; 
 }
 
 export default async function OverviewPage() {
-  const status = await getBackendStatus();
+  const [status, session] = await Promise.all([getBackendStatus(), getSession()]);
   const view = describe(status);
+  const allowed = visibleSections(session.state === 'authenticated' ? session.user.permissions : []);
   const phases = Object.entries(PHASES).map(([phase, name]) => ({
     phase: Number(phase),
     name,
-    sections: NAV_SECTIONS.filter((s) => s.phase === Number(phase) && s.slug !== 'overview'),
+    sections: allowed.filter((s) => s.phase === Number(phase) && s.slug !== 'overview'),
   }));
 
   return (
@@ -65,11 +68,14 @@ export default async function OverviewPage() {
         </p>
         <ol className="roadmap__list">
           {phases.map(({ phase, name, sections }) => (
-            <li key={phase} className={`roadmap__phase${phase === 1 ? ' roadmap__phase--done' : ''}`}>
+            <li
+              key={phase}
+              className={`roadmap__phase${phase <= COMPLETED_PHASE ? ' roadmap__phase--done' : ''}`}
+            >
               <div className="roadmap__head">
                 <span className="roadmap__num">Phase {phase}</span>
                 <span className="roadmap__name">{name}</span>
-                {phase === 1 ? (
+                {phase <= COMPLETED_PHASE ? (
                   <StatusBadge tone="ok">Umgesetzt</StatusBadge>
                 ) : (
                   <StatusBadge tone="planned">Geplant</StatusBadge>

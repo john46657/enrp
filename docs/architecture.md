@@ -9,6 +9,23 @@
  Discord-Bot (discord.js) ──────────────────────────────────────────┘  (Phase 4)
 ```
 
+## Anmeldung und Datenfluss im Dashboard (seit Phase 2)
+
+```
+ Browser ──▶ Control Center (Next.js)
+               │  /api/auth/…  ──Rewrite──▶ Backend /auth/…   (nur Anmeldung: Discord-Weiterleitung, Cookies)
+               │  Seiten & Formulare (Server Components, Server Actions)
+               └──── serverseitig, mit dem Sitzungs-Cookie der Person ──▶ Backend /users, /roles, /audit-log …
+ Backend ──▶ Discord OAuth2 (state + PKCE, Scope "identify")
+```
+
+- Der Browser erreicht vom Backend **nur** `/api/auth/…`. Alle anderen Daten holt der Dashboard-Server selbst
+  und reicht dabei das Sitzungs-Cookie weiter. Das Backend prüft bei **jeder** Anfrage Sitzung und Berechtigung.
+- Formulare sind Server Actions. Next.js schützt sie gegen Anfragen fremder Seiten (Origin-Prüfung), das
+  Backend prüft zusätzlich `Origin`/`Sec-Fetch-Site`.
+- Das Rate Limit zählt angemeldete Anfragen pro Sitzung, alle anderen pro IP. Sonst würden alle Besucher als
+  „der Dashboard-Server“ gemeinsam gezählt.
+
 ## Komponenten
 
 | Komponente                   | Ordner               | Status                                        | Aufgabe                                                          |

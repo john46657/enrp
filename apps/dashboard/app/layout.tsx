@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Barlow, Barlow_Semi_Condensed } from 'next/font/google';
 import { BRAND } from '@emden/shared';
-import { Sidebar } from '@/components/Sidebar';
 import './globals.css';
 
 // Barlow: nüchterne Grotesk mit Anleihen an Beschilderung – passt zum Hafen-Leitstand.
@@ -27,12 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main" className="skip-link">
           Zum Inhalt springen
         </a>
-        <div className="shell">
-          <Sidebar />
-          <main id="main" className="main" tabIndex={-1}>
-            {children}
-          </main>
-        </div>
+        {children}
       </body>
     </html>
   );

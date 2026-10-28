@@ -195,7 +195,25 @@ Auf der Übersicht sollte jetzt **„Backend erreichbar“** stehen.
 - Beide Server sind absichtlich nur auf deinem eigenen Mac erreichbar und nicht für andere Geräte im WLAN.
   In Phase 1 gibt es noch keine Anmeldung.
 
-## 7. Wenn etwas nicht klappt
+## 7. Anmeldung einrichten
+
+Seit Phase 2 meldest du dich im Control Center mit deinem **Discord-Konto** an. Die einmalige Einrichtung
+(Discord-Anwendung anlegen, drei Werte in die `.env` eintragen) steht Schritt für Schritt in
+[discord-login.md](discord-login.md). Vorher zeigt die Anmeldeseite den Hinweis „noch nicht eingerichtet“.
+
+## 8. Neuen Stand holen (bei jeder neuen Phase)
+
+```bash
+cd ~/EmdenNetwork
+git pull
+npm install
+npm run check
+```
+
+- `git pull` holt die neuesten Änderungen von GitHub. Deine `.env` und die lokale Datenbank bleiben unberührt.
+- Neue Einstellungen stehen in `.env.example`. Fehlen sie in deiner `.env`, kopierst du die Zeilen hinüber.
+
+## 9. Wenn etwas nicht klappt
 
 | Meldung                                                                  | Bedeutung und Lösung                                                                                     |
 | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
@@ -210,7 +228,7 @@ Auf der Übersicht sollte jetzt **„Backend erreichbar“** stehen.
 
 Bei jeder anderen Meldung kopiere den Text aus dem Terminal (ohne Passwörter oder Tokens) und schick ihn mir.
 
-## 8. Später: Repository privat schalten
+## 10. Später: Repository privat schalten
 
 Das GitHub-Repository `john46657/enrp` ist zurzeit **öffentlich**. Jeder kann den Code lesen. Es enthält
 keine Geheimnisse, trotzdem empfiehlt sich „privat“, bevor das Projekt wächst:

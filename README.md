@@ -4,21 +4,22 @@ Roblox-Servermanagement-Plattform für das Emden Network GermanRP-Spiel: Web-Das
 (**Emden Network Control Center**), REST-Backend (**Emden Network Backend**), Discord-Bot und
 TikTok-LIVE-Modul.
 
-> **Stand: Phase 1 – Grundgerüst.** Backend mit Health-/Readiness-Endpunkten und Dashboard-Grundlayout
-> sind umgesetzt und getestet. Alles Weitere ist **geplant** und im Dashboard als „Geplant“ markiert.
-> Es gibt noch **keine Anmeldung** – das Dashboard daher nur lokal betreiben, nicht öffentlich.
+> **Stand: Phase 2 abgeschlossen.** Grundgerüst, PostgreSQL mit Migrationen, Anmeldung mit Discord,
+> Rollen (Owner bis Viewer) mit Berechtigungen und Audit-Log sind umgesetzt und getestet. Alles Weitere ist
+> **geplant** und im Dashboard als „Geplant“ markiert. Für den Betrieb im Internet fehlt noch Phase 7
+> (Hosting, Backups, Monitoring) – bis dahin nur lokal betreiben.
 
 ## Umfang und Ausbaustand
 
-| Phase | Inhalt                                                                         | Status       |
-| ----- | ------------------------------------------------------------------------------ | ------------ |
-| 1     | Projektstruktur, Fastify-Health-Endpunkte, Dashboard-Grundlayout, Tests, CI    | ✅ umgesetzt |
-| 2     | PostgreSQL, Migrationen, Anmeldung, Rollen (Owner bis Viewer), Audit-Logs      | 🕓 geplant   |
-| 3     | Roblox-Integration: authentifizierte Heartbeats, Serverübersicht, Luau-Skripte | 🕓 geplant   |
-| 4     | Discord-Bot (`apps/bot`) mit Slash-Commands und Benachrichtigungen             | 🕓 geplant   |
-| 5     | Discord Security Center                                                        | 🕓 geplant   |
-| 6     | TikTok LIVE Center (Provider-Schnittstelle, manuelle Fallbacks)                | 🕓 geplant   |
-| 7     | Deployment, Backups, Monitoring, Produktionscheckliste                         | 🕓 geplant   |
+| Phase | Inhalt                                                                               | Status       |
+| ----- | ------------------------------------------------------------------------------------ | ------------ |
+| 1     | Projektstruktur, Fastify-Health-Endpunkte, Dashboard-Grundlayout, Tests, CI          | ✅ umgesetzt |
+| 2     | PostgreSQL, Migrationen, Anmeldung mit Discord, Rollen (Owner bis Viewer), Audit-Log | ✅ umgesetzt |
+| 3     | Roblox-Integration: authentifizierte Heartbeats, Serverübersicht, Luau-Skripte       | 🕓 geplant   |
+| 4     | Discord-Bot (`apps/bot`) mit Slash-Commands und Benachrichtigungen                   | 🕓 geplant   |
+| 5     | Discord Security Center                                                              | 🕓 geplant   |
+| 6     | TikTok LIVE Center (Provider-Schnittstelle, manuelle Fallbacks)                      | 🕓 geplant   |
+| 7     | Deployment, Backups, Monitoring, Produktionscheckliste                               | 🕓 geplant   |
 
 Nicht im Umfang: Dispatch-/Leitstellensystem sowie Personal- oder Ausbildungssystem.
 
@@ -55,6 +56,10 @@ npm run dev:dashboard       # Terminal 2: Dashboard auf http://127.0.0.1:3000
 ```
 
 Beide Entwicklungsserver sind absichtlich nur auf dem eigenen Rechner erreichbar (`127.0.0.1`).
+Eine Datenbank musst du nicht installieren: Lokal läuft automatisch PGlite (echtes PostgreSQL als WebAssembly).
+
+**Anmeldung einrichten:** Einmalig eine Discord-Anwendung anlegen und drei Werte in die `.env` eintragen –
+Schritt für Schritt in [docs/discord-login.md](docs/discord-login.md).
 Ausführlich: [docs/local-setup.md](docs/local-setup.md).
 
 ## Wichtige Befehle
@@ -73,6 +78,7 @@ Ausführlich: [docs/local-setup.md](docs/local-setup.md).
 
 - [Architektur](docs/architecture.md)
 - [Einrichtung auf dem Mac (für Einsteiger)](docs/mac-setup.md)
+- [Anmeldung mit Discord einrichten](docs/discord-login.md)
 - [Lokale Einrichtung](docs/local-setup.md)
 - [API](docs/api.md)
 - [Datenbank & Migrationen](docs/database.md)

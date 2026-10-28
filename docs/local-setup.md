@@ -33,6 +33,8 @@ npm run dev:dashboard   # Dashboard
 - Dashboard: <http://127.0.0.1:3000> – die Übersicht zeigt „Backend erreichbar“. Stoppst du das Backend,
   erscheint nach einem Neuladen „Backend nicht erreichbar“.
 
+Zum Anmelden muss einmalig die Discord-Anwendung eingerichtet sein: [discord-login.md](discord-login.md).
+
 ## Starten (Produktions-Build lokal)
 
 ```bash

@@ -1,7 +1,7 @@
 # Produktion und Deployment
 
-> **Phase 1: Noch nicht für den öffentlichen Betrieb gedacht** – es gibt keine Anmeldung. Die vollständige
-> Produktionsanleitung (Backups, Monitoring, Rollback, Kostenkontrolle) folgt in Phase 7.
+> **Noch nicht für den öffentlichen Betrieb gedacht.** Anmeldung und Rechte sind seit Phase 2 vorhanden, die
+> Produktionsanleitung (Hosting, Backups, Monitoring, Rollback, Kostenkontrolle) folgt aber erst in Phase 7.
 > Es werden keine Dienste angelegt und keine kostenpflichtigen Aktionen ausgelöst, ohne dass du zustimmst.
 
 ## Geplante Zielumgebung
@@ -23,6 +23,13 @@ Voraussetzung. Jeder Anbieter mit Node.js 22 funktioniert.
 - `TRUST_PROXY=true` nur hinter dem Proxy des Hosters
 - `API_INTERNAL_URL` im Dashboard auf die interne Adresse des Backends setzen
 - Geheimnisse ausschließlich im Secret-Manager des Hosters, nie im Repository
+- `DATABASE_URL` (Pflicht), `DASHBOARD_PUBLIC_URL` (Pflicht, HTTPS), `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`,
+  einmalig `OWNER_DISCORD_USER_ID`
+- Im Discord Developer Portal die Redirect-Adresse `https://<dashboard-domain>/api/auth/discord/callback` ergänzen
+- **Achtung:** `API_INTERNAL_URL` muss schon beim **Build** des Dashboards gesetzt sein, weil Next.js die
+  Weiterleitung `/api/auth/…` beim Bauen festschreibt
+- Migrationen vor dem Start der neuen Version: `npm run db:migrate:dist -w @emden/api`
+- Rate Limit und Besucher-IP: `TRUST_PROXY` passend zum Proxy des Hosters einstellen (Phase 7)
 
 ## Vorgesehen für Phase 7
 

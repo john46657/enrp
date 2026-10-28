@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NAV_SECTIONS, findNavSection } from './navigation.js';
+import { COMPLETED_PHASE, NAV_SECTIONS, findNavSection } from './navigation.js';
 
 describe('NAV_SECTIONS', () => {
   it('enthält genau die 13 vorgesehenen Bereiche in der festgelegten Reihenfolge', () => {
@@ -34,10 +34,16 @@ describe('NAV_SECTIONS', () => {
     }
   });
 
-  it('markiert nur Bereiche der Phase 1 als verfügbar', () => {
+  it('markiert genau die Bereiche der umgesetzten Phasen als verfügbar', () => {
+    expect(COMPLETED_PHASE).toBe(2);
     for (const section of NAV_SECTIONS) {
-      expect(section.available).toBe(section.phase === 1);
+      expect(section.available).toBe(section.phase <= COMPLETED_PHASE);
     }
+  });
+
+  it('schützt die Verwaltungsbereiche mit Berechtigungen', () => {
+    expect(findNavSection('users')?.permission).toBe('users.read');
+    expect(findNavSection('audit-log')?.permission).toBe('audit.read');
   });
 
   it('findet Bereiche über ihren Slug', () => {

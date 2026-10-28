@@ -3,18 +3,27 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BRAND, NAV_SECTIONS } from '@emden/shared';
+import { BRAND } from '@emden/shared';
+import { logout } from '@/app/(app)/actions';
+import { visibleSections } from '@/lib/navigation';
 import { CloseIcon, MenuIcon } from './icons';
 
 function isActive(pathname: string, href: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function Sidebar() {
+export interface SidebarUser {
+  displayName: string;
+  roleName: string;
+  permissions: string[];
+}
+
+export function Sidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname();
   // Das mobile Menü merkt sich, auf welcher Seite es geöffnet wurde – nach einem Seitenwechsel ist es zu.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === pathname;
+  const sections = visibleSections(user.permissions);
 
   useEffect(() => {
     if (!open) return;
@@ -54,7 +63,7 @@ export function Sidebar() {
         </Link>
         <nav id="main-nav" aria-label="Hauptnavigation">
           <ul className="nav">
-            {NAV_SECTIONS.map((section) => {
+            {sections.map((section) => {
               const active = isActive(pathname, section.href);
               return (
                 <li key={section.slug}>
@@ -71,9 +80,15 @@ export function Sidebar() {
             })}
           </ul>
         </nav>
-        <p className="sidebar__note">
-          Phase 1 ohne Anmeldung. Nur lokal betreiben, bis die Authentifizierung (Phase 2) aktiv ist.
-        </p>
+        <div className="account">
+          <p className="account__name">{user.displayName}</p>
+          <p className="account__role">{user.roleName}</p>
+          <form action={logout}>
+            <button type="submit" className="button button--secondary account__logout">
+              Abmelden
+            </button>
+          </form>
+        </div>
       </aside>
     </>
   );
