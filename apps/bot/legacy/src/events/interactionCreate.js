@@ -6,7 +6,7 @@ module.exports = {
   async execute(interaction, client) {
     let handler;
     let label;
-    if (interaction.isChatInputCommand()) {
+    if (interaction.isChatInputCommand() || interaction.isMessageContextMenuCommand()) {
       handler = client.commands.get(interaction.commandName)?.execute;
       label = `/${interaction.commandName}`;
     } else if (interaction.isMessageComponent() || interaction.isModalSubmit()) {

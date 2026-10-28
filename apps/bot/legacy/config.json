@@ -1,5 +1,6 @@
 {
   "serverName": "ENRP",
+  "timezone": "Europe/Berlin",
   "colors": {
     "primary": "#5865F2",
     "success": "#57F287",
@@ -271,6 +272,7 @@
     "onlyTeamCanClose": false,
     "creatorCanAddUsers": true,
     "onCreatorLeave": "close",
+    "leaveMessage": "👋 {user} hat den Server verlassen.",
     "logging": {
       "activities": true,
       "transcripts": true
@@ -306,7 +308,12 @@
     },
     "autoTeamAlert": {
       "enabled": true,
-      "afterMinutes": 30
+      "afterMinutes": 30,
+      "message": ""
+    },
+    "autoClose": {
+      "enabled": false,
+      "afterHours": 48
     },
     "autoUnclaim": {
       "enabled": true,
@@ -320,7 +327,16 @@
         "emoji": "📩",
         "capacity": 20,
         "roles": [],
-        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du allgemeine Fragen oder Anliegen hast."
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du allgemeine Fragen oder Anliegen hast.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       },
       {
         "id": "shader",
@@ -329,7 +345,16 @@
         "emoji": "🌆",
         "capacity": 20,
         "roles": [],
-        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Probleme mit dem Shader hast. Egal ob einfache Fragen zur Installation oder Einrichtung bis hin zu Bugs."
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Probleme mit dem Shader hast. Egal ob einfache Fragen zur Installation oder Einrichtung bis hin zu Bugs.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       },
       {
         "id": "moderation",
@@ -338,7 +363,16 @@
         "emoji": "💎",
         "capacity": 20,
         "roles": [],
-        "description": "Hier kannst du dich an uns wenden, wenn du andere Nutzer reporten möchtest oder dich an unser vertrautes Team wenden möchtest."
+        "description": "Hier kannst du dich an uns wenden, wenn du andere Nutzer reporten möchtest oder dich an unser vertrautes Team wenden möchtest.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       },
       {
         "id": "leitung",
@@ -347,7 +381,16 @@
         "emoji": "🔮",
         "capacity": 10,
         "roles": [],
-        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Fragen hast, die sich eher die Leitungsebene anschauen sollte."
+        "description": "Hier kannst du dich jederzeit an uns wenden, wenn du Fragen hast, die sich eher die Leitungsebene anschauen sollte.",
+        "enabled": true,
+        "allowClaim": true,
+        "allowOnBehalf": true,
+        "openEmbed": {
+          "title": "",
+          "description": "",
+          "image": ""
+        },
+        "closeForm": []
       }
     ]
   },
@@ -361,5 +404,277 @@
     "xpMax": 25,
     "cooldownSeconds": 60,
     "roleRewards": {}
+  },
+  "stats": {
+    "enabled": false,
+    "categoryId": "",
+    "counters": [
+      {
+        "type": "members",
+        "name": "👥 Mitglieder: {count}"
+      }
+    ]
+  },
+  "team": {
+    "enabled": false,
+    "logChannel": "",
+    "dmNotify": false,
+    "roles": [],
+    "warnings": {
+      "enabled": true,
+      "expire": {
+        "enabled": false,
+        "days": 30
+      },
+      "dmOnExpire": true,
+      "roles": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "publicChannel": ""
+    },
+    "rank": {
+      "reasonRequired": false,
+      "announceChannel": "",
+      "announceTitle": "⬆️ Rang-Änderung",
+      "announceText": "{user} ist jetzt {newrole}.",
+      "offer": {
+        "enabled": false,
+        "channel": "",
+        "hours": 72
+      }
+    },
+    "teamList": {
+      "enabled": false,
+      "channel": "",
+      "roles": []
+    },
+    "absence": {
+      "enabled": false,
+      "channel": "",
+      "role": ""
+    },
+    "careers": {
+      "enabled": false,
+      "skipAbsent": true,
+      "countExisting": false,
+      "dm": false,
+      "announce": {
+        "enabled": false,
+        "channel": "",
+        "title": "⬆️ Beförderung",
+        "text": "{user} wurde zu {newrole} befördert! 🎉",
+        "color": "#22C55E",
+        "ping": false,
+        "showStats": false
+      },
+      "tracks": []
+    },
+    "meetings": {
+      "enabled": false,
+      "channel": "",
+      "reminderMinutes": 30
+    }
+  },
+  "moderation": {
+    "enabled": true,
+    "dmOnAction": true,
+    "logEnabled": true,
+    "ignoredRoles": [],
+    "permissions": {
+      "timeout": [],
+      "warn": [],
+      "kick": [],
+      "ban": [],
+      "viewLogs": []
+    },
+    "warnings": {
+      "expire": {
+        "enabled": false,
+        "days": 30
+      },
+      "dmOnExpire": true,
+      "roles": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "publicChannel": "",
+      "limit": {
+        "enabled": false,
+        "count": 3,
+        "action": "ban",
+        "timeoutMinutes": 60
+      }
+    },
+    "report": {
+      "enabled": false,
+      "channel": "",
+      "pingRoles": []
+    },
+    "honeypot": {
+      "enabled": false,
+      "channel": "",
+      "action": "kick",
+      "deleteMessages": "hour",
+      "dm": true,
+      "dmTitle": "",
+      "dmText": "",
+      "invite": false,
+      "warnTitle": "⛔ Hier nicht schreiben!",
+      "warnText": "Dieser Kanal ist eine **Sicherheits-Falle** gegen Scam-Konten und Bots. Wer hier eine Nachricht schreibt, wird **automatisch vom Server entfernt** und seine Nachrichten werden gelöscht. Bitte nutze die anderen Kanäle."
+    },
+    "automod": {
+      "ignoredRoles": [],
+      "hoisting": {
+        "enabled": false
+      },
+      "invites": {
+        "enabled": false
+      },
+      "links": {
+        "enabled": false,
+        "allowed": [
+          "tenor.com",
+          "giphy.com"
+        ]
+      },
+      "spam": {
+        "enabled": false,
+        "messages": 5,
+        "seconds": 5
+      },
+      "caps": {
+        "enabled": false,
+        "percent": 70,
+        "minLength": 10
+      },
+      "ping": {
+        "enabled": false,
+        "roles": []
+      }
+    }
+  },
+  "tiktok": {
+    "enabled": false,
+    "channel": "",
+    "role": "",
+    "provider": "none",
+    "pollSeconds": 120,
+    "endMessages": false,
+    "endGraceMinutes": 10,
+    "manualRoles": [],
+    "template": {
+      "title": "🔴 {brand} – TikTok LIVE",
+      "text": "Ein Creator aus unserer Community ist jetzt live!",
+      "footer": "Schaut vorbei und unterstützt unsere Community!",
+      "color": "#FE2C55"
+    },
+    "endTemplate": {
+      "title": "⚫ {brand} – LIVE beendet",
+      "text": "Der TikTok-Livestream von @{creator} ist beendet."
+    }
+  },
+  "security": {
+    "enabled": false,
+    "logChannel": "",
+    "verify": {
+      "enabled": false,
+      "channel": "",
+      "role": "",
+      "removeRole": "",
+      "title": "✅ Verifizierung",
+      "text": "Klicke auf den Button, um Zugriff auf den Server zu bekommen.",
+      "button": "Verifizieren"
+    },
+    "scamImages": {
+      "enabled": false,
+      "action": "delete",
+      "timeoutMinutes": 60,
+      "threshold": 6,
+      "autoDetect": {
+        "enabled": true,
+        "members": 3,
+        "minutes": 10
+      }
+    },
+    "accountAge": {
+      "enabled": false,
+      "minDays": 7,
+      "action": "kick",
+      "dm": true
+    },
+    "antiRaid": {
+      "enabled": false,
+      "joins": 10,
+      "seconds": 60,
+      "pingRoles": []
+    }
+  },
+  "giveaways": {
+    "enabled": false,
+    "managerRoles": [],
+    "defaultChannel": "",
+    "logChannel": "",
+    "ping": "none",
+    "pingRole": "",
+    "color": "#2F7BFF",
+    "image": "",
+    "buttonEmoji": "🎉",
+    "buttonLabel": "Teilnehmen",
+    "showCount": true,
+    "notify": "channel_dm",
+    "winnerMessage": "🎉 Glückwunsch {user}! Du hast **{prize}** auf **{server}** gewonnen!",
+    "winnerRole": "",
+    "winnerRoleDays": 0,
+    "claim": {
+      "enabled": false,
+      "hours": 24
+    },
+    "winnerTicket": "",
+    "blacklist": {
+      "roles": [],
+      "users": []
+    },
+    "templates": []
+  },
+  "suggestions": {
+    "enabled": false,
+    "channel": "",
+    "teamRoles": [],
+    "threads": false,
+    "requireAcceptReason": false,
+    "requireDenyReason": false,
+    "dmOnAccept": false,
+    "acceptedChannel": "",
+    "inProgress": false,
+    "categories": [
+      {
+        "id": "allgemein",
+        "name": "Allgemein",
+        "emoji": "💡",
+        "description": "Ideen für den Server",
+        "enabled": true,
+        "fields": [
+          {
+            "label": "Titel",
+            "style": "short",
+            "required": true,
+            "maxLength": 100
+          },
+          {
+            "label": "Beschreibung",
+            "style": "paragraph",
+            "required": true,
+            "maxLength": 1500
+          }
+        ]
+      }
+    ]
   }
 }

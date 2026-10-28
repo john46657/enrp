@@ -74,8 +74,18 @@ function get(guildId, path) {
 // value === undefined entfernt den Schlüssel (z. B. eine Level-Belohnung).
 function set(guildId, path, value) {
   if (!apply(forGuild(guildId), path, value)) throw new Error(`Unbekannte Einstellung: ${path}`);
-  (overrides[guildId] ??= {})[path] = value === undefined ? null : value;
+  const own = (overrides[guildId] ??= {});
+  // Ältere Änderungen unterhalb dieses Pfads sind jetzt im neuen Wert enthalten (z. B. eine ganze Liste ersetzt).
+  for (const key of Object.keys(own)) if (key.startsWith(`${path}.`)) delete own[key];
+  delete own[path]; // neu einfügen, damit die Reihenfolge beim Laden stimmt
+  own[path] = value === undefined ? null : value;
   db.save();
+}
+
+// Prüft Änderungen an einer Kopie, ohne zu speichern. Gibt den ersten ungültigen Pfad zurück (oder null).
+function invalidPath(guildId, changes) {
+  const copy = structuredClone(forGuild(guildId));
+  return changes.find(({ path, value }) => !apply(copy, path, value))?.path ?? null;
 }
 
 // Alle Änderungen eines Servers verwerfen und wieder die Werte aus config.json verwenden.
@@ -90,6 +100,7 @@ module.exports = {
   forGuild,
   get,
   set,
+  invalidPath,
   reset,
   adoptLegacy,
   hasLegacy: () => Boolean(overrides._legacy),

@@ -6,6 +6,13 @@ const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
+const { startStatsWatcher } = require('../lib/stats');
+const { sweepExpired } = require('../lib/warnings');
+const { startTeamWatcher } = require('../lib/team');
+const { startTiktokWatcher } = require('../lib/tiktok/service');
+const { startGiveawayWatcher } = require('../lib/giveaways');
+const { startCareerWatcher } = require('../lib/careers');
+const { startMeetingWatcher } = require('../lib/meetings');
 
 module.exports = {
   name: Events.ClientReady,
@@ -28,6 +35,25 @@ module.exports = {
 
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
     startTicketWatcher(client);
+    startStatsWatcher(client);
+    startTeamWatcher(client);
+    // Dashboard erst hier laden: braucht express, das im Brückenbetrieb (apps/bot) nicht installiert ist.
+    if (process.env.DASHBOARD_URL && process.env.DISCORD_CLIENT_SECRET) {
+      require('../dashboard/modules');
+      require('../dashboard/server').startDashboard(client);
+    } else console.log('ℹ️  Dashboard aus (DASHBOARD_URL und DISCORD_CLIENT_SECRET in der .env setzen)');
+    startTiktokWatcher(client);
+    startGiveawayWatcher(client);
+    startCareerWatcher(client);
+    startMeetingWatcher(client);
+    // Abgelaufene Verwarnungen (Moderation und Team) markieren und Warn-Rollen anpassen.
+    setInterval(async () => {
+      for (const guild of client.guilds.cache.values()) {
+        const config = settings.forGuild(guild.id);
+        await sweepExpired(guild, 'warnings', config.moderation.warnings, 'Verwarnung').catch((err) => console.error('[warnings]', err));
+        await sweepExpired(guild, 'teamWarnings', config.team.warnings, 'Team-Verwarnung').catch((err) => console.error('[teamWarnings]', err));
+      }
+    }, 60_000);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
     // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.

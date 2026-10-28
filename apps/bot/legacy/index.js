@@ -14,6 +14,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers, // privilegiert: Willkommen & Auto-Rolle
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates, // Anwesenheit bei Meetings im Sprachkanal
     GatewayIntentBits.MessageContent, // privilegiert: Ticket-Transkripte
     GatewayIntentBits.DirectMessages, // Bewerbungsfragen per DM
   ],

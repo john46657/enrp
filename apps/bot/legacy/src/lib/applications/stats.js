@@ -1,5 +1,7 @@
 // Bewerbungs-Statistik als Discord-Embed.
 const { embed } = require('../util');
+const { forGuild } = require('../settings');
+const { zonedParts } = require('../time');
 const store = require('./store');
 
 const DAY = 86_400_000;
@@ -7,8 +9,7 @@ const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const SPARK = '▁▂▃▄▅▆▇█';
 const HEAT = ' ░▒▓█';
 
-const berlin = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', hourCycle: 'h23' });
-const WEEKDAY_INDEX = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+const WEEKDAY_INDEX = { mo: 0, di: 1, mi: 2, do: 3, fr: 4, sa: 5, so: 6 };
 
 function metrics(records) {
   const decided = records.filter((r) => r.decidedAt && r.status !== 'WITHDRAWN');
@@ -112,11 +113,12 @@ function buildStats(guildId, days, { typeId, status, reviewerId } = {}) {
     .slice(0, 10);
   if (top.length) result.addFields({ name: 'Top-Prüfer', value: top.map(([id, n], i) => `${i + 1}. <@${id}> – ${n}`).join('\n') });
 
-  // Heatmap Wochentag × Stunde (Berliner Zeit), je Zeichen eine Stunde
+  // Heatmap Wochentag × Stunde (Zeitzone des Servers), je Zeichen eine Stunde
+  const { timezone } = forGuild(guildId);
   const grid = WEEKDAYS.map(() => Array(24).fill(0));
   for (const r of current) {
-    const parts = Object.fromEntries(berlin.formatToParts(new Date(r.createdAt)).map((x) => [x.type, x.value]));
-    grid[WEEKDAY_INDEX[parts.weekday]][Number(parts.hour)]++;
+    const parts = zonedParts(new Date(r.createdAt), timezone);
+    grid[WEEKDAY_INDEX[parts.weekday]][parts.hour]++;
   }
   const max = Math.max(...grid.flat(), 1);
   const rows = grid.map((row, i) => `${WEEKDAYS[i]} ${row.map((v) => HEAT[v ? Math.max(1, Math.round((v / max) * (HEAT.length - 1))) : 0]).join('')}`);

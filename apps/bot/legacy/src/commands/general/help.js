@@ -4,9 +4,11 @@ const { embed, replyPrivate } = require('../../lib/util');
 const SECTIONS = {
   '📋 Bewerbungen': ['bewerbung', 'bewerbungspanel', 'qualipanel', 'bewerbungen', 'bewerbungssperre'],
   '🎭 Roleplay': ['serverstatus', 'ankuendigung'],
-  '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear'],
+  '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear', 'melden', 'sicherheit'],
   '🎫 Tickets': ['ticket'],
-  '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste'],
+  '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste', 'giveaway', 'vorschlag'],
+  '🎵 Social Media': ['tiktok-live'],
+  '👥 Team': ['team', 'abwesend', 'zurueck', 'meeting'],
   '⚙️ Verwaltung': ['einstellungen'],
 };
 

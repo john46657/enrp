@@ -1,16 +1,17 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { replyPrivate, embed } = require('../../lib/util');
-const { logAction } = require('../../lib/moderation');
+const { guard, logAction } = require('../../lib/moderation');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('unban')
     .setDescription('Hebt einen Bann auf.')
     .addStringOption((o) => o.setName('user_id').setDescription('Discord-ID des Nutzers').setRequired(true))
-    .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500))
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+    .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500)),
 
   async execute(interaction) {
+    const denied = guard(interaction, 'ban');
+    if (denied) return replyPrivate(interaction, denied);
     const id = interaction.options.getString('user_id').trim();
     const reason = interaction.options.getString('grund') ?? 'Kein Grund angegeben';
 

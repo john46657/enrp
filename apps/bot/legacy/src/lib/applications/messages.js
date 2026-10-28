@@ -162,12 +162,12 @@ function answerEmbeds(record, budget) {
   return { embeds, truncated };
 }
 
-function answersFile(record, type) {
+function answersFile(record, type, timeZone = 'Europe/Berlin') {
   const lines = [
     `${type.name} – ${record.number}`,
     `Bewerber: ${record.userTag} (${record.userId})`,
     record.roblox ? `Roblox: ${record.roblox.name} (ID ${record.roblox.id})` : null,
-    `Eingereicht: ${new Date(record.createdAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}`,
+    `Eingereicht: ${new Date(record.createdAt).toLocaleString('de-DE', { timeZone })}`,
     `Status: ${store.STATUS[record.status]}${record.reason ? ` – Grund: ${record.reason}` : ''}`,
     record.ai ? `KI-Checker: ${record.ai.level}${record.ai.reasons.length ? ` (${record.ai.reasons.join('; ')})` : ''}` : null,
     '',

@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { replyPrivate, embed } = require('../../lib/util');
-const { checkHierarchy, notifyUser, logAction } = require('../../lib/moderation');
+const { guard, checkHierarchy, notifyUser, logAction } = require('../../lib/moderation');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -10,10 +10,11 @@ module.exports = {
     .addIntegerOption((o) =>
       o.setName('minuten').setDescription('Dauer in Minuten (max. 28 Tage)').setMinValue(0).setMaxValue(40_320).setRequired(true),
     )
-    .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(500)),
 
   async execute(interaction) {
+    const denied = guard(interaction, 'timeout');
+    if (denied) return replyPrivate(interaction, denied);
     const member = interaction.options.getMember('user');
     const minutes = interaction.options.getInteger('minuten');
     const reason = interaction.options.getString('grund') ?? 'Kein Grund angegeben';

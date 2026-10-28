@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { replyPrivate } = require('../../lib/util');
+const { base } = require('../../lib/settings');
 const tickets = require('../../lib/tickets');
 
 module.exports = {
@@ -8,6 +9,19 @@ module.exports = {
     .setDescription('Ticket-System')
     .addSubcommand((s) => s.setName('panel').setDescription('Postet das Ticket-Panel in diesem Kanal (nur Admins).'))
     .addSubcommand((s) => s.setName('schliessen').setDescription('Schließt das aktuelle Ticket.'))
+    .addSubcommand((s) =>
+      s
+        .setName('fuer')
+        .setDescription('Öffnet ein Ticket im Auftrag eines Mitglieds (nur Team).')
+        .addUserOption((o) => o.setName('user').setDescription('Für wen?').setRequired(true))
+        .addStringOption((o) =>
+          o
+            .setName('kategorie')
+            .setDescription('Ticket-Kategorie')
+            .setRequired(true)
+            .addChoices(...base.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
+        ),
+    )
     .addSubcommand((s) =>
       s
         .setName('hinzufuegen')
@@ -33,6 +47,7 @@ module.exports = {
     }
 
     if (sub === 'schliessen') return tickets.closeFromInteraction(interaction);
+    if (sub === 'fuer') return tickets.openOnBehalf(interaction, interaction.options.getString('kategorie'), interaction.options.getMember('user'));
 
     const ticket = tickets.ticketsOf(interaction.guildId)[interaction.channelId];
     if (!ticket) return replyPrivate(interaction, 'Das hier ist kein Ticket-Kanal.');
@@ -61,6 +76,10 @@ module.exports = {
         case 'closeyes':
         case 'closereason':
         case 'closemodal':
+        case 'closeform':
+        case 'closeformmodal':
+        case 'closeaccept':
+        case 'closedeny':
         case 'closeno':
           return tickets.confirmClose(interaction, action);
         case 'claim':
