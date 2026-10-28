@@ -1,0 +1,53 @@
+# Produktions-/Staging-Vorlage: nutzt die in der Pipeline gebauten Images (ENRP_VERSION).
+# Vor der API einen TLS-terminierenden Reverse Proxy (z. B. Caddy/Traefik) betreiben; nur das Dashboard
+# (Port 3000) wird veröffentlicht, die API ist ausschließlich über /api des Dashboards erreichbar.
+name: enrp
+
+x-app: &app
+  env_file: .env
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: enrp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}
+      POSTGRES_DB: enrp
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ['CMD-SHELL', 'pg_isready -U enrp'], interval: 10s, retries: 10 }
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes: [redisdata:/data]
+  api:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER fehlt}/enrp-api:${ENRP_VERSION:?ENRP_VERSION fehlt}
+    environment: { RUN_MIGRATIONS: 'true', TRUST_PROXY: 'true', APP_VERSION: '${ENRP_VERSION}' }
+    depends_on: { postgres: { condition: service_healthy } }
+  worker:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER}/enrp-worker:${ENRP_VERSION}
+    environment: { APP_VERSION: '${ENRP_VERSION}' }
+    # Backups auf ein separates Volume/Mount (z. B. eigener Datenträger oder Netzwerkspeicher).
+    volumes: ['${BACKUP_HOST_DIR:-/srv/enrp-backups}:/backups']
+    depends_on: [api]
+  bot:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER}/enrp-bot:${ENRP_VERSION}
+    environment: { API_URL: 'http://api:4000', APP_VERSION: '${ENRP_VERSION}' }
+    volumes: [botdata:/app/legacy/data]
+    depends_on: [api]
+  dashboard:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER}/enrp-dashboard:${ENRP_VERSION}
+    environment: { API_URL: 'http://api:4000' }
+    ports: ['127.0.0.1:3000:3000']
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  redisdata:
+  botdata:
