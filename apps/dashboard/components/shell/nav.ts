@@ -2,6 +2,7 @@ import {
   Activity,
   AlertTriangle,
   BadgeCheck,
+  BarChart3,
   Bell,
   Bot,
   Car,
@@ -85,6 +86,7 @@ export const NAV: NavGroup[] = [
     label: 'Technik & Betrieb',
     items: [
       { href: '/ops/health', label: 'Gesundheit', icon: Activity, permission: 'monitoring:view' },
+      { href: '/stats', label: 'Statistiken', icon: BarChart3, permission: 'monitoring:view' },
       {
         href: '/ops/roblox',
         label: 'Roblox-Server',

@@ -261,6 +261,12 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/monitoring/heartbeat` | Lebenszeichen eines Dienstes (Bot) |
 | `GET` | `/api/v1/status` | Öffentlicher Status (aggregiert) |
 
+## Statistiken
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/stats/overview` | Spieler pro Stunde, Spitzenzeiten, Moderation und Ticket-Bearbeitungszeiten |
+
 ## Vorfälle
 
 | Methode | Pfad | Zweck |

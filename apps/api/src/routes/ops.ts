@@ -18,6 +18,7 @@ import {
   requirePermission,
   retention,
   searchAudit,
+  stats,
   verifyAuditChain,
   writeAudit,
   safeEqual,
@@ -43,6 +44,27 @@ export async function opsRoutes(fastify: FastifyInstance) {
     async (request) => {
       requirePermission(request.actor, 'monitoring:view');
       return overview(deps);
+    },
+  );
+  app.get(
+    '/stats/overview',
+    {
+      schema: {
+        tags: ['Statistiken'],
+        summary: 'Spieler pro Stunde, Spitzenzeiten, Moderation und Ticket-Bearbeitungszeiten',
+        querystring: z.object({ days: z.coerce.number().int().min(1).max(90).default(7) }),
+      },
+    },
+    async (request) => {
+      requirePermission(request.actor, 'monitoring:view');
+      const now = core.now();
+      const since = new Date(now.getTime() - request.query.days * 86400_000);
+      return {
+        days: request.query.days,
+        players: await stats.playerActivity(core.db, since, now),
+        moderation: await stats.moderationCounts(core.db, since),
+        tickets: await stats.ticketTimes(core.db, since),
+      };
     },
   );
   app.get('/monitoring/health', { schema: { tags: mtags, summary: '/ops health' } }, async (request) => {

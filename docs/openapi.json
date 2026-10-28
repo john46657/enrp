@@ -6566,6 +6566,32 @@
         }
       }
     },
+    "/api/v1/stats/overview": {
+      "get": {
+        "summary": "Spieler pro Stunde, Spitzenzeiten, Moderation und Ticket-Bearbeitungszeiten",
+        "tags": [
+          "Statistiken"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": 7,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/monitoring/health": {
       "get": {
         "summary": "/ops health",
