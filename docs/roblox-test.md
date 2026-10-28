@@ -105,15 +105,12 @@ eintragen. Den angezeigten Schlüssel (`enrp_rbx_…`) sofort kopieren – er wi
    Lehnt Studio das Format ab, im Roblox-Creator-Hub-Artikel „Secrets store“ das aktuelle Format nachsehen.
    Für Live-Server legst du das Secret später im Creator Hub an (Spiel → Secrets), siehe
    [roblox/README.md](../roblox/README.md).
-4. Skripte einfügen (ohne Rojo):
-   - In **ServerScriptService** einen Ordner `ENRP` anlegen.
-   - Darin ein **Script** `Main` mit dem Inhalt von `roblox/src/ServerScriptService/ENRP/Main.server.lua`.
-   - Darin **ModuleScripts** `Api`, `Config`, `Duty`, `EventQueue`, `Rewards` mit dem Inhalt der gleichnamigen
-     `.lua`-Dateien.
-   - In **StarterPlayer → StarterPlayerScripts** ein **LocalScript** `ENRPClient` mit dem Inhalt von
-     `roblox/src/StarterPlayer/StarterPlayerScripts/ENRPClient.client.lua`.
-5. Im ModuleScript `Config` die Adresse eintragen:
-   `ApiBaseUrl = "https://ruhig-blau-wald-1234.trycloudflare.com",`
+4. Skripte einfügen – fertige Modelldateien, kein Kopieren einzelner Skripte:
+   - Rechtsklick auf **ServerScriptService** → **Aus Datei einfügen…** → `roblox/ENRP-Server.rbxmx`.
+   - Rechtsklick auf **StarterPlayer → StarterPlayerScripts** → **Aus Datei einfügen…** → `roblox/ENRP-Client.rbxmx`.
+5. Adresse eintragen: im eingefügten Ordner `ENRP` das ModuleScript `Config` öffnen und
+   `ApiBaseUrl = "https://ruhig-blau-wald-1234.trycloudflare.com",` setzen. Alternativ die Modelldatei gleich mit
+   deiner Adresse bauen: `node roblox/scripts/build-model.mjs --url https://ruhig-blau-wald-1234.trycloudflare.com`
 
 ## 9. Testen
 
