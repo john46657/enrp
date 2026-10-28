@@ -7,6 +7,14 @@ const db = require('./db');
 
 require('./applications/normalize')(base); // Standardwerte der Bewerbungsarten ergänzen
 
+// Module, die später dazugekommen sind: fehlen sie in einer älteren config.json auf dem Host, gelten diese Standardwerte
+// (sonst blendet das Dashboard die Seite aus und der Befehl findet keine Einstellungen).
+const LATER_MODULES = {
+  counting: { enabled: false, channel: '', resetOnFail: true, allowTwice: false },
+  roblox: { game: '' },
+};
+for (const [key, defaults] of Object.entries(LATER_MODULES)) base[key] = { ...defaults, ...base[key] };
+
 const overrides = (db.data.settings ??= {}); // { guildId: { pfad: wert } }
 const configs = new Map(); // guildId → config-Objekt
 
