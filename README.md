@@ -1,157 +1,72 @@
-# ENRP Discord-Bot
+# Emden Network
 
-Ein Discord-Bot für Roleplay-Server mit Bewerbungssystem, Moderation, Ticket-System und Community-Funktionen.
-Er ist in JavaScript mit [discord.js](https://discord.js.org) geschrieben, braucht keine externe Datenbank
-und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer. Ein Bot kann auf **beliebig vielen Servern** gleichzeitig laufen –
-jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnungen und Level.
+Roblox-Servermanagement-Plattform für das Emden Network GermanRP-Spiel: Web-Dashboard
+(**Emden Network Control Center**), REST-Backend (**Emden Network Backend**), Discord-Bot und
+TikTok-LIVE-Modul.
 
-## Funktionen
+> **Stand: Phase 1 – Grundgerüst.** Backend mit Health-/Readiness-Endpunkten und Dashboard-Grundlayout
+> sind umgesetzt und getestet. Alles Weitere ist **geplant** und im Dashboard als „Geplant“ markiert.
+> Es gibt noch **keine Anmeldung** – das Dashboard daher nur lokal betreiben, nicht öffentlich.
 
-| Bereich | Befehle / Features |
-|---|---|
-| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
-| 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
-| 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
-| 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
-| 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
-| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
-| 📖 | `/hilfe` zeigt alle Befehle |
+## Umfang und Ausbaustand
 
-## 1. Bot bei Discord anlegen
+| Phase | Inhalt                                                                         | Status       |
+| ----- | ------------------------------------------------------------------------------ | ------------ |
+| 1     | Projektstruktur, Fastify-Health-Endpunkte, Dashboard-Grundlayout, Tests, CI    | ✅ umgesetzt |
+| 2     | PostgreSQL, Migrationen, Anmeldung, Rollen (Owner bis Viewer), Audit-Logs      | 🕓 geplant   |
+| 3     | Roblox-Integration: authentifizierte Heartbeats, Serverübersicht, Luau-Skripte | 🕓 geplant   |
+| 4     | Discord-Bot (`apps/bot`) mit Slash-Commands und Benachrichtigungen             | 🕓 geplant   |
+| 5     | Discord Security Center                                                        | 🕓 geplant   |
+| 6     | TikTok LIVE Center (Provider-Schnittstelle, manuelle Fallbacks)                | 🕓 geplant   |
+| 7     | Deployment, Backups, Monitoring, Produktionscheckliste                         | 🕓 geplant   |
 
-1. Öffne das [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
-2. Links auf **Bot** → **Reset Token** → Token kopieren (niemals teilen!).
-3. Unter **Bot → Privileged Gateway Intents** einschalten:
-   - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Tickets und Bewerbungen beim Verlassen)
-   - ✅ **Message Content Intent** (Ticket-Transkripte)
-4. Links auf **OAuth2 → URL Generator**: Scopes `bot` und `applications.commands`, Berechtigung
-   `Administrator` (am einfachsten) → Link öffnen und Bot auf deinen Server einladen. Mit demselben Link
-   kannst du ihn auf weitere Server einladen.
-   > Soll niemand außer dir den Bot einladen können, schalte unter **Bot** die Option **Public Bot** aus.
-5. Ziehe die Bot-Rolle unter **Servereinstellungen → Rollen** möglichst weit nach oben, sonst kann er
-   keine Rollen vergeben und niemanden bestrafen, der über ihm steht.
-
-## 2. Konfigurieren
-
-**`.env`** (aus `.env.example` kopieren):
-
-```env
-DISCORD_TOKEN=dein-bot-token
-```
-
-`GUILD_ID` brauchst du nicht mehr. Nur wenn der Bot schon vor dem Mehr-Server-Update lief und inzwischen auf
-mehreren Servern ist, trägst du dort die ID des alten Servers ein, damit dessen `/einstellungen`-Änderungen
-ihm zugeordnet werden. Ist der Bot nur auf einem Server, passiert das automatisch.
-
-> IDs bekommst du per Rechtsklick → „ID kopieren“. Dafür in Discord unter
-> *Einstellungen → Erweitert* den **Entwicklermodus** einschalten.
-
-### Mehrere Server
-
-- Die `config.json` ist die **Vorlage für alle Server**: Texte, Ticket-Kategorien, Bewerbungsarten und Fragen.
-- Kanäle und Rollen sind auf jedem Server andere. Lass sie in der `config.json` leer und stelle sie auf jedem
-  Server mit `/einstellungen` ein. Diese Änderungen gelten nur für den Server, auf dem du sie machst.
-- Slash-Commands erscheinen auf jedem Server sofort, auch wenn du den Bot später auf einen neuen Server einlädst.
-- Tickets, Bewerbungen, Sperren, Verwarnungen und Level werden je Server getrennt gespeichert.
-
-**`config.json`**: Vorlage für alle Server (leere Felder werden einfach übersprungen). Kanäle und Rollen stellst
-du bei mehreren Servern besser je Server mit `/einstellungen` ein:
-
-| Feld | Bedeutung |
-|---|---|
-| `channels.welcome` | Willkommensnachrichten |
-| `channels.modLog` | Moderations-Log |
-| `channels.ticketLog` | Ticket-Aktivitäten und Transkripte |
-| `channels.levelUp` | Level-Up-Nachrichten (leer = im selben Kanal) |
-| `roles.autoRole` | Bekommt jedes neue Mitglied |
-| `roles.support` | Standard-Team für Tickets |
-| `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben usw. |
-| `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [docs/applications.md](docs/applications.md) |
-| `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
-| `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
-| `leveling.roleRewards` | z. B. `{ "10": "ROLLEN_ID" }` gibt ab Level 10 eine Rolle |
-
-### Ticket-Einstellungen (`tickets`)
-
-| Feld | Bedeutung |
-|---|---|
-| `categoryId` | Discord-Kategorie, in der Tickets erstellt werden |
-| `panel.title` / `panel.description` / `panel.image` / `panel.footer` | Aussehen der Panel-Nachricht (`image` = Banner-URL) |
-| `panel.showLoad` | Auslastung im Panel anzeigen (aktualisiert sich automatisch) |
-| `maxOpenPerUser` | Offene Tickets pro Nutzer, `0` = kein Limit |
-| `pingTeam` | Team beim Öffnen markieren |
-| `channelName` | Kanalname, Platzhalter: `%PREFIX%` `%USERNAME%` `%USER_ID%` `%USER_NICK_NAME%` `%DISPLAY_NAME%` `%EMOTE%` `%TICKET_NUMBER%` (fortlaufend) `%CASEID%` (fortlaufend je Kategorie) |
-| `onlyTeamCanClose` | `true` = Ersteller darf sein Ticket nicht selbst schließen |
-| `creatorCanAddUsers` | Ersteller darf Personen anfragen, das Team bestätigt |
-| `onCreatorLeave` | `"close"` = Ticket schließen, wenn der Ersteller den Server verlässt, `"nothing"` = offen lassen |
-| `logging.activities` | Öffnen, Übernehmen, Freigeben, Hinzufügen, Schließen in `channels.ticketLog` protokollieren |
-| `logging.transcripts` | Verlauf beim Schließen als `.txt` speichern (Log-Kanal + DM an Ersteller) |
-| `claimCategory.enabled` / `categoryId` | Übernommene Tickets in diese Kategorie verschieben (beim Freigeben zurück) |
-| `openingHours` | `enabled`, `timezone` und `periods` mit Tagen `mo di mi do fr sa so` und Zeiten `"15:00"`–`"23:00"` (auch über Mitternacht, `"24:00"` = Tagesende). Außerhalb bekommt jedes neue Ticket einen Hinweis, wann das Team wieder da ist, und Erinnerungen pausieren. |
-| `autoTeamAlert` | Team erneut markieren, wenn nach `afterMinutes` noch niemand geantwortet hat |
-| `autoUnclaim` | Ticket automatisch freigeben, wenn der Bearbeiter `afterHours` lang nichts schreibt |
-| `types[]` | Kategorien: `id`, `prefix`, `label`, `emoji`, `description`, `capacity` (für die Auslastung, `0` = ausblenden), `roles` (eigene Team-Rollen, leer = `roles.support`), optional `categoryId` |
-
-Nach jeder Änderung an `config.json` den Bot neu starten. Mit `npm run check` kannst du vorher
-prüfen, ob die Konfiguration gültig ist.
-
-### Einstellungen direkt in Discord (`/einstellungen`)
-
-Die meisten Werte kannst du auch ohne Dateizugriff ändern (nur mit „Server verwalten“). Änderungen gelten
-sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und haben Vorrang vor der `config.json`.
-
-| Unterbefehl | Was du einstellst |
-|---|---|
-| `anzeigen` | Übersicht aller aktuellen Werte |
-| `kanal` / `rolle` | Log- und Willkommenskanäle bzw. Support-, Staff- und Auto-Rolle (ohne Auswahl = entfernen) |
-| `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
-| `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
-| `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
-| `ticket-kategorie` | Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
-| `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
-| `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
-| `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
-| `fivem` | Server-Adresse und Verbinden-Link |
-| `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
-
-Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
-
-## 3. Starten
-
-### Lokal / VPS
-
-```bash
-npm install
-npm start
-```
-
-### Bot-Hoster (Pterodactyl-Panel, z. B. bot-hosting.net)
-
-1. Server mit **Node.js** (Version 18 oder neuer) anlegen.
-2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
-3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
-4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 21 Slash-Commands auf „…“ registriert` stehen.
-
-Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
-nicht löschen.
-
-## 4. Einrichten auf dem Server
-
-Auf **jedem** Server, auf dem der Bot läuft:
-
-1. Mit `/einstellungen kanal` und `/einstellungen rolle` Kanäle und Rollen festlegen.
-2. `/ticket panel` im Support-Kanal ausführen.
-3. `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
-4. Optional `/rollenpanel` für selbst wählbare Rollen.
+Nicht im Umfang: Dispatch-/Leitstellensystem sowie Personal- oder Ausbildungssystem.
 
 ## Projektstruktur
 
 ```
-index.js              Start, lädt Befehle und Events
-config.json           Einstellungen (keine Geheimnisse)
-src/commands/…        Slash-Befehle, nach Bereich sortiert
-src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
-src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
-scripts/check.js      Offline-Prüfung: npm run check
+apps/
+  api/          Emden Network Backend (Fastify, TypeScript)
+  dashboard/    Emden Network Control Center (Next.js, React, TypeScript)
+packages/
+  shared/       Gemeinsame Typen, Zod-Schemas, Navigationsdefinition
+docs/           Architektur, Einrichtung, Tests, Sicherheit, Deployment
+legacy/
+  discord-bot/  Bisheriger ENRP-Discord-Bot (unverändert verschoben, siehe legacy/README.md)
 ```
+
+Geplant, aber noch nicht angelegt: `apps/bot` (Phase 4), `apps/worker` (bei Bedarf), `roblox/` (Phase 3).
+
+## Schnellstart
+
+Voraussetzung: **Node.js 22.12 oder neuer** (`node -v`).
+
+```bash
+npm install                 # Abhängigkeiten aller Workspaces installieren
+cp .env.example .env        # Konfiguration anlegen (enthält nur Platzhalter)
+npm run dev:api             # Terminal 1: Backend auf http://127.0.0.1:4000
+npm run dev:dashboard       # Terminal 2: Dashboard auf http://localhost:3000
+```
+
+Ausführlich: [docs/local-setup.md](docs/local-setup.md).
+
+## Wichtige Befehle
+
+| Befehl              | Zweck                                                      |
+| ------------------- | ---------------------------------------------------------- |
+| `npm run check`     | Alles prüfen: Formatierung, Lint, TypeScript, Tests, Build |
+| `npm test`          | Tests (Vitest)                                             |
+| `npm run lint`      | ESLint                                                     |
+| `npm run typecheck` | TypeScript-Prüfung aller Workspaces                        |
+| `npm run format`    | Code mit Prettier formatieren                              |
+| `npm run build`     | Produktions-Build aller Workspaces                         |
+
+## Dokumentation
+
+- [Architektur](docs/architecture.md)
+- [Lokale Einrichtung](docs/local-setup.md)
+- [API](docs/api.md)
+- [Datenbank & Migrationen](docs/database.md) (Phase 2)
+- [Tests](docs/testing.md)
+- [Sicherheit](docs/security.md)
+- [Produktion & Deployment](docs/deployment.md)

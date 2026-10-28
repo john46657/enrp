@@ -1,3 +1,27 @@
+# Abhängigkeiten
 node_modules/
+
+# Build-Ausgaben
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Geheimnisse – niemals committen
 .env
-data/
+.env.*
+!.env.example
+
+# Laufzeitdaten des Legacy-Bots
+legacy/discord-bot/data/
+
+# Tests & Logs
+coverage/
+*.log
+
+# Editor / Betriebssystem
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
