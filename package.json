@@ -1,18 +1,32 @@
 {
-  "name": "enrp-bot",
-  "version": "1.0.0",
-  "description": "Discord-Bot für Roleplay-Server: Whitelist, Moderation, Tickets, Community",
-  "main": "index.js",
+  "name": "emden-network",
   "private": true,
-  "scripts": {
-    "start": "node index.js",
-    "check": "node scripts/check.js"
-  },
+  "description": "Emden Network – Verwaltungssystem für das Roblox-GermanRP-Spiel (Monorepo)",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
   "engines": {
-    "node": ">=18.17"
+    "node": ">=22.18"
   },
-  "dependencies": {
-    "discord.js": "^14.27.0",
-    "dotenv": "^16.4.7"
+  "scripts": {
+    "bot": "pnpm --filter @enrp/bot start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:psql": "docker compose exec postgres psql -U enrp -d enrp"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
   }
 }
