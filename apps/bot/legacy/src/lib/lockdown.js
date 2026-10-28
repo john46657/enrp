@@ -2,6 +2,8 @@
 // und beim Aufheben genau so wiederhergestellt.
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const db = require('./db');
+const { forGuild } = require('./settings');
+const { embed, getChannel } = require('./util');
 
 const LOCKABLE = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum]);
 const PERMS = ['SendMessages', 'SendMessagesInThreads', 'CreatePublicThreads'];
@@ -57,4 +59,16 @@ async function unlock(guild, reason) {
   return { restored };
 }
 
-module.exports = { lock, unlock, isLocked, snapshot, PERMS };
+function status(guildId) {
+  const st = state(guildId);
+  return st.active ? { active: true, by: st.by, reason: st.reason, at: st.at, channels: Object.keys(st.channels ?? {}).length } : { active: false };
+}
+
+// Meldung im Sicherheits-Log (bzw. Mod-Log).
+async function announce(guild, text) {
+  const cfg = forGuild(guild.id);
+  const channel = await getChannel(guild, cfg.security.logChannel || cfg.channels.modLog);
+  if (channel?.isTextBased()) await channel.send({ embeds: [embed('danger').setTitle('🔒 Lockdown').setDescription(text)], allowedMentions: { parse: [] } }).catch(() => {});
+}
+
+module.exports = { lock, unlock, isLocked, status, announce, snapshot, PERMS };

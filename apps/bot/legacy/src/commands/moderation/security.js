@@ -2,14 +2,6 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('disc
 const { replyPrivate } = require('../../lib/util');
 const security = require('../../lib/security');
 const lockdown = require('../../lib/lockdown');
-const { embed, getChannel } = require('../../lib/util');
-const { forGuild } = require('../../lib/settings');
-
-async function announce(guild, text) {
-  const cfg = forGuild(guild.id);
-  const channel = await getChannel(guild, cfg.security.logChannel || cfg.channels.modLog);
-  if (channel?.isTextBased()) await channel.send({ embeds: [embed('danger').setTitle('🔒 Lockdown').setDescription(text)], allowedMentions: { parse: [] } }).catch(() => {});
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -38,11 +30,11 @@ module.exports = {
       try {
         if (sub === 'lockdown') {
           const { locked, failed } = await lockdown.lock(interaction.guild, interaction.user.id, reason);
-          await announce(interaction.guild, `${interaction.user} hat den Server gesperrt (${locked} Kanäle). Grund: ${reason}`);
+          await lockdown.announce(interaction.guild, `${interaction.user} hat den Server gesperrt (${locked} Kanäle). Grund: ${reason}`);
           return interaction.editReply(`🔒 ${locked} Kanäle gesperrt${failed ? `, ${failed} ohne Berechtigung übersprungen` : ''}. Aufheben mit \`/sicherheit entsperren\`.`);
         }
         const { restored } = await lockdown.unlock(interaction.guild, reason);
-        await announce(interaction.guild, `${interaction.user} hat den Lockdown aufgehoben (${restored} Kanäle). Grund: ${reason}`);
+        await lockdown.announce(interaction.guild, `${interaction.user} hat den Lockdown aufgehoben (${restored} Kanäle). Grund: ${reason}`);
         return interaction.editReply(`🔓 Lockdown aufgehoben, ${restored} Kanäle wiederhergestellt.`);
       } catch (err) {
         return interaction.editReply(`❌ ${err.message}`);
