@@ -1,0 +1,174 @@
+// Verbindet die Bot-Module mit dem Dashboard: was nach dem Speichern passiert, Buttons und Live-Daten.
+const { registerAction, registerLive, onSave } = require('./server');
+const { bucket } = require('../lib/db');
+const tickets = require('../lib/tickets');
+const stats = require('../lib/stats');
+const team = require('../lib/team');
+const automod = require('../lib/automod');
+const security = require('../lib/security');
+const lockdown = require('../lib/lockdown');
+const giveaways = require('../lib/giveaways');
+const suggestions = require('../lib/suggestions');
+const counting = require('../lib/counting');
+const careers = require('../lib/careers');
+const meetings = require('../lib/meetings');
+const scamImages = require('../lib/scamImages');
+const settingsLib = require('../lib/settings');
+const appMessages = require('../lib/applications/messages');
+
+const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
+
+onSave(async (guild, paths) => {
+  if (touched(paths, 'tickets')) await tickets.refreshPanels(guild);
+  if (touched(paths, 'stats')) await stats.updateStats(guild);
+  if (touched(paths, 'team')) await team.updateLists(guild);
+  if (touched(paths, 'channels') || touched(paths, 'roles')) await appMessages.refreshPanels(guild);
+});
+
+registerAction('verify-post', (guild) => security.postVerifyMessage(guild));
+
+// ---------- Lockdown ----------
+
+registerLive('lockdown', (guild) => {
+  const st = lockdown.status(guild.id);
+  return st.active ? { ...st, by: guild.members.cache.get(st.by)?.user.username ?? st.by } : st;
+});
+const lockdownReason = (reason) => {
+  const text = String(reason ?? '').trim();
+  if (text.length < 3 || text.length > 200) throw new Error('Bitte einen Grund angeben (3–200 Zeichen).');
+  return text;
+};
+registerAction('lockdown-on', async (guild, { reason }, member) => {
+  const text = lockdownReason(reason);
+  const result = await lockdown.lock(guild, member.id, text);
+  await lockdown.announce(guild, `${member} hat den Server über das Dashboard gesperrt (${result.locked} Kanäle). Grund: ${text}`);
+  return result;
+});
+registerAction('lockdown-off', async (guild, { reason }, member) => {
+  const text = lockdownReason(reason);
+  const result = await lockdown.unlock(guild, text);
+  await lockdown.announce(guild, `${member} hat den Lockdown über das Dashboard aufgehoben (${result.restored} Kanäle). Grund: ${text}`);
+  return result;
+});
+registerAction('honeypot-notice', (guild) => automod.postHoneypotNotice(guild));
+registerAction('ticket-panels-refresh', (guild) => tickets.refreshPanels(guild));
+registerAction('stats-update', (guild) => stats.updateStats(guild));
+registerAction('team-lists-update', (guild) => team.updateLists(guild));
+
+registerLive('overview', (guild) => ({
+  openTickets: Object.keys(tickets.openTickets(guild)).length,
+  warnings: Object.values(bucket('warnings', guild.id)).reduce((n, list) => n + list.length, 0),
+  absences: Object.keys(team.absencesOf(guild.id)).length,
+  statChannels: Object.keys(stats.channelsOf(guild.id)).length,
+}));
+
+registerLive('tickets', (guild) =>
+  Object.entries(tickets.openTickets(guild)).map(([channelId, t]) => ({
+    channelId,
+    channel: guild.channels.cache.get(channelId)?.name,
+    number: t.number,
+    type: t.type,
+    owner: t.owner,
+    claimedBy: t.claimedBy ?? null,
+    openedAt: t.openedAt,
+  })),
+);
+
+registerLive('absences', (guild) => Object.entries(team.absencesOf(guild.id)).map(([userId, a]) => ({ userId, ...a })));
+registerAction('absence-end', async (guild, { userId }) => {
+  const member = await guild.members.fetch(String(userId)).catch(() => null);
+  if (!member) throw new Error('Mitglied nicht gefunden.');
+  await team.setAbsence(member, null);
+});
+
+// ---------- Zählen ----------
+
+registerLive('counting', (guild) => {
+  const s = counting.stateOf(guild.id);
+  const name = (id) => guild.members.cache.get(id)?.user.username ?? id;
+  return {
+    current: s.current,
+    record: s.record,
+    recordAt: s.recordAt,
+    resets: s.resets,
+    top: counting.topCounters(guild.id).map(([id, n]) => ({ user: name(id), count: n, fails: s.fails[id] ?? 0 })),
+  };
+});
+registerAction('counting-set', (guild, { number }) => {
+  const n = Number(number);
+  if (!Number.isInteger(n) || n < 0 || n > 1_000_000_000) throw new Error('Ungültige Zahl.');
+  counting.setCurrent(guild.id, n);
+});
+
+// ---------- Giveaways ----------
+
+registerLive('giveaways', (guild) => ({
+  stats: giveaways.statsOf(guild.id),
+  list: Object.values(giveaways.giveawaysOf(guild.id))
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, 100)
+    .map((g) => ({ messageId: g.messageId, channel: guild.channels.cache.get(g.channelId)?.name, prize: g.prize, winners: g.winnerIds, entries: Object.keys(g.entries).length, endsAt: g.endsAt, startedAt: g.startedAt, ended: g.ended, cancelled: g.cancelled, claims: g.claims })),
+}));
+const findGiveaway = (guild, messageId) => {
+  const g = giveaways.giveawaysOf(guild.id)[String(messageId)];
+  if (!g) throw new Error('Giveaway nicht gefunden.');
+  return g;
+};
+registerAction('giveaway-end', (guild, { messageId }) => giveaways.endGiveaway(guild, findGiveaway(guild, messageId)).then(() => null));
+registerAction('giveaway-reroll', (guild, { messageId }) => giveaways.reroll(guild, findGiveaway(guild, messageId), 1));
+registerAction('giveaway-cancel', (guild, { messageId }) => giveaways.cancelGiveaway(guild, findGiveaway(guild, messageId)));
+registerAction('giveaway-template-start', (guild, { templateId }, member) => {
+  const template = require('../lib/settings').forGuild(guild.id).giveaways.templates.find((t) => t.id === templateId);
+  if (!template) throw new Error('Vorlage nicht gefunden – erst speichern.');
+  return giveaways.startFromTemplate(guild, template, member.id).then(() => null);
+});
+
+registerLive('suggestions', (guild) =>
+  Object.entries(suggestions.suggestionsOf(guild.id))
+    .map(([messageId, s]) => ({ messageId, number: s.number, category: s.category, title: s.fields[0]?.[1] ?? '', status: s.status, up: Object.keys(s.up).length, down: Object.keys(s.down).length, createdAt: s.createdAt }))
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 100),
+);
+
+// ---------- Rang-Aufstieg ----------
+
+registerLive('careers', async (guild) => ({ progress: await careers.progressList(guild), history: careers.historyOf(guild.id).slice(0, 15).map((e) => ({ ...e, user: guild.members.cache.get(e.userId)?.user.username ?? e.userId })) }));
+registerAction('careers-check', async (guild) => careers.checkGuild(guild));
+
+// ---------- Meetings ----------
+
+registerLive('meetings', (guild) => {
+  const name = (id) => guild.members.cache.get(id)?.user.username ?? id;
+  const list = Object.values(meetings.meetingsOf(guild.id))
+    .sort((a, b) => b.start - a.start)
+    .slice(0, 50)
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      start: m.start,
+      duration: m.duration,
+      cancelled: m.cancelled,
+      voice: m.voiceChannelId ? guild.channels.cache.get(m.voiceChannelId)?.name : null,
+      yes: Object.values(m.rsvp).filter((v) => v === 'yes').length,
+      maybe: Object.values(m.rsvp).filter((v) => v === 'maybe').length,
+      no: Object.values(m.rsvp).filter((v) => v === 'no').length,
+      present: Object.keys(m.attendance ?? {}).length,
+    }));
+  const stats = Object.entries(meetings.attendanceStats(guild.id)).map(([id, s]) => ({ user: name(id), ...s }));
+  return { list, stats };
+});
+registerAction('meeting-create', (guild, body, member) => {
+  const start = meetings.parseStart(body.date, body.time, settingsLib.forGuild(guild.id).timezone);
+  if (!start) throw new Error('Ungültiges Datum oder Uhrzeit (TT.MM.JJJJ und HH:MM).');
+  const roles = Array.isArray(body.roles) ? body.roles.filter((id) => guild.roles.cache.has(id)) : [];
+  const voice = guild.channels.cache.get(String(body.voiceChannelId ?? ''))?.isVoiceBased() ? String(body.voiceChannelId) : null;
+  return meetings
+    .createMeeting(guild, { title: String(body.title ?? ''), description: String(body.description ?? ''), start, duration: Number(body.duration) || 60, roles, voiceChannelId: voice, createdBy: member.id })
+    .then((m) => m.id);
+});
+registerAction('meeting-cancel', (guild, { id }, member) => meetings.cancelMeeting(guild, String(id), member.id));
+
+// ---------- Scam-Bilder ----------
+
+registerLive('scam-images', (guild) => scamImages.knownOf(guild.id).map((k) => ({ ...k, addedByName: k.addedBy ? guild.members.cache.get(k.addedBy)?.user.username ?? k.addedBy : null })));
+registerAction('scam-image-remove', (guild, { hash }) => scamImages.removeKnown(guild.id, String(hash)));

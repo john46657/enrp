@@ -1,157 +1,90 @@
-# ENRP Discord-Bot
+# ENRP – GermanRP-Plattform
 
-Ein Discord-Bot für Roleplay-Server mit Bewerbungssystem, Moderation, Ticket-System und Community-Funktionen.
-Er ist in JavaScript mit [discord.js](https://discord.js.org) geschrieben, braucht keine externe Datenbank
-und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer. Ein Bot kann auf **beliebig vielen Servern** gleichzeitig laufen –
-jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnungen und Level.
+Discord-Bot, Backend-API, Hintergrund-Worker, Web-Dashboard und Roblox-Integration für einen deutschen
+Roblox-Roleplay-Server (Polizei, Feuerwehr, Rettungsdienst, Zivilisten). Alle Teile nutzen dieselbe
+Geschäftslogik, dieselbe Rechteprüfung und dasselbe unveränderliche Audit-Log.
 
-## Funktionen
-
-| Bereich | Befehle / Features |
-|---|---|
-| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
-| 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
-| 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
-| 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
-| 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
-| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
-| 📖 | `/hilfe` zeigt alle Befehle |
-
-## 1. Bot bei Discord anlegen
-
-1. Öffne das [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
-2. Links auf **Bot** → **Reset Token** → Token kopieren (niemals teilen!).
-3. Unter **Bot → Privileged Gateway Intents** einschalten:
-   - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Tickets und Bewerbungen beim Verlassen)
-   - ✅ **Message Content Intent** (Ticket-Transkripte)
-4. Links auf **OAuth2 → URL Generator**: Scopes `bot` und `applications.commands`, Berechtigung
-   `Administrator` (am einfachsten) → Link öffnen und Bot auf deinen Server einladen. Mit demselben Link
-   kannst du ihn auf weitere Server einladen.
-   > Soll niemand außer dir den Bot einladen können, schalte unter **Bot** die Option **Public Bot** aus.
-5. Ziehe die Bot-Rolle unter **Servereinstellungen → Rollen** möglichst weit nach oben, sonst kann er
-   keine Rollen vergeben und niemanden bestrafen, der über ihm steht.
-
-## 2. Konfigurieren
-
-**`.env`** (aus `.env.example` kopieren):
-
-```env
-DISCORD_TOKEN=dein-bot-token
+```
+apps/api         Fastify-REST-API (/api/v1, OpenAPI)          ─┐
+apps/worker      BullMQ-Worker (Discord-Aktionen, Backups …)   ├─ nutzen packages/core
+apps/bot         Discord-Bot (discord.js, spricht nur mit der API)
+apps/dashboard   Next.js-Dashboard (spricht nur mit der API)
+packages/core         Geschäftslogik (Audit, Rechte, Freigaben, alle Fachmodule)
+packages/database     Drizzle-Schema, Migrationen, Seed
+packages/permissions  Berechtigungskatalog, RBAC-Auswertung, Schutz gegen Rechteausweitung
+packages/integrations Discord-REST, BullMQ, Echtzeit (Redis Pub/Sub)
+packages/shared       Gemeinsame Typen, Enums, Fehlerformat, API-Client
+packages/config       Validierte Umgebungsvariablen, Logger
+roblox/          Luau-Skripte für den Spielserver
+tests/integration Integrationstests gegen echtes PostgreSQL
+docs/            Architektur, Sicherheit, Betrieb, Deployment, API
 ```
 
-`GUILD_ID` brauchst du nicht mehr. Nur wenn der Bot schon vor dem Mehr-Server-Update lief und inzwischen auf
-mehreren Servern ist, trägst du dort die ID des alten Servers ein, damit dessen `/einstellungen`-Änderungen
-ihm zugeordnet werden. Ist der Bot nur auf einem Server, passiert das automatisch.
+## Schnellstart (Entwicklung)
 
-> IDs bekommst du per Rechtsklick → „ID kopieren“. Dafür in Discord unter
-> *Einstellungen → Erweitert* den **Entwicklermodus** einschalten.
-
-### Mehrere Server
-
-- Die `config.json` ist die **Vorlage für alle Server**: Texte, Ticket-Kategorien, Bewerbungsarten und Fragen.
-- Kanäle und Rollen sind auf jedem Server andere. Lass sie in der `config.json` leer und stelle sie auf jedem
-  Server mit `/einstellungen` ein. Diese Änderungen gelten nur für den Server, auf dem du sie machst.
-- Slash-Commands erscheinen auf jedem Server sofort, auch wenn du den Bot später auf einen neuen Server einlädst.
-- Tickets, Bewerbungen, Sperren, Verwarnungen und Level werden je Server getrennt gespeichert.
-
-**`config.json`**: Vorlage für alle Server (leere Felder werden einfach übersprungen). Kanäle und Rollen stellst
-du bei mehreren Servern besser je Server mit `/einstellungen` ein:
-
-| Feld | Bedeutung |
-|---|---|
-| `channels.welcome` | Willkommensnachrichten |
-| `channels.modLog` | Moderations-Log |
-| `channels.ticketLog` | Ticket-Aktivitäten und Transkripte |
-| `channels.levelUp` | Level-Up-Nachrichten (leer = im selben Kanal) |
-| `roles.autoRole` | Bekommt jedes neue Mitglied |
-| `roles.support` | Standard-Team für Tickets |
-| `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben usw. |
-| `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [docs/applications.md](docs/applications.md) |
-| `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
-| `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
-| `leveling.roleRewards` | z. B. `{ "10": "ROLLEN_ID" }` gibt ab Level 10 eine Rolle |
-
-### Ticket-Einstellungen (`tickets`)
-
-| Feld | Bedeutung |
-|---|---|
-| `categoryId` | Discord-Kategorie, in der Tickets erstellt werden |
-| `panel.title` / `panel.description` / `panel.image` / `panel.footer` | Aussehen der Panel-Nachricht (`image` = Banner-URL) |
-| `panel.showLoad` | Auslastung im Panel anzeigen (aktualisiert sich automatisch) |
-| `maxOpenPerUser` | Offene Tickets pro Nutzer, `0` = kein Limit |
-| `pingTeam` | Team beim Öffnen markieren |
-| `channelName` | Kanalname, Platzhalter: `%PREFIX%` `%USERNAME%` `%USER_ID%` `%USER_NICK_NAME%` `%DISPLAY_NAME%` `%EMOTE%` `%TICKET_NUMBER%` (fortlaufend) `%CASEID%` (fortlaufend je Kategorie) |
-| `onlyTeamCanClose` | `true` = Ersteller darf sein Ticket nicht selbst schließen |
-| `creatorCanAddUsers` | Ersteller darf Personen anfragen, das Team bestätigt |
-| `onCreatorLeave` | `"close"` = Ticket schließen, wenn der Ersteller den Server verlässt, `"nothing"` = offen lassen |
-| `logging.activities` | Öffnen, Übernehmen, Freigeben, Hinzufügen, Schließen in `channels.ticketLog` protokollieren |
-| `logging.transcripts` | Verlauf beim Schließen als `.txt` speichern (Log-Kanal + DM an Ersteller) |
-| `claimCategory.enabled` / `categoryId` | Übernommene Tickets in diese Kategorie verschieben (beim Freigeben zurück) |
-| `openingHours` | `enabled`, `timezone` und `periods` mit Tagen `mo di mi do fr sa so` und Zeiten `"15:00"`–`"23:00"` (auch über Mitternacht, `"24:00"` = Tagesende). Außerhalb bekommt jedes neue Ticket einen Hinweis, wann das Team wieder da ist, und Erinnerungen pausieren. |
-| `autoTeamAlert` | Team erneut markieren, wenn nach `afterMinutes` noch niemand geantwortet hat |
-| `autoUnclaim` | Ticket automatisch freigeben, wenn der Bearbeiter `afterHours` lang nichts schreibt |
-| `types[]` | Kategorien: `id`, `prefix`, `label`, `emoji`, `description`, `capacity` (für die Auslastung, `0` = ausblenden), `roles` (eigene Team-Rollen, leer = `roles.support`), optional `categoryId` |
-
-Nach jeder Änderung an `config.json` den Bot neu starten. Mit `npm run check` kannst du vorher
-prüfen, ob die Konfiguration gültig ist.
-
-### Einstellungen direkt in Discord (`/einstellungen`)
-
-Die meisten Werte kannst du auch ohne Dateizugriff ändern (nur mit „Server verwalten“). Änderungen gelten
-sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und haben Vorrang vor der `config.json`.
-
-| Unterbefehl | Was du einstellst |
-|---|---|
-| `anzeigen` | Übersicht aller aktuellen Werte |
-| `kanal` / `rolle` | Log- und Willkommenskanäle bzw. Support-, Staff- und Auto-Rolle (ohne Auswahl = entfernen) |
-| `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
-| `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
-| `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
-| `ticket-kategorie` | Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
-| `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
-| `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
-| `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
-| `fivem` | Server-Adresse und Verbinden-Link |
-| `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
-
-Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
-
-## 3. Starten
-
-### Lokal / VPS
+Voraussetzungen: Node.js 22, pnpm 10, Docker (oder lokales PostgreSQL 16 + Redis 7).
 
 ```bash
-npm install
-npm start
+cp .env.example .env              # Werte eintragen, Geheimnisse mit: openssl rand -base64 48
+docker compose up -d postgres redis
+pnpm install
+pnpm db:migrate && pnpm db:seed   # Schema + Grunddaten (Rollen, Fraktionen, Flags, Umgebungen)
+pnpm --filter @enrp/api dev       # http://localhost:4000, API-Doku unter /api/docs
+pnpm --filter @enrp/worker dev
+pnpm --filter @enrp/dashboard dev # http://localhost:3000 (leitet /api an die API weiter)
+pnpm --filter @enrp/bot dev       # braucht DISCORD_BOT_TOKEN und DISCORD_GUILD_ID
 ```
 
-### Bot-Hoster (Pterodactyl-Panel, z. B. bot-hosting.net)
+Erster Zugang: Die Discord-IDs in `OWNER_DISCORD_IDS` haben Vollzugriff. Im Dashboard unter
+*Bot-Verwaltung → Rollen & Rechte* weitere Rollen an Discord-Rollen binden.
 
-1. Server mit **Node.js** (Version 18 oder neuer) anlegen.
-2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
-3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
-4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 21 Slash-Commands auf „…“ registriert` stehen.
+Prüfen: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test` (Integrationstests brauchen
+`TEST_DATABASE_URL`, Standard `postgres://enrp:enrp@localhost:5432/enrp_test`).
 
-Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
-nicht löschen.
+## Dokumentation
 
-## 4. Einrichten auf dem Server
+| Thema | Datei |
+|---|---|
+| Einrichtung, Umgebungsvariablen, Discord-/Roblox-Apps | [docs/setup.md](docs/setup.md) |
+| Architektur und Entscheidungen | [docs/architecture.md](docs/architecture.md) |
+| Datenmodell, Löschregeln, Aufbewahrung | [docs/data-model.md](docs/data-model.md) |
+| Rollen, Rechte, Vier-Augen-Prinzip | [docs/permissions.md](docs/permissions.md) |
+| Discord-Bot (Befehle, Altmodule) | [docs/bot.md](docs/bot.md) · Altmodule: [apps/bot/legacy/README.md](apps/bot/legacy/README.md) |
+| API-Endpunkte (generiert) | [docs/api-endpunkte.md](docs/api-endpunkte.md) · [docs/openapi.json](docs/openapi.json) |
+| Sicherheit | [docs/security.md](docs/security.md) |
+| Betrieb, Backups, Notfallplan | [docs/operations.md](docs/operations.md) |
+| Deployment (Docker, CI/CD, Staging/Produktion) | [docs/deployment.md](docs/deployment.md) |
+| Roblox-Integration | [roblox/README.md](roblox/README.md) · Test auf dem eigenen PC: [docs/roblox-test.md](docs/roblox-test.md) |
 
-Auf **jedem** Server, auf dem der Bot läuft:
+## Stand der Umsetzung
 
-1. Mit `/einstellungen kanal` und `/einstellungen rolle` Kanäle und Rollen festlegen.
-2. `/ticket panel` im Support-Kanal ausführen.
-3. `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
-4. Optional `/rollenpanel` für selbst wählbare Rollen.
+Ehrliche Übersicht, was in dieser Umgebung tatsächlich geprüft wurde. „Getestet“ heißt: automatisierte Tests
+gegen echtes PostgreSQL/Redis bzw. manueller Start der gebauten Dienste.
 
-## Projektstruktur
+| Bereich | Stand |
+|---|---|
+| Datenbank, Migrationen, Seed | ✅ implementiert, getestet (inkl. Audit-Schutz-Trigger) |
+| Rechte (RBAC, Fraktionsbeschränkung, Schutz gegen Rechteausweitung, Befehls-Overrides) | ✅ Unit- und Integrationstests |
+| Audit-Log mit Hash-Kette, Manipulationserkennung | ✅ getestet |
+| Vier-Augen-Freigaben (Selbstfreigabe, Ablauf, einmalige Ausführung) | ✅ getestet |
+| Verifizierung (Discord-Bestätigung + Roblox-OAuth mit PKCE, nur Rolle „Verifiziert“) | ✅ Ende-zu-Ende gegen OAuth-Attrappen getestet; mit echten Discord-/Roblox-Apps **nicht** getestet (keine Zugangsdaten) |
+| Dashboard-Login, Sitzungen, CSRF | ✅ getestet (OAuth-Attrappe) |
+| Fraktionen, Dienstsystem, Spielzeit, Korrekturen | ✅ getestet |
+| Fahrzeuge, Tickets (inkl. Spiegelung des Discord-Ticketpanels), Reports, Fallberichte | ✅ Kernlogik getestet |
+| Moderation, Einsprüche, Roblox-Banns über Spielserver | ✅ Logik getestet; Discord-Ausführung gegen Discord-Attrappe |
+| Community (Vorschläge, Umfragen, Giveaways, Ankündigungen, Regelwerk, Codes) | ✅ getestet (inkl. paralleler Code-Einlösung) |
+| Roblox-API (Heartbeat, Ereignisse, Replay-Schutz, Idempotenz) | ✅ API-seitig getestet |
+| Servertyp (öffentlich/privat/reserviert), Server-Befehle (Nachricht, Herunterfahren), Open-Cloud-Weckruf | ✅ API- und Integrationstests; Weckruf gegen Attrappe, mit echtem Open-Cloud-Schlüssel **nicht** getestet |
+| Statistiken (Spieler pro Stunde, Spitzenzeiten, Moderation, Ticket-Bearbeitungszeiten) | ✅ Integrationstest; Dashboard-Seite gebaut, im Browser **nicht** durchgeklickt |
+| Discord-Sicherheit: Schutz vor Massenlöschung, Lockdown (Altmodule) | ✅ Tests mit nachgebauten Discord-Objekten; mit echtem Discord-Server **nicht** getestet |
+| Roblox-Luau-Skripte | ⚠️ geschrieben, **nicht** in Roblox Studio ausgeführt – Testcheckliste in roblox/README.md |
+| Worker: Backups (pg_dump/pg_restore, Prüfsumme, Test-Wiederherstellung), Watchdogs, Aufbewahrung | ✅ gegen echtes PostgreSQL/Redis getestet |
+| Discord-Bot | ✅ Build, Befehlsregistrierung und Rechtekatalog geprüft, Start bis zum Login geprüft; mit echtem Discord-Server **nicht** getestet |
+| Dashboard | ✅ Build, alle Seiten kompiliert, Oberfläche im Browser (Desktop/Mobil) gegen laufende API geprüft |
+| Caddy (HTTPS) in `docker-compose.prod.yml` | ⚠️ Compose-Datei geprüft (`docker compose config`), Caddyfile mangels Caddy-Binary **nicht** validiert |
+| Docker-Images | ⚠️ Dockerfile geschrieben; Build-Schritte (Bundles, `pnpm deploy`, Next standalone) einzeln geprüft, `docker build` selbst mangels Docker-Daemon **nicht** ausgeführt |
+| CI/CD (GitHub Actions) | ⚠️ Workflows geschrieben, noch nicht auf GitHub gelaufen |
+| Release-Pipeline-Anbindung | ⚠️ Anstoß per `workflow_dispatch` implementiert, braucht `GITHUB_DEPLOY_*` und einen Zielserver |
 
-```
-index.js              Start, lädt Befehle und Events
-config.json           Einstellungen (keine Geheimnisse)
-src/commands/…        Slash-Befehle, nach Bereich sortiert
-src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
-src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
-scripts/check.js      Offline-Prüfung: npm run check
-```
+Externe Voraussetzungen, die noch fehlen: Discord-Anwendung (Bot-Token, OAuth-Client), Roblox-OAuth-App
+und Secret im Roblox Creator Hub, Produktionsserver mit TLS, GitHub-Environments `staging`/`production`.
