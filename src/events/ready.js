@@ -10,6 +10,7 @@ const { startStatsWatcher } = require('../lib/stats');
 const { sweepExpired } = require('../lib/warnings');
 const { startTeamWatcher } = require('../lib/team');
 const { startDashboard } = require('../dashboard/server');
+const { startTiktokWatcher } = require('../lib/tiktok/service');
 require('../dashboard/modules');
 
 module.exports = {
@@ -36,6 +37,7 @@ module.exports = {
     startStatsWatcher(client);
     startTeamWatcher(client);
     startDashboard(client);
+    startTiktokWatcher(client);
     // Abgelaufene Verwarnungen (Moderation und Team) markieren und Warn-Rollen anpassen.
     setInterval(async () => {
       for (const guild of client.guilds.cache.values()) {

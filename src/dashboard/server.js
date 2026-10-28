@@ -19,9 +19,11 @@ const EDITABLE = ['channels', 'roles', 'welcome', 'tickets', 'leveling', 'fivem'
 const actions = new Map(); // name → async (guild, body, member) => Ergebnis
 const liveData = new Map(); // name → async (guild) => Daten
 const afterSave = []; // (guild, paths) => Promise – z. B. Panels neu zeichnen
+const routes = []; // (app) => void – eigene Endpunkte ohne Dashboard-Login (z. B. Webhooks)
 const registerAction = (name, fn) => actions.set(name, fn);
 const registerLive = (name, fn) => liveData.set(name, fn);
 const onSave = (fn) => afterSave.push(fn);
+const registerRoute = (fn) => routes.push(fn);
 
 const sessions = () => bucket('dashboardSessions', 'all'); // id → { user, guilds, expiresAt }
 const secret = () => process.env.DASHBOARD_SECRET || process.env.DISCORD_TOKEN;
@@ -69,6 +71,8 @@ function createApp(client) {
     res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin' });
     next();
   });
+
+  for (const fn of routes) fn(app, { rateLimited });
 
   // ---------- Login ----------
 
@@ -254,4 +258,4 @@ function startDashboard(client) {
   createApp(client).listen(port, () => console.log(`✅ Dashboard läuft auf Port ${port} → ${process.env.DASHBOARD_URL}`));
 }
 
-module.exports = { startDashboard, createApp, registerAction, registerLive, onSave, validateChange, EDITABLE };
+module.exports = { startDashboard, createApp, registerAction, registerLive, onSave, registerRoute, validateChange, EDITABLE };

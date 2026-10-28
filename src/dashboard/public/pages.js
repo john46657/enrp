@@ -799,4 +799,150 @@ page({
     },
   ],
 });
+
+// ---------- Social Media: TikTok LIVE ----------
+
+const TT_STATUS = { live: ['🔴 Live', 'red'], offline: ['⚫ Offline', ''], unknown: ['❔ Unbekannt', 'yellow'] };
+const ago = (ms) => (ms ? `${fmtTime(ms)}` : 'noch nie');
+page({
+  id: 'tiktok',
+  group: 'Social Media',
+  title: 'TikTok LIVE',
+  icon: '🎵',
+  requires: 'tiktok',
+  enabledPath: 'tiktok.enabled',
+  offText: 'Es werden keine LIVE-Benachrichtigungen gesendet.',
+  desc: 'Benachrichtigt einen Discord-Kanal, wenn ein Creator aus eurer Community auf TikTok live geht.',
+  sections: () => [
+    {
+      title: 'Erkennung',
+      desc: 'TikTok bietet aktuell keine offizielle Schnittstelle für den Live-Status. Ohne verbundenen Provider funktionieren nur manuelle Ankündigungen (<code>/tiktok-live announce</code>).',
+      render: () =>
+        liveBlock('tiktok', ({ provider: p }) =>
+          h(
+            'div',
+            {},
+            h(
+              'div',
+              { class: `banner${p.connected ? ' on' : ''}`, style: 'margin-bottom:16px' },
+              h('div', {}, h('b', {}, p.connected ? 'Automatische Erkennung verbunden' : 'Automatische Erkennung nicht verbunden'), h('span', {}, `${p.label} – ${p.detail}`)),
+            ),
+            h(
+              'div',
+              { class: 'stats-grid' },
+              [
+                ['Letzte erfolgreiche Prüfung', ago(p.lastSuccessAt)],
+                ['Letzter Durchlauf', ago(p.lastRunAt)],
+                ['Fehler in Folge', p.failures ?? 0],
+              ].map(([label, value]) => h('div', { class: 'stat' }, h('div', { class: 'label' }, label), h('div', { style: 'font-size:16px;font-weight:600' }, value))),
+            ),
+            p.lastError && h('p', { class: 'help' }, `Letzter Fehler: ${p.lastError}`),
+          ),
+        ),
+    },
+    {
+      title: 'Einstellungen',
+      fields: [
+        { t: 'select', p: 'tiktok.provider', label: 'Erkennungs-Provider', options: [['none', 'Keiner (nur manuell)'], ['webhook', 'Webhook (externer, autorisierter Dienst)']], help: 'Webhook braucht <code>TIKTOK_WEBHOOK_SECRET</code> in der .env – siehe docs/tiktok-live.md.' },
+        { t: 'number', p: 'tiktok.pollSeconds', label: 'Prüfintervall (Sekunden, mind. 60)', min: 60, max: 3600 },
+        { t: 'channel', p: 'tiktok.channel', label: 'Benachrichtigungskanal' },
+        { t: 'role', p: 'tiktok.role', label: 'Rolle erwähnen (optional)', empty: '— Niemanden erwähnen —', help: '@everyone und @here werden nie erwähnt.' },
+        { t: 'roles', p: 'tiktok.manualRoles', label: 'Dürfen manuell ankündigen', help: 'Zusätzlich zu Admins. Creator und Einstellungen verwalten nur Admins.' },
+        { t: 'toggle', p: 'tiktok.endMessages', label: 'LIVE-Ende-Meldung senden' },
+        { t: 'number', p: 'tiktok.endGraceMinutes', label: 'Toleranz bis „beendet“ (Minuten)', min: 1, max: 120, help: 'Erst wenn der Creator so lange durchgehend offline gemeldet wird, gilt der Stream als beendet. Unbekannter Status beendet nie.' },
+      ],
+    },
+    {
+      title: 'Nachrichtenvorlage',
+      desc: 'Platzhalter: <code>{brand}</code> <code>{creator}</code> <code>{url}</code>',
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('tiktok-test', {}, '🧪 Testnachricht gesendet (ohne Erwähnung)') }, 'Testnachricht senden'),
+      fields: [
+        { t: 'text', p: 'tiktok.template.title', label: 'Titel (LIVE)', max: 200 },
+        { t: 'text', p: 'tiktok.template.color', label: 'Farbe', placeholder: '#FE2C55', max: 7 },
+        { t: 'textarea', p: 'tiktok.template.text', label: 'Text (LIVE)', wide: true, max: 2000 },
+        { t: 'text', p: 'tiktok.template.footer', label: 'Fußzeile', max: 200 },
+        { t: 'text', p: 'tiktok.endTemplate.title', label: 'Titel (LIVE beendet)', max: 200 },
+        { t: 'textarea', p: 'tiktok.endTemplate.text', label: 'Text (LIVE beendet)', wide: true, max: 2000 },
+      ],
+    },
+    {
+      title: 'Creator',
+      desc: 'Hinzufügen, Entfernen und Pausieren wirkt sofort (ohne „Speichern“).',
+      render: () => {
+        const input = h('input', { type: 'text', placeholder: '@benutzername oder Profil-Link', maxlength: 100 });
+        const act = (name, body, msg) => runAction(name, body, msg).then(render);
+        return h(
+          'div',
+          {},
+          liveBlock('tiktok', ({ creators }) =>
+            creators.length
+              ? h(
+                  'table',
+                  {},
+                  h('tr', {}, h('th', {}, 'Creator'), h('th', {}, 'Status'), h('th', {}, 'Zuletzt erfolgreich geprüft'), h('th', {}, 'Fehler'), h('th', {})),
+                  creators.map((c) => {
+                    const [label, color] = TT_STATUS[c.status] ?? [c.status, ''];
+                    return h(
+                      'tr',
+                      {},
+                      h('td', {}, h('a', { href: `https://www.tiktok.com/@${c.username}`, target: '_blank', rel: 'noopener' }, `@${c.username}`)),
+                      h('td', {}, h('span', { class: `badge ${color}` }, label), !c.enabled && h('span', { class: 'badge', style: 'margin-left:6px' }, 'pausiert')),
+                      h('td', {}, ago(c.lastSuccessAt)),
+                      h('td', { class: 'small muted' }, c.lastError ?? '—'),
+                      h(
+                        'td',
+                        { style: 'white-space:nowrap' },
+                        h('button', { class: 'btn ghost small', onclick: () => act('tiktok-toggle', { username: c.username, enabled: !c.enabled }, c.enabled ? 'Pausiert' : 'Aktiviert') }, c.enabled ? 'Pausieren' : 'Aktivieren'),
+                        h('button', { class: 'btn ghost small', onclick: () => confirm(`@${c.username} entfernen?`) && act('tiktok-remove', { username: c.username }, 'Entfernt') }, 'Entfernen'),
+                      ),
+                    );
+                  }),
+                )
+              : h('div', { class: 'empty' }, 'Noch keine Creator.'),
+          ),
+          h('div', { class: 'card-body', style: 'padding:16px 0 0' }, input, h('button', { class: 'btn primary', onclick: () => input.value.trim() && act('tiktok-add', { username: input.value.trim() }, 'Creator hinzugefügt') }, 'Creator hinzufügen')),
+        );
+      },
+    },
+    {
+      title: 'Historie',
+      desc: 'Erkannte und manuell angekündigte Live-Sessions (die letzten 50).',
+      render: () =>
+        liveBlock('tiktok', ({ sessions }) =>
+          sessions.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Creator'), h('th', {}, 'Quelle'), h('th', {}, 'Beginn'), h('th', {}, 'Ende'), h('th', {}, 'Nachricht')),
+                sessions.map((s) =>
+                  h(
+                    'tr',
+                    {},
+                    h('td', {}, s.username ? `@${s.username}` : s.url),
+                    h('td', {}, s.source === 'manual' ? 'manuell' : 'automatisch'),
+                    h('td', {}, fmtTime(s.startedAt)),
+                    h('td', {}, s.source === 'manual' ? '—' : s.endedAt ? fmtTime(s.endedAt) : 'läuft / unbekannt'),
+                    h('td', {}, s.notified ? h('span', { class: 'badge green' }, 'gesendet') : h('span', { class: 'badge red', title: s.notifyError ?? '' }, s.notifyError ?? 'nicht gesendet')),
+                  ),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Live-Sessions.'),
+        ),
+    },
+    {
+      title: 'Ereignis- und Fehlerprotokoll',
+      render: () =>
+        liveBlock('tiktok', ({ events }) =>
+          events.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Zeit'), h('th', {}, 'Art'), h('th', {}, 'Meldung')),
+                events.map((e) => h('tr', {}, h('td', { style: 'white-space:nowrap' }, fmtTime(e.at)), h('td', {}, h('span', { class: `badge ${e.level === 'error' ? 'red' : e.level === 'warn' ? 'yellow' : ''}` }, e.type)), h('td', {}, e.message))),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Ereignisse.'),
+        ),
+    },
+  ],
+});
 })();

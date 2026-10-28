@@ -15,6 +15,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
 | 👥 **Teamverwaltung** | Team-Rollen mit Rechten · `/team verwarnen\|verwarnungen\|verwarnung-entfernen` mit Ablauf, Warn-Rollen, öffentlichem Post · `/team rang` (Up-/Downrank mit Fall-Nummer, Log, DM, Ankündigung, optional Angebot zum Annehmen) · Live-Teamliste · `/abwesend` `/zurueck` mit Abwesenheitsliste und -rolle |
+| 🎵 **TikTok LIVE** | `/tiktok-live add\|remove\|list\|channel\|role\|test\|announce\|status\|settings` · LIVE-Ankündigung und optionale Endmeldung · austauschbare Erkennung (keine offizielle TikTok-API → manuell oder autorisierter Webhook) – **[docs/tiktok-live.md](docs/tiktok-live.md)** |
 | 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
 | ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
@@ -158,7 +159,7 @@ Der Bot braucht dafür „Kanäle verwalten“. Discord erlaubt nur zwei Umbenen
 aktualisiert sich ein Kanal höchstens alle 5 Minuten.
 
 Nach jeder Änderung an `config.json` den Bot neu starten. Mit `npm run check` kannst du vorher
-prüfen, ob die Konfiguration gültig ist.
+prüfen, ob die Konfiguration gültig ist; `npm test` führt die automatischen Tests aus.
 
 ### Einstellungen direkt in Discord (`/einstellungen`)
 
