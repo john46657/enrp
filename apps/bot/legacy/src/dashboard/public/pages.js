@@ -626,6 +626,539 @@ page({
   ],
 });
 
+// ---------- Bewerbungen ----------
+
+const APP_STATUS_COLOR = { ACCEPTED: 'green', REJECTED: 'red', WITHDRAWN: '', SUBMITTED: 'yellow', SCREENING: 'yellow', INTERVIEW: 'yellow', PENDING_DECISION: 'yellow', OPEN: 'yellow' };
+const AI_LABEL = { gering: ['🟢 KI gering', 'green'], mittel: ['🟡 KI mittel', 'yellow'], hoch: ['🔴 KI hoch', 'red'] };
+const appTypes = () => state.draft.applications?.types ?? [];
+const appType = (id) => appTypes().find((t) => t.id === id);
+const appTypeName = (id) => (appType(id) ? `${appType(id).emoji} ${appType(id).name}` : id);
+const appGuild = () => state.guild.guild.id;
+
+// Aktion ausführen und bei Erfolg true liefern (Fehler als Hinweis).
+async function act(name, body, success) {
+  try {
+    await Dash.api(`/api/guilds/${appGuild()}/actions/${name}`, { method: 'POST', body });
+    Dash.toast(success ?? '✅ Erledigt');
+    return true;
+  } catch (err) {
+    Dash.toast(err.message, true);
+    return false;
+  }
+}
+
+// Bewerbungsliste: einmal laden, danach nur neu zeichnen (Filter behalten den Fokus).
+const apps = { guildId: null, data: null, error: null, filter: { status: 'open', type: '', q: '' }, open: new Set() };
+async function loadApps(redraw) {
+  apps.guildId = appGuild();
+  try {
+    apps.data = await live('applications');
+    apps.error = null;
+  } catch (err) {
+    apps.error = err.message;
+  }
+  redraw();
+}
+
+function filteredApps() {
+  const { status, type, q } = apps.filter;
+  const text = q.trim().toLowerCase();
+  return apps.data.records.filter(
+    (r) =>
+      (status === 'all' || (status === 'open' ? !apps.data.final.includes(r.status) : r.status === status)) &&
+      (!type || r.type === type) &&
+      (!text || [r.number, r.userName, r.userId, r.roblox?.name, appType(r.type)?.name, ...r.answers.map((a) => a.answer)].some((v) => String(v ?? '').toLowerCase().includes(text))),
+  );
+}
+
+function csvExport() {
+  const rows = [['Nummer', 'Art', 'Status', 'Bewerber', 'Discord-ID', 'Roblox', 'Eingereicht', 'Entschieden', 'Entschieden von', 'Grund']];
+  const questions = [...new Set(apps.data.records.flatMap((r) => r.answers.map((a) => a.question)))];
+  rows[0].push(...questions);
+  for (const r of filteredApps()) {
+    const answer = (q) => r.answers.find((a) => a.question === q)?.answer ?? '';
+    rows.push([r.number, appType(r.type)?.name ?? r.type, apps.data.status[r.status], r.userName, r.userId, r.roblox?.name ?? '', fmtTime(r.createdAt), fmtTime(r.decidedAt), r.decidedByName ?? r.decidedBy ?? '', r.reason ?? '', ...questions.map(answer)]);
+  }
+  const csv = rows.map((row) => row.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const a = h('a', { href: URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv' })), download: `bewerbungen-${new Date().toISOString().slice(0, 10)}.csv` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
+function appDetail(r, redraw) {
+  const reload = () => loadApps(redraw);
+  const final = apps.data.final.includes(r.status);
+  const info = [
+    ['Discord', `${r.userName} (${r.userId})`],
+    r.roblox && ['Roblox', h('a', { href: `https://www.roblox.com/users/${r.roblox.id}/profile`, target: '_blank', rel: 'noopener' }, `${r.roblox.name} (ID ${r.roblox.id})`)],
+    ['Eingereicht', fmtTime(r.createdAt)],
+    r.durationMs && ['Dauer', `${Math.round(r.durationMs / 60_000)} Min.`],
+    r.joinedAt && ['Auf dem Server seit', fmtTime(r.joinedAt)],
+    r.accountCreatedAt && ['Discord-Konto seit', fmtTime(r.accountCreatedAt)],
+    r.decidedAt && ['Entschieden', `${fmtTime(r.decidedAt)} von ${r.decidedByName ?? r.decidedBy ?? 'System'}`],
+    r.reason && ['Grund', r.reason],
+    r.roleSelections?.length && ['Rollen bei Annahme', r.roleSelections.map((id) => `@${roleName(id) ?? id}`).join(', ')],
+    r.ai && ['KI-Checker', `${AI_LABEL[r.ai.level]?.[0] ?? r.ai.level}${r.ai.reasons.length ? ` – ${r.ai.reasons.join(' · ')}` : ''}`],
+  ].filter(Boolean);
+
+  const noteInput = h('textarea', { rows: 2, maxlength: 1000, placeholder: 'Interne Notiz (sieht nur das Team)' });
+  const decide = async (action) => {
+    const reason = prompt(`${action === 'accept' ? 'Annehmen' : 'Ablehnen'} – Grund (optional, geht per DM an die Person):`, '');
+    if (reason === null) return;
+    if (await act('app-decide', { number: r.number, action, reason }, action === 'accept' ? '✅ Angenommen' : '❌ Abgelehnt')) reload();
+  };
+  return h(
+    'div',
+    { class: 'field wide' },
+    h('table', {}, info.map(([k, v]) => h('tr', {}, h('td', { class: 'muted', style: 'width:200px' }, k), h('td', {}, v)))),
+    h('h3', {}, 'Antworten'),
+    r.answers.map((a, i) => h('div', { style: 'margin-bottom:12px' }, h('b', {}, `${i + 1}. ${a.question}`), h('div', { style: 'white-space:pre-wrap' }, a.answer || '—'))),
+    h('h3', {}, 'Verlauf'),
+    h('table', {}, r.history.map((e) => h('tr', {}, h('td', { style: 'white-space:nowrap' }, fmtTime(e.at)), h('td', {}, apps.data.status[e.status] ?? e.status), h('td', {}, e.byName ?? e.by ?? 'System'), h('td', {}, e.reason ?? '')))),
+    h('h3', {}, `Notizen (${r.notes.length})`),
+    r.notes.map((n) => h('div', { style: 'margin-bottom:8px' }, h('span', { class: 'muted small' }, `${fmtTime(n.at)} · ${n.byName ?? n.by}`), h('div', { style: 'white-space:pre-wrap' }, n.text))),
+    noteInput,
+    h(
+      'div',
+      { class: 'pills', style: 'margin-top:10px' },
+      h('button', { class: 'btn small', onclick: async () => noteInput.value.trim() && (await act('app-note', { number: r.number, text: noteInput.value }, 'Notiz gespeichert')) && reload() }, 'Notiz speichern'),
+      !final && r.transitions.filter((s) => s !== 'ACCEPTED' && s !== 'REJECTED').map((s) => h('button', { class: 'btn small', onclick: async () => confirm(`Status auf „${apps.data.status[s]}“ setzen?`) && (await act('app-status', { number: r.number, status: s }, 'Status geändert')) && reload() }, s === 'WITHDRAWN' ? 'Zurückziehen' : `→ ${apps.data.status[s]}`)),
+      !final && (r.transitions.length === 0 || r.transitions.includes('ACCEPTED')) && h('button', { class: 'btn primary small', onclick: () => decide('accept') }, 'Annehmen'),
+      !final && h('button', { class: 'btn danger small', onclick: () => decide('reject') }, 'Ablehnen'),
+      r.link && h('a', { class: 'btn ghost small', href: r.link, target: '_blank', rel: 'noopener' }, 'In Discord öffnen'),
+      h('button', { class: 'btn ghost small', onclick: async () => confirm(`Bewerbung ${r.number} endgültig löschen?`) && (await act('app-delete', { number: r.number }, 'Gelöscht')) && reload() }, 'Löschen'),
+    ),
+  );
+}
+
+function appList() {
+  const box = h('div', { class: 'muted' }, 'Lädt …');
+  const redraw = () => {
+    if (apps.error) return setChildren(box, h('span', {}, apps.error));
+    if (!apps.data) return;
+    const list = filteredApps();
+    setChildren(
+      box,
+      list.length
+        ? list.slice(0, 200).map((r) => {
+            const key = r.number;
+            const open = apps.open.has(key);
+            return listItem(
+              {
+                title: `${r.number} · ${r.userName}`,
+                subtitle: `${appTypeName(r.type)} · ${fmtTime(r.createdAt)}`,
+                badges: [r.ai && AI_LABEL[r.ai.level] && h('span', { class: `badge ${AI_LABEL[r.ai.level][1]}` }, AI_LABEL[r.ai.level][0]), h('span', { class: `badge ${APP_STATUS_COLOR[r.status] ?? ''}` }, apps.data.status[r.status] ?? r.status)],
+                open,
+                onToggle: () => (open ? apps.open.delete(key) : apps.open.add(key), redraw()),
+              },
+              open && appDetail(r, redraw),
+            );
+          })
+        : h('div', { class: 'empty' }, 'Keine Bewerbungen für diesen Filter.'),
+      list.length > 200 && h('div', { class: 'muted small' }, `Nur die ersten 200 von ${list.length} – Filter oder Suche verwenden.`),
+    );
+  };
+  if (apps.data && apps.guildId === appGuild()) redraw();
+  loadApps(redraw);
+
+  const f = apps.filter;
+  const statusOptions = [['open', 'Offen (alle Schritte)'], ['all', 'Alle'], ...Object.entries({ ACCEPTED: 'Angenommen', REJECTED: 'Abgelehnt', WITHDRAWN: 'Zurückgezogen', SUBMITTED: 'Eingereicht', SCREENING: 'In Prüfung', INTERVIEW: 'Gespräch', PENDING_DECISION: 'Entscheidung ausstehend' })];
+  const bind = (key) => ({ get: () => f[key], set: (v) => ((f[key] = v), redraw()) });
+  return h(
+    'div',
+    {},
+    h(
+      'div',
+      { class: 'item-body', style: 'padding:0 0 16px' },
+      ui.field({ label: 'Status' }, ui.select(bind('status'), statusOptions)),
+      ui.field({ label: 'Art' }, ui.select(bind('type'), [['', 'Alle Arten'], ...appTypes().map((t) => [t.id, `${t.emoji} ${t.name}`])])),
+      ui.field({ label: 'Suche' }, ui.text(bind('q'), { placeholder: 'Nummer, Name, Art, Roblox, Antwort …' })),
+    ),
+    box,
+  );
+}
+
+page({
+  id: 'applications',
+  group: 'Bewerbungen',
+  title: 'Bewerbungen',
+  icon: '📋',
+  requires: 'applications',
+  desc: 'Eingegangene Bewerbungen ansehen, annehmen oder ablehnen. Entscheidungen hier wirken genau wie die Buttons in Discord: DM an die Person, Rollen, Team-Nachricht und Archiv-Kanal.',
+  sections: () => [
+    {
+      title: 'Eingänge',
+      actions: () => h('div', { class: 'pills' }, h('button', { class: 'btn small', onclick: () => apps.data && csvExport() }, 'CSV-Export'), h('button', { class: 'btn ghost small', onclick: () => render() }, 'Neu laden')),
+      render: appList,
+    },
+    {
+      title: 'Gerade in Bearbeitung',
+      desc: 'Personen, die gerade per DM eine Bewerbung ausfüllen.',
+      render: () =>
+        liveBlock('app-progress', (list) =>
+          list.length
+            ? h('table', {}, h('tr', {}, h('th', {}, 'Person'), h('th', {}, 'Art'), h('th', {}, 'Frage'), h('th', {}, 'Seit')), list.map((p) => h('tr', {}, h('td', {}, p.userName), h('td', {}, appTypeName(p.type)), h('td', {}, `${p.step + 1}/${p.questions}`), h('td', {}, `${p.minutes} Min.`))))
+            : h('div', { class: 'empty' }, 'Gerade füllt niemand eine Bewerbung aus.'),
+        ),
+    },
+  ],
+});
+
+// Einrichtung: Bewerbungsarten mit Fragen, Rollen, Kanälen und Texten.
+const Q_TYPES = [['TEXT', 'Freitext'], ['CHOICE', 'Auswahl'], ['ROLE', 'Rollen-Auswahl'], ['ROBLOX', 'Roblox-Benutzer']];
+const slug = (text) => text.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+
+function questionEditor(t, q, k) {
+  const L = 'applications.types';
+  const b = (key) => bindItem(L, q, key);
+  const move = (dir) => {
+    const j = k + dir;
+    if (j < 0 || j >= t.questions.length) return;
+    [t.questions[k], t.questions[j]] = [t.questions[j], t.questions[k]];
+    markDirty(L);
+    render();
+  };
+  const setType = (value) => {
+    q.type = value;
+    if (value === 'CHOICE' || value === 'ROLE') q.options ??= [];
+    if (value === 'ROLE') q.options = q.options.filter((o) => o.roleId);
+    markDirty(L);
+    render();
+  };
+  return h(
+    'div',
+    { class: 'item' },
+    h(
+      'div',
+      { class: 'item-body', style: 'padding-top:14px' },
+      ui.field({ label: `Frage ${k + 1}`, wide: true }, ui.text(b('label'), { max: 300 })),
+      ui.field({ label: 'Art' }, ui.select({ get: () => q.type, set: setType }, Q_TYPES)),
+      ui.field({}, ui.toggle({ get: () => q.required !== false, set: (v) => b('required').set(v) }, 'Pflichtfrage')),
+      q.type === 'TEXT' && ui.field({ label: 'Mindestlänge' }, ui.number(b('min'), { min: 0, max: 4000 })),
+      q.type === 'TEXT' && ui.field({ label: 'Höchstlänge' }, ui.number(b('max'), { min: 1, max: 5000 })),
+      (q.type === 'CHOICE' || q.type === 'ROLE') && ui.field({}, ui.toggle(b('multiple'), 'Mehrere Antworten erlaubt')),
+      q.type === 'CHOICE' &&
+        ui.field(
+          { label: 'Antwortmöglichkeiten', help: 'Eine je Zeile, höchstens 25.', wide: true },
+          ui.lines({ get: () => q.options.map((o) => o.label), set: (v) => b('options').set(v.slice(0, 25).map((label) => ({ label: label.slice(0, 100) }))) }),
+        ),
+      q.type === 'ROLE' &&
+        ui.field(
+          { label: 'Rollen zur Auswahl', help: 'Die gewählten Rollen bekommt die Person bei Annahme.', wide: true },
+          ui.roles({ get: () => q.options.map((o) => o.roleId), set: (ids) => b('options').set(ids.slice(0, 25).map((id) => ({ label: roleName(id) ?? id, roleId: id }))) }),
+        ),
+      h(
+        'div',
+        { class: 'field wide' },
+        h(
+          'div',
+          { class: 'pills' },
+          h('button', { class: 'btn ghost small', onclick: () => move(-1) }, '↑'),
+        h('button', { class: 'btn ghost small', onclick: () => move(1) }, '↓'),
+          h('button', { class: 'btn ghost small', onclick: () => confirm('Frage entfernen?') && (t.questions.splice(k, 1), markDirty(L), render()) }, 'Frage entfernen'),
+        ),
+      ),
+    ),
+  );
+}
+
+function appTypeEditor(t, i) {
+  const L = 'applications.types';
+  const list = appTypes();
+  const b = (key) => bindItem(L, t, key);
+  const sub = (obj) => (key) => bindItem(L, obj, key);
+  const ch = sub(t.channels);
+  const ro = sub(t.roles);
+  const msg = sub(t.messages);
+  const open = openItems.has(`app-${t.id}`);
+  return listItem(
+    {
+      title: `${t.emoji || '📝'} ${t.name}`,
+      subtitle: `${t.questions.length} Fragen · ${t.panel === 'apply' ? 'Bewerbungs-Panel' : 'Einheiten-Panel'} · Nummern ${t.numberPrefix}-0001`,
+      badges: [t.enabled ? h('span', { class: 'badge green' }, 'Offen') : h('span', { class: 'badge red' }, 'Geschlossen')],
+      open,
+      onToggle: toggleOpen(`app-${t.id}`),
+      onRemove: () => list.length > 1 && confirm(`Bewerbungsart „${t.name}“ entfernen? Bisherige Bewerbungen dieser Art werden dann nicht mehr angezeigt.`) && (list.splice(i, 1), markDirty(L), render()),
+    },
+    open && [
+      ui.field({ label: 'Name' }, ui.text(b('name'), { max: 60 })),
+      ui.field({ label: 'Emoji' }, ui.text(b('emoji'), { max: 40 })),
+      ui.field({ label: 'Nummern-Kürzel', help: 'z. B. APP → APP-0001' }, ui.text({ get: () => t.numberPrefix, set: (v) => b('numberPrefix').set(v.toUpperCase()) }, { max: 6 })),
+      ui.field({ label: 'Beschreibung', wide: true }, ui.text(b('description'), { max: 100 })),
+      ui.field({}, ui.toggle(b('enabled'), 'Bewerbungen offen')),
+      ui.field({ label: 'Panel' }, ui.select(b('panel'), [['apply', 'Bewerbungs-Panel'], ['quali', 'Einheiten-Panel']])),
+      ui.field({ label: 'Ablauf', help: 'Polizei: Eingereicht → In Prüfung → Gespräch → Entscheidung.' }, ui.select(b('workflow'), [['simple', 'Einfach (annehmen/ablehnen)'], ['police', 'Mit Prüfschritten (Polizei)']])),
+
+      h('h3', { class: 'field wide' }, `Fragen (${t.questions.length}/50)`),
+      h(
+        'div',
+        { class: 'field wide' },
+        t.questions.map((q, k) => questionEditor(t, q, k)),
+        t.questions.length < 50 &&
+          h(
+            'button',
+            {
+              class: 'btn small',
+              onclick: () => {
+                let n = t.questions.length + 1;
+                while (t.questions.some((q) => q.key === `frage${n}`)) n++;
+                t.questions.push({ key: `frage${n}`, type: 'TEXT', label: 'Neue Frage', required: true, min: 0, max: 1000 });
+                markDirty(L);
+                render();
+              },
+            },
+            '+ Frage hinzufügen',
+          ),
+      ),
+
+      h('h3', { class: 'field wide' }, 'Kanäle'),
+      ui.field({ label: 'Neue Bewerbungen', help: 'Leer = allgemeiner Kanal unten.' }, ui.channel(ch('open'), { empty: '— Allgemeiner Kanal —' })),
+      ui.field({ label: 'Angenommene zusätzlich in' }, ui.channel(ch('accepted'))),
+      ui.field({ label: 'Abgelehnte zusätzlich in' }, ui.channel(ch('rejected'))),
+      ui.field({}, ui.toggle(b('teamThreads'), 'Für jede Bewerbung einen Team-Thread erstellen')),
+
+      h('h3', { class: 'field wide' }, 'Rollen'),
+      ui.field({ label: 'Pingen bei neuer Bewerbung' }, ui.roles(ro('ping'))),
+      ui.field({ label: 'Dürfen entscheiden', help: 'Zusätzlich zu Staff.' }, ui.roles(ro('managers'))),
+      ui.field({ label: 'Nötige Rollen' }, ui.roles(ro('required'))),
+      ui.field({ label: 'Nötig sind' }, ui.select(ro('requiredMode'), [['all', 'alle diese Rollen'], ['any', 'eine davon']])),
+      ui.field({ label: 'Gesperrte Rollen' }, ui.roles(ro('blocked'))),
+      ui.field({ label: 'Gesperrt bei' }, ui.select(ro('blockedMode'), [['any', 'einer davon'], ['all', 'allen davon']])),
+      ui.field({ label: 'Ausstehend (beim Einreichen geben)' }, ui.roles(ro('pending'))),
+      ui.field({ label: 'Beim Einreichen entfernen' }, ui.roles(ro('removeOnSubmit'))),
+      ui.field({ label: 'Bei Annahme geben' }, ui.roles(ro('acceptAdd'))),
+      ui.field({ label: 'Bei Annahme entfernen' }, ui.roles(ro('acceptRemove'))),
+      ui.field({ label: 'Bei Ablehnung geben' }, ui.roles(ro('rejectAdd'))),
+      ui.field({ label: 'Bei Ablehnung entfernen' }, ui.roles(ro('rejectRemove'))),
+
+      h('h3', { class: 'field wide' }, 'Regeln'),
+      ui.field({ label: 'Wartezeit bis zur nächsten Bewerbung (Minuten)' }, ui.number(b('cooldownMinutes'), { min: 0, max: 525600 })),
+      ui.field({ label: 'Zeitlimit zum Ausfüllen (Minuten)' }, ui.number(b('timeLimitMinutes'), { min: 5, max: 10080 })),
+      ui.field({ label: 'Verlässt den Server' }, ui.select(b('onLeave'), [['NONE', 'Nichts tun'], ['WITHDRAW', 'Zurückziehen'], ['DENY', 'Ablehnen']])),
+
+      h('h3', { class: 'field wide' }, 'Texte'),
+      h('div', { class: 'field wide help' }, 'Variablen: {applicant} {applicationName} {number} {user} {reason} {questionCount} {timeLimit}. Fehlt {reason}, wird ein Grund automatisch angehängt.'),
+      ui.field({ label: 'Start (DM)', wide: true }, ui.textarea(msg('start'), { max: 2000, rows: 3 })),
+      ui.field({ label: 'Eingereicht (DM)', wide: true }, ui.textarea(msg('finish'), { max: 2000, rows: 3 })),
+      ui.field({ label: 'Angenommen (DM)', wide: true }, ui.textarea(msg('accept'), { max: 2000, rows: 3 })),
+      ui.field({ label: 'Abgelehnt (DM)', wide: true }, ui.textarea(msg('reject'), { max: 2000, rows: 3 })),
+    ],
+  );
+}
+
+function addAppType() {
+  const list = appTypes();
+  if (list.length >= 25) return Dash.toast('Höchstens 25 Bewerbungsarten.', true);
+  const name = prompt('Name der neuen Bewerbungsart (z. B. „Feuerwehr-Bewerbung“):');
+  if (!name?.trim()) return;
+  let id = slug(name) || 'art';
+  if (id.length < 2) id = `${id}-art`;
+  for (let n = 2; list.some((t) => t.id === id); n++) id = `${slug(name).slice(0, 20)}-${n}`;
+  const type = structuredClone(state.draft.applications.defaults);
+  Object.assign(type, { id, name: name.trim().slice(0, 60), numberPrefix: id.replace(/[^a-z0-9]/g, '').slice(0, 3).toUpperCase() || 'Q', questions: [{ key: 'frage1', type: 'TEXT', label: 'Warum möchtest du dabei sein?', required: true, min: 20, max: 1000 }] });
+  list.push(type);
+  openItems.add(`app-${id}`);
+  markDirty('applications.types');
+  render();
+}
+
+function panelPoster(kind) {
+  let channelId = '';
+  return h(
+    'div',
+    { class: 'pills', style: 'align-items:center' },
+    ui.channel({ get: () => channelId, set: (v) => (channelId = v) }, { empty: '— Kanal wählen —' }),
+    h('button', { class: 'btn small', onclick: () => (channelId ? runAction('app-panel-post', { kind, channelId }, '📨 Panel gesendet') : Dash.toast('Bitte zuerst einen Kanal wählen.', true)) }, 'Panel senden'),
+  );
+}
+
+page({
+  id: 'application-setup',
+  group: 'Bewerbungen',
+  title: 'Einrichtung',
+  icon: '🛠️',
+  requires: 'applications',
+  desc: 'Bewerbungsarten mit Fragen, Rollen und Texten. Gesendete Panels werden nach dem Speichern automatisch aktualisiert.',
+  sections: () => [
+    {
+      title: 'Bewerbungsarten',
+      desc: 'Die Fragen stellt der Bot nacheinander per Direktnachricht.',
+      actions: () => h('button', { class: 'btn primary small', onclick: addAppType }, `+ Neue Bewerbungsart (${appTypes().length}/25)`),
+      render: () => h('div', {}, appTypes().map(appTypeEditor)),
+    },
+    {
+      title: 'Allgemeine Kanäle',
+      desc: 'Hierhin gehen neue Bewerbungen, wenn bei der Art kein eigener Kanal eingestellt ist.',
+      fields: [
+        { t: 'channel', p: 'applications.channel', label: 'Bewerbungs-Panel → Team-Kanal' },
+        { t: 'channel', p: 'applications.qualiChannel', label: 'Einheiten-Panel → Team-Kanal' },
+      ],
+    },
+    {
+      title: 'Bewerbungs-Panel',
+      fields: [
+        { t: 'text', p: 'applications.panels.apply.title', label: 'Titel', max: 256 },
+        { t: 'text', p: 'applications.panels.apply.image', label: 'Bild-URL (optional)', max: 500 },
+        { t: 'textarea', p: 'applications.panels.apply.description', label: 'Text', wide: true, max: 3500 },
+      ],
+      actions: () => panelPoster('apply'),
+    },
+    {
+      title: 'Einheiten-Panel',
+      fields: [
+        { t: 'text', p: 'applications.panels.quali.title', label: 'Titel', max: 256 },
+        { t: 'text', p: 'applications.panels.quali.image', label: 'Bild-URL (optional)', max: 500 },
+        { t: 'textarea', p: 'applications.panels.quali.description', label: 'Text', wide: true, max: 3500 },
+      ],
+      actions: () => panelPoster('quali'),
+    },
+  ],
+});
+
+page({
+  id: 'application-bans',
+  group: 'Bewerbungen',
+  title: 'Sperren',
+  icon: '🚫',
+  requires: 'applications',
+  desc: 'Gesperrte Personen können sich nicht bewerben – per Discord-ID und/oder Roblox-Konto (greift auch bei neuem Discord-Konto).',
+  sections: () => [
+    {
+      title: 'Neue Sperre',
+      render: () => {
+        const form = { discordId: '', robloxName: '', scope: '*', reason: '', days: 0 };
+        const b = (key) => ({ get: () => form[key], set: (v) => (form[key] = v) });
+        return h(
+          'div',
+          { class: 'item-body', style: 'padding:0' },
+          ui.field({ label: 'Discord-ID', help: 'Rechtsklick auf die Person → „ID kopieren“ (Entwicklermodus).' }, ui.text(b('discordId'), { max: 20 })),
+          ui.field({ label: 'Roblox-Name' }, ui.text(b('robloxName'), { max: 20 })),
+          ui.field({ label: 'Gilt für' }, ui.select(b('scope'), [['*', 'Alle Bewerbungen'], ['police', 'Alle Polizei-Bewerbungen'], ...appTypes().map((t) => [t.id, `${t.emoji} ${t.name}`])])),
+          ui.field({ label: 'Tage (0 = unbegrenzt)' }, ui.number(b('days'), { min: 0, max: 3650 })),
+          ui.field({ label: 'Grund', wide: true }, ui.text(b('reason'), { max: 500 })),
+          h('div', { class: 'field wide' }, h('button', { class: 'btn danger small', onclick: async () => (await act('app-ban-add', form, '🚫 Sperre angelegt')) && render() }, 'Sperren')),
+        );
+      },
+    },
+    {
+      title: 'Sperren',
+      render: () =>
+        liveBlock('app-bans', (list) =>
+          list.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'ID'), h('th', {}, 'Person'), h('th', {}, 'Gilt für'), h('th', {}, 'Grund'), h('th', {}, 'Bis'), h('th', {}, '')),
+                list.map((ban) =>
+                  h(
+                    'tr',
+                    { style: ban.active ? '' : 'opacity:.5' },
+                    h('td', {}, ban.id),
+                    h('td', {}, [ban.discordId && `${ban.userName ?? ban.discordId}`, ban.robloxName && `Roblox ${ban.robloxName}`].filter(Boolean).join(' · ')),
+                    h('td', {}, ban.scopes.map((s) => (s === '*' ? 'Alle' : s === 'police' ? 'Polizei' : appTypeName(s))).join(', ')),
+                    h('td', {}, ban.reason),
+                    h('td', {}, ban.liftedAt ? 'aufgehoben' : ban.expiresAt ? fmtTime(ban.expiresAt) : 'unbegrenzt'),
+                    h('td', {}, ban.active && h('button', { class: 'btn ghost small', onclick: async () => confirm(`Sperre ${ban.id} aufheben?`) && (await act('app-ban-lift', { id: ban.id }, 'Sperre aufgehoben')) && render() }, 'Aufheben')),
+                  ),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Keine Sperren.'),
+        ),
+    },
+  ],
+});
+
+const pct = (v) => (v === null ? '—' : `${Math.round(v * 100)} %`);
+const dur = (ms) => (ms === null ? '—' : ms < 48 * 3_600_000 ? `${(ms / 3_600_000).toFixed(1).replace('.', ',')} Std.` : `${(ms / 86_400_000).toFixed(1).replace('.', ',')} Tage`);
+// Veränderung zum Zeitraum davor, z. B. „▲ 3 zum Zeitraum davor“.
+function trend(now, before, format) {
+  if (now === null || before === null) return null;
+  const diff = now - before;
+  const text = Math.abs(diff) < 1e-9 ? '±0' : `${diff > 0 ? '▲' : '▼'} ${format(Math.abs(diff))}`;
+  return h('div', { class: 'muted small' }, `${text} zum Zeitraum davor`);
+}
+let statsDays = 30;
+
+page({
+  id: 'application-stats',
+  group: 'Bewerbungen',
+  title: 'Statistik',
+  icon: '📊',
+  requires: 'applications',
+  desc: 'Kennzahlen im Vergleich zum Zeitraum davor. Verlauf, Arten, Prüfer und Heatmap über die letzten 90 Tage.',
+  sections: () => [
+    {
+      title: 'Kennzahlen',
+      actions: () => {
+        const select = ui.select({ get: () => String(statsDays), set: (v) => ((statsDays = Number(v)), render()) }, [['7', 'Letzte 7 Tage'], ['30', 'Letzte 30 Tage'], ['90', 'Letzte 90 Tage']]);
+        select.style.width = 'auto';
+        return select;
+      },
+      render: () =>
+        liveBlock('app-stats', (s) => {
+          const { current: c, previous: p } = s.periods[statsDays];
+          const tile = (label, value, change) => h('div', { class: 'stat' }, h('div', { class: 'label' }, label), h('div', { class: 'value' }, value), change);
+          return h(
+            'div',
+            { class: 'stats-grid' },
+            tile('Bewerbungen', String(c.count), trend(c.count, p.count, String)),
+            tile('Annahmequote', pct(c.acceptRate), trend(c.acceptRate, p.acceptRate, pct)),
+            tile('⌀ Bearbeitungszeit', dur(c.avgMs)),
+            tile('Offen', String(c.open)),
+            tile('Angenommen / Abgelehnt', `${c.accepted} / ${c.rejected}`),
+            tile('Zurückgezogen', String(c.withdrawn)),
+          );
+        }),
+    },
+    {
+      title: 'Eingänge je Tag (90 Tage)',
+      render: () =>
+        liveBlock('app-stats', ({ perDay }) => {
+          const max = Math.max(...perDay, 1);
+          return h(
+            'div',
+            { style: 'display:flex;align-items:flex-end;gap:2px;height:120px' },
+            perDay.map((v, i) => h('div', { title: `${new Date(Date.now() - (89 - i) * 86_400_000).toLocaleDateString('de-DE')}: ${v}`, style: `flex:1;min-width:2px;background:var(--accent);opacity:${v ? 1 : 0.15};height:${Math.max(2, (v / max) * 100)}%;border-radius:2px` })),
+          );
+        }),
+    },
+    {
+      title: 'Je Bewerbungsart (90 Tage)',
+      render: () =>
+        liveBlock('app-stats', ({ perType }) =>
+          h('table', {}, h('tr', {}, h('th', {}, 'Art'), h('th', {}, 'Gesamt'), h('th', {}, 'Angenommen'), h('th', {}, 'Abgelehnt'), h('th', {}, 'Offen'), h('th', {}, 'Quote')), perType.map((t) => h('tr', {}, h('td', {}, `${t.emoji} ${t.name}`), h('td', {}, t.count), h('td', {}, t.accepted), h('td', {}, t.rejected), h('td', {}, t.open), h('td', {}, pct(t.acceptRate))))),
+        ),
+    },
+    {
+      title: 'Top-Prüfer (90 Tage)',
+      render: () =>
+        liveBlock('app-stats', ({ topReviewers }) =>
+          topReviewers.length ? h('table', {}, topReviewers.map((r, i) => h('tr', {}, h('td', { style: 'width:40px' }, i + 1), h('td', {}, r.name), h('td', {}, `${r.count} Entscheidungen`)))) : h('div', { class: 'empty' }, 'Noch keine Entscheidungen.'),
+        ),
+    },
+    {
+      title: 'Eingänge nach Wochentag × Uhrzeit (90 Tage)',
+      render: () =>
+        liveBlock('app-stats', ({ heatmap }) => {
+          const max = Math.max(...heatmap.flat(), 1);
+          return h(
+            'div',
+            { style: 'overflow-x:auto' },
+            h(
+              'table',
+              { style: 'font-size:11px' },
+              h('tr', {}, h('th', {}, ''), Array.from({ length: 24 }, (_, hour) => h('th', { style: 'text-align:center;padding:2px' }, hour % 3 ? '' : hour))),
+              heatmap.map((row, d) =>
+                h('tr', {}, h('td', {}, DAYS[d][1]), row.map((v) => h('td', { title: `${v}`, style: `padding:0;height:18px;min-width:14px;background:var(--accent);opacity:${v ? 0.2 + (v / max) * 0.8 : 0.06}` }))),
+              ),
+            ),
+          );
+        }),
+    },
+  ],
+});
+
 // ---------- Zählen ----------
 
 page({

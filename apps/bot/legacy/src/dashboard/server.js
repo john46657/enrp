@@ -13,18 +13,20 @@ const API = 'https://discord.com/api/v10';
 const SESSION_DAYS = 7;
 const MAX_VALUE_BYTES = 60_000;
 
-// Top-Level-Bereiche, die das Dashboard ändern darf (applications bleibt in der config.json).
-const EDITABLE = ['timezone', 'channels', 'roles', 'welcome', 'tickets', 'leveling', 'roblox', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions', 'counting'];
+// Top-Level-Bereiche, die das Dashboard ändern darf (applications: Bewerbungsarten, Panels und Kanäle).
+const EDITABLE = ['timezone', 'channels', 'roles', 'welcome', 'tickets', 'leveling', 'roblox', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions', 'counting', 'applications'];
 
 // Module können Aktionen (Buttons) und Live-Daten fürs Dashboard anmelden.
 const actions = new Map(); // name → async (guild, body, member) => Ergebnis
 const liveData = new Map(); // name → async (guild) => Daten
 const afterSave = []; // (guild, paths) => Promise – z. B. Panels neu zeichnen
+const checks = []; // (config) => Fehlertext oder null – prüft die Einstellungen vor dem Speichern
 const routes = []; // (app) => void – eigene Endpunkte ohne Dashboard-Login (z. B. Webhooks)
 const registerAction = (name, fn) => actions.set(name, fn);
 const registerLive = (name, fn) => liveData.set(name, fn);
 const onSave = (fn) => afterSave.push(fn);
 const registerRoute = (fn) => routes.push(fn);
+const registerCheck = (fn) => checks.push(fn);
 
 const sessions = () => bucket('dashboardSessions', 'all'); // id → { user, guilds, expiresAt }
 const secret = () => process.env.DASHBOARD_SECRET || process.env.DISCORD_TOKEN;
@@ -207,8 +209,12 @@ function createApp(client) {
       if (error) return res.status(400).json({ error });
     }
     const guildId = req.guild.id;
-    const invalid = settings.invalidPath(guildId, changes);
+    const { invalid, config } = settings.preview(guildId, changes);
     if (invalid) return res.status(400).json({ error: `Unbekannte Einstellung: ${invalid}` });
+    for (const check of checks) {
+      const error = check(config);
+      if (error) return res.status(400).json({ error });
+    }
     for (const { path: p, value } of changes) settings.set(guildId, p, value ?? undefined);
     for (const fn of afterSave) await Promise.resolve(fn(req.guild, changes.map((c) => c.path))).catch((err) => console.error('[dashboard] afterSave:', err));
     console.log(`[dashboard] ${req.session.user.username} hat ${changes.length} Einstellung(en) auf „${req.guild.name}“ geändert`);
@@ -260,4 +266,4 @@ function startDashboard(client) {
   createApp(client).listen(port, () => console.log(`✅ Dashboard läuft auf Port ${port} → ${process.env.DASHBOARD_URL}`));
 }
 
-module.exports = { startDashboard, createApp, registerAction, registerLive, onSave, registerRoute, validateChange, EDITABLE };
+module.exports = { startDashboard, createApp, registerAction, registerLive, onSave, registerRoute, registerCheck, validateChange, EDITABLE };

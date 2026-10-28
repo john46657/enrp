@@ -7,8 +7,9 @@
 > landet mit Annehmen/Ablehnen-Buttons im Team-Kanal → die Entscheidung geht per DM an die Person, Rollen werden
 > automatisch vergeben/entfernt.
 
-Alles läuft in Discord. Was die Web-Version zusätzlich kann (Browser-Formular, Dashboard, …), steht unter
-[13. Nicht enthalten](#13-nicht-enthalten).
+Alles läuft in Discord. Im Web-Dashboard (Gruppe **Bewerbungen**) gibt es zusätzlich: Liste mit Filter und Suche,
+Annehmen/Ablehnen mit Grund, Prüfschritte, interne Notizen, CSV-Export, Sperren, Statistik und die Einrichtung der
+Bewerbungsarten mit Fragen, Rollen, Kanälen und Texten. Was fehlt, steht unter [13. Nicht enthalten](#13-nicht-enthalten).
 
 ---
 
@@ -147,8 +148,9 @@ Kanal für neue Bewerbungen: `channels.open` der Art. Ist er leer, gilt bei Arte
 
 ## 6. Einrichtung
 
-Einstellen kannst du per `config.json` (alles, Vorlage für alle Server) oder per `/einstellungen bewerbung` und
-`/einstellungen bewerbungs-kanaele` (die wichtigsten Werte, ohne Neustart, nur für den jeweiligen Server).
+Einstellen kannst du im **Dashboard → Bewerbungen → Einrichtung** (alles inkl. Fragen, ohne Neustart, nur für den
+jeweiligen Server), per `/einstellungen bewerbung` und `/einstellungen bewerbungs-kanaele` (die wichtigsten Werte) oder
+in der `config.json` (Vorlage für alle Server).
 
 ### 6.1 Panels
 - **Bewerbungs-Panel** (`applications.panels.apply`: Titel, Beschreibung, Bild): Bei einer Art erscheint der Button
@@ -316,16 +318,14 @@ Gespeichert wird in `data/db.json` (keine externe Datenbank):
 
 ## 13. Nicht enthalten
 
-Diese Teile der Web-Version brauchen einen Webserver mit Datenbank und Login. Der Bot hat keinen, deshalb fehlen sie
-oder sind durch Discord-Funktionen ersetzt:
+Diese Teile der Web-Version fehlen oder sind durch Discord-Funktionen ersetzt:
 
 | Web-Version | Hier |
 |---|---|
 | Browser-Formular mit signiertem Link (`mode: 'WEB'`) | nicht enthalten – nur Fragen per DM |
 | öffentliche Seite `/apply` ohne Discord | nicht enthalten |
-| Dashboard (Liste, Einrichtung, Statistik, Sperren) | `/bewerbungen`, `/einstellungen`, `/bewerbungssperre`, `config.json` |
 | Rechte-System mit Konten (`applications.decide` …) | Staff + Manager-Rollen je Bewerbung |
-| Benachrichtigungen und Audit-Log im Dashboard | Team-Kanal, Team-Thread, Mod-Log |
+| Benachrichtigungen und Audit-Log im Dashboard | Team-Kanal, Team-Thread, Mod-Log (Dashboard-Aktionen werden dort auch gemeldet) |
 | Team-Chance (Bewerbungsphasen) | nicht enthalten – `enabled` per `/einstellungen bewerbung` umschalten |
 | Personal-/Dienstnummern-Automatik | nicht enthalten |
 | SEK-Mitgliedschaft über verknüpftes Konto | Rolle per `acceptAdd` |
@@ -339,7 +339,7 @@ oder sind durch Discord-Funktionen ersetzt:
    **Qualifikations-Kanal** setzen.
 2. Je Bewerbungsart mindestens die **Manager-Rolle** und die **Annahme-Rolle** setzen:
    `/einstellungen bewerbung art:Polizei-Bewerbung manager_rolle:@Ausbilder annahme_rolle:@Polizeianwärter`.
-   Fragen und Texte passt du in der `config.json` an.
+   Fragen und Texte passt du im Dashboard unter **Bewerbungen → Einrichtung** an.
 3. Im Panel-Kanal `/bewerbungspanel` bzw. `/qualipanel` ausführen.
 4. Eine Testbewerbung mit einem zweiten Konto durchspielen:
    - DM-Fragen beantworten

@@ -90,11 +90,13 @@ function set(guildId, path, value) {
   db.save();
 }
 
-// Prüft Änderungen an einer Kopie, ohne zu speichern. Gibt den ersten ungültigen Pfad zurück (oder null).
-function invalidPath(guildId, changes) {
-  const copy = structuredClone(forGuild(guildId));
-  return changes.find(({ path, value }) => !apply(copy, path, value))?.path ?? null;
+// Wendet Änderungen auf eine Kopie an, ohne zu speichern: { invalid: erster ungültiger Pfad oder null, config: Kopie }.
+function preview(guildId, changes) {
+  const config = structuredClone(forGuild(guildId));
+  const invalid = changes.find(({ path, value }) => !apply(config, path, value ?? undefined))?.path ?? null;
+  return { invalid, config };
 }
+const invalidPath = (guildId, changes) => preview(guildId, changes).invalid;
 
 // Alle Änderungen eines Servers verwerfen und wieder die Werte aus config.json verwenden.
 function reset(guildId) {
@@ -109,6 +111,7 @@ module.exports = {
   get,
   set,
   invalidPath,
+  preview,
   reset,
   adoptLegacy,
   hasLegacy: () => Boolean(overrides._legacy),
