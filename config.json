@@ -609,5 +609,39 @@
       "users": []
     },
     "templates": []
+  },
+  "suggestions": {
+    "enabled": false,
+    "channel": "",
+    "teamRoles": [],
+    "threads": false,
+    "requireAcceptReason": false,
+    "requireDenyReason": false,
+    "dmOnAccept": false,
+    "acceptedChannel": "",
+    "inProgress": false,
+    "categories": [
+      {
+        "id": "allgemein",
+        "name": "Allgemein",
+        "emoji": "💡",
+        "description": "Ideen für den Server",
+        "enabled": true,
+        "fields": [
+          {
+            "label": "Titel",
+            "style": "short",
+            "required": true,
+            "maxLength": 100
+          },
+          {
+            "label": "Beschreibung",
+            "style": "paragraph",
+            "required": true,
+            "maxLength": 1500
+          }
+        ]
+      }
+    ]
   }
 }

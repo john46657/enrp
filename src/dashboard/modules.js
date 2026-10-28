@@ -10,6 +10,7 @@ const team = require('../lib/team');
 const automod = require('../lib/automod');
 const security = require('../lib/security');
 const giveaways = require('../lib/giveaways');
+const suggestions = require('../lib/suggestions');
 const appMessages = require('../lib/applications/messages');
 
 const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
@@ -111,3 +112,10 @@ registerAction('giveaway-template-start', (guild, { templateId }, member) => {
   if (!template) throw new Error('Vorlage nicht gefunden – erst speichern.');
   return giveaways.startFromTemplate(guild, template, member.id).then(() => null);
 });
+
+registerLive('suggestions', (guild) =>
+  Object.entries(suggestions.suggestionsOf(guild.id))
+    .map(([messageId, s]) => ({ messageId, number: s.number, category: s.category, title: s.fields[0]?.[1] ?? '', status: s.status, up: Object.keys(s.up).length, down: Object.keys(s.down).length, createdAt: s.createdAt }))
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 100),
+);

@@ -498,6 +498,130 @@ page({
   ],
 });
 
+// ---------- Vorschläge ----------
+
+function suggestionCategoryEditor(c, i) {
+  const list = state.draft.suggestions.categories;
+  const b = (key) => bindItem('suggestions.categories', c, key);
+  const open = openItems.has(`sug-${i}`);
+  c.fields ??= [];
+  return listItem(
+    {
+      title: `${c.emoji || '💡'} ${c.name}`,
+      subtitle: c.description,
+      badges: [c.enabled === false ? h('span', { class: 'badge red' }, 'Aus') : h('span', { class: 'badge green' }, 'Aktiv')],
+      open,
+      onToggle: toggleOpen(`sug-${i}`),
+      onRemove: () => confirm(`Kategorie „${c.name}“ entfernen?`) && (list.splice(i, 1), markDirty('suggestions.categories'), render()),
+    },
+    open && [
+      ui.field({ label: 'Name' }, ui.text(b('name'), { max: 100 })),
+      ui.field({ label: 'Emoji' }, ui.text(b('emoji'), { max: 60 })),
+      ui.field({ label: 'Beschreibung', wide: true }, ui.text(b('description'), { max: 100 })),
+      ui.field({ wide: true }, ui.toggle({ get: () => c.enabled !== false, set: (v) => b('enabled').set(v) }, 'Kategorie aktiv')),
+      h('h3', { class: 'field wide' }, `Formular (${c.fields.length}/5 Felder)`),
+      h(
+        'div',
+        { class: 'field wide' },
+        c.fields.map((f, k) =>
+          h(
+            'div',
+            { class: 'item' },
+            h(
+              'div',
+              { class: 'item-body', style: 'padding-top:14px' },
+              ui.field({ label: `Feld ${k + 1}` }, ui.text(bindItem('suggestions.categories', f, 'label'), { max: 45 })),
+              ui.field({ label: 'Art' }, ui.select(bindItem('suggestions.categories', f, 'style'), [['short', 'Einzeiliger Text'], ['paragraph', 'Mehrzeiliger Text']])),
+              ui.field({ label: 'Max. Länge' }, ui.number(bindItem('suggestions.categories', f, 'maxLength'), { min: 1, max: 4000 })),
+              ui.field({}, ui.toggle({ get: () => f.required !== false, set: (v) => bindItem('suggestions.categories', f, 'required').set(v) }, 'Pflichtfeld')),
+              ui.field({}, h('button', { class: 'btn ghost small', onclick: () => (c.fields.splice(k, 1), markDirty('suggestions.categories'), render()) }, 'Feld entfernen')),
+            ),
+          ),
+        ),
+        c.fields.length < 5 && h('button', { class: 'btn small', onclick: () => (c.fields.push({ label: 'Frage', style: 'short', required: true, maxLength: 500 }), markDirty('suggestions.categories'), render()) }, '+ Feld hinzufügen'),
+      ),
+    ],
+  );
+}
+
+const SUG_STATUS = { open: ['Offen', ''], progress: ['In Bearbeitung', 'yellow'], accepted: ['Angenommen', 'green'], done: ['Fertig', 'green'], denied: ['Abgelehnt', 'red'] };
+page({
+  id: 'suggestions',
+  group: 'Community',
+  title: 'Vorschläge',
+  icon: '💡',
+  requires: 'suggestions',
+  enabledPath: 'suggestions.enabled',
+  offText: 'Der Befehl /vorschlag ist aktuell nicht nutzbar.',
+  desc: 'Mitglieder reichen mit <code>/vorschlag</code> Ideen ein, die Community stimmt ab und das Team entscheidet.',
+  sections: () => [
+    {
+      title: 'Kategorien',
+      desc: 'Beim Einreichen wählt das Mitglied eine Kategorie und füllt danach das Formular aus. Gibt es nur eine aktive Kategorie, öffnet sich das Formular direkt.',
+      actions: () =>
+        h(
+          'button',
+          {
+            class: 'btn primary small',
+            onclick: () => {
+              const list = state.draft.suggestions.categories;
+              if (list.length >= 4) return Dash.toast('Höchstens 4 Kategorien.', true);
+              list.push({ id: `k${Date.now().toString(36)}`, name: 'Neue Kategorie', emoji: '💡', description: '', enabled: true, fields: [{ label: 'Titel', style: 'short', required: true, maxLength: 100 }, { label: 'Beschreibung', style: 'paragraph', required: true, maxLength: 1500 }] });
+              openItems.add(`sug-${list.length - 1}`);
+              markDirty('suggestions.categories');
+              render();
+            },
+          },
+          `+ Neue Kategorie (${state.draft.suggestions.categories.length}/4)`,
+        ),
+      render: () => (state.draft.suggestions.categories.length ? h('div', {}, state.draft.suggestions.categories.map(suggestionCategoryEditor)) : h('div', { class: 'empty' }, 'Noch keine Kategorie – lege mindestens eine an.')),
+    },
+    {
+      title: 'Kanäle und Rollen',
+      fields: [
+        { t: 'channel', p: 'suggestions.channel', label: 'Kanal für Vorschläge' },
+        { t: 'roles', p: 'suggestions.teamRoles', label: 'Team-Rollen', help: 'Dürfen annehmen, ablehnen und Stimmen zurücksetzen. Admins dürfen immer.' },
+        { t: 'toggle', p: 'suggestions.threads', label: 'Für jeden Vorschlag einen Diskussions-Thread erstellen' },
+      ],
+    },
+    {
+      title: 'Gründe',
+      fields: [
+        { t: 'toggle', p: 'suggestions.requireAcceptReason', label: 'Beim Annehmen muss ein Grund angegeben werden' },
+        { t: 'toggle', p: 'suggestions.requireDenyReason', label: 'Beim Ablehnen muss ein Grund angegeben werden' },
+      ],
+    },
+    {
+      title: 'Nach der Annahme',
+      fields: [
+        { t: 'toggle', p: 'suggestions.dmOnAccept', label: 'Einreicher per DM benachrichtigen' },
+        { t: 'channel', p: 'suggestions.acceptedChannel', label: 'Angenommene Vorschläge zusätzlich posten in', empty: '— Nicht separat loggen —' },
+      ],
+    },
+    {
+      title: 'In Bearbeitung',
+      fields: [{ t: 'toggle', p: 'suggestions.inProgress', label: 'Team kann Vorschläge auf „In Bearbeitung“ setzen (danach nur noch „Fertiggestellt“)' }],
+    },
+    {
+      title: 'Letzte Vorschläge',
+      render: () =>
+        liveBlock('suggestions', (list) =>
+          list.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, '#'), h('th', {}, 'Kategorie'), h('th', {}, 'Titel'), h('th', {}, 'Stimmen'), h('th', {}, 'Status'), h('th', {}, 'Datum')),
+                list.map((s) => {
+                  const [label, color] = SUG_STATUS[s.status] ?? [s.status, ''];
+                  return h('tr', {}, h('td', {}, s.number), h('td', {}, s.category), h('td', {}, s.title.slice(0, 80)), h('td', {}, `👍 ${s.up} · 👎 ${s.down}`), h('td', {}, h('span', { class: `badge ${color}` }, label)), h('td', {}, fmtTime(s.createdAt)));
+                }),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Vorschläge.'),
+        ),
+    },
+  ],
+});
+
 // ---------- Tickets ----------
 
 function ticketTypeEditor(t, index) {
