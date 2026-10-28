@@ -59,14 +59,15 @@ Ausführlich: [docs/local-setup.md](docs/local-setup.md).
 
 ## Wichtige Befehle
 
-| Befehl              | Zweck                                                      |
-| ------------------- | ---------------------------------------------------------- |
-| `npm run check`     | Alles prüfen: Formatierung, Lint, TypeScript, Tests, Build |
-| `npm test`          | Tests (Vitest)                                             |
-| `npm run lint`      | ESLint                                                     |
-| `npm run typecheck` | TypeScript-Prüfung aller Workspaces                        |
-| `npm run format`    | Code mit Prettier formatieren                              |
-| `npm run build`     | Produktions-Build aller Workspaces                         |
+| Befehl               | Zweck                                                      |
+| -------------------- | ---------------------------------------------------------- |
+| `npm run check`      | Alles prüfen: Formatierung, Lint, TypeScript, Tests, Build |
+| `npm test`           | Tests (Vitest)                                             |
+| `npm run lint`       | ESLint                                                     |
+| `npm run typecheck`  | TypeScript-Prüfung aller Workspaces                        |
+| `npm run format`     | Code mit Prettier formatieren                              |
+| `npm run build`      | Produktions-Build aller Workspaces                         |
+| `npm run db:migrate` | Datenbankmigrationen anwenden (siehe docs/database.md)     |
 
 ## Dokumentation
 
@@ -74,7 +75,7 @@ Ausführlich: [docs/local-setup.md](docs/local-setup.md).
 - [Einrichtung auf dem Mac (für Einsteiger)](docs/mac-setup.md)
 - [Lokale Einrichtung](docs/local-setup.md)
 - [API](docs/api.md)
-- [Datenbank & Migrationen](docs/database.md) (Phase 2)
+- [Datenbank & Migrationen](docs/database.md)
 - [Tests](docs/testing.md)
 - [Sicherheit](docs/security.md)
 - [Produktion & Deployment](docs/deployment.md)

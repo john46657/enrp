@@ -9,5 +9,8 @@ export default defineConfig({
   test: {
     include: ['{apps,packages}/*/{src,test,lib,components,app}/**/*.test.{ts,tsx}'],
     environment: 'node',
+    // PGlite (PostgreSQL als WebAssembly) braucht einige Sekunden zum Starten.
+    testTimeout: 20_000,
+    hookTimeout: 60_000,
   },
 });

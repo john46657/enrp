@@ -5,17 +5,20 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { ReadinessCheck } from '@emden/shared';
 import type { AppConfig } from './config.js';
+import type { DatabaseHandle } from './db/database.js';
+import { databaseReadiness } from './db/readiness.js';
 import { registerErrorHandling } from './errors.js';
 import { healthRoutes } from './routes/health.js';
 import { version } from './version.js';
 
 export interface BuildAppOptions {
+  /** Datenbank; ohne sie laufen nur die Health-Endpunkte (z. B. in reinen HTTP-Tests). */
+  db?: DatabaseHandle;
   readinessChecks?: () => Promise<ReadinessCheck[]>;
 }
 
-// Bis Phase 2 gibt es keine Datenbank – das wird ehrlich als "nicht konfiguriert" gemeldet.
-const defaultReadinessChecks = async (): Promise<ReadinessCheck[]> => [
-  { name: 'database', status: 'not_configured', message: 'PostgreSQL wird in Phase 2 angebunden.' },
+const withoutDatabase = async (): Promise<ReadinessCheck[]> => [
+  { name: 'database', status: 'not_configured', message: 'Keine Datenbank angebunden.' },
 ];
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
@@ -64,10 +67,28 @@ export async function buildApp(config: AppConfig, options: BuildAppOptions = {})
 
   registerErrorHandling(app);
 
+  const { db } = options;
+  if (db) {
+    // Die Verbindung gehört dem Aufrufer (server.ts schließt sie); hier nur der Readiness-Check.
+    app.decorate('db', db);
+  }
+
   await app.register(healthRoutes, {
     version,
-    readinessChecks: options.readinessChecks ?? defaultReadinessChecks,
+    readinessChecks:
+      options.readinessChecks ??
+      (db
+        ? async () => [
+            await databaseReadiness(db, (err) => app.log.error({ err }, 'Datenbankprüfung fehlgeschlagen')),
+          ]
+        : withoutDatabase),
   });
 
   return app;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    db: DatabaseHandle;
+  }
 }

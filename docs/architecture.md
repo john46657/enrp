@@ -3,7 +3,7 @@
 ## Überblick
 
 ```
- Browser ──HTTPS──▶ Control Center (Next.js) ──serverseitig──▶ Backend (Fastify) ──▶ PostgreSQL (Phase 2)
+ Browser ──HTTPS──▶ Control Center (Next.js) ──serverseitig──▶ Backend (Fastify) ──▶ PostgreSQL (lokal: PGlite)
                                                                    ▲
  Roblox-Spielserver (Luau, HttpService) ──HTTPS + Signatur─────────┘  (Phase 3)
  Discord-Bot (discord.js) ──────────────────────────────────────────┘  (Phase 4)
@@ -29,9 +29,14 @@
 - **Dashboard ruft das Backend serverseitig auf:** Die Backend-Adresse (`API_INTERNAL_URL`) gelangt nicht
   in den Browser, und CORS muss für das eigene Dashboard nicht geöffnet werden.
 - **`/health` und `/ready` getrennt:** `/health` sagt „Prozess läuft“ (für Neustarts durch den Hoster),
-  `/ready` sagt „kann Anfragen bedienen“ (ab Phase 2 inkl. Datenbank). Nicht konfigurierte Abhängigkeiten
+  `/ready` sagt „kann Anfragen bedienen“ (inkl. Datenbank und Migrationsstand). Nicht konfigurierte Abhängigkeiten
   werden ehrlich als `not_configured` gemeldet.
 - **TypeScript 6.0 statt 7.0:** typescript-eslint unterstützt TypeScript 7 noch nicht (Stand Oktober 2026).
+- **Drizzle ORM mit eigenen SQL-Migrationen:** Drizzle liefert typgeprüfte, parametrisierte Abfragen. Die
+  Migrationen sind lesbare SQL-Dateien. Das Zusatzwerkzeug `drizzle-kit` bleibt bewusst draußen, weil es
+  veraltete Unterpakete mit Sicherheitswarnungen mitbringt. Details: [database.md](database.md).
+- **PGlite für Entwicklung und Tests:** PostgreSQL als WebAssembly im selben Prozess. Auf dem Mac ist keine
+  Datenbankinstallation nötig. In Produktion ist echtes PostgreSQL Pflicht, die CI testet zusätzlich dagegen.
 - **Kein Redis in Phase 1:** Erst einführen, wenn z. B. verteilte Rate Limits bei mehreren API-Instanzen
   nötig werden. Das eingebaute Rate Limit arbeitet pro Prozess im Speicher.
 - **Kein separates `packages/config`:** Die gemeinsame Konfiguration (`tsconfig.base.json`,

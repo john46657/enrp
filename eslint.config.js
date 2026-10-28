@@ -23,6 +23,11 @@ export default tseslint.config(
     },
   },
   {
+    // Kommandozeilenprogramme geben ihre Ergebnisse bewusst auf der Konsole aus.
+    files: ['apps/api/src/cli/**/*.ts'],
+    rules: { 'no-console': 'off' },
+  },
+  {
     files: ['apps/dashboard/**/*.{ts,tsx}'],
     plugins: { '@next/next': nextPlugin, 'react-hooks': reactHooks },
     rules: {

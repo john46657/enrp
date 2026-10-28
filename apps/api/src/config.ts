@@ -1,4 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import type { DatabaseConfig } from './db/database.js';
+
+/** Standardort der lokalen Entwicklungsdatenbank: apps/api/.data/pglite (nicht im Git). */
+const DEFAULT_PGLITE_DIR = fileURLToPath(new URL('../.data/pglite', import.meta.url));
 
 const booleanFromEnv = z
   .enum(['true', 'false', '1', '0'])
@@ -18,6 +23,9 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   // Nur aktivieren, wenn die API hinter einem vertrauenswürdigen Reverse-Proxy läuft.
   TRUST_PROXY: booleanFromEnv,
+  // Verbindungs-URL zu PostgreSQL. Leer = lokale Entwicklungsdatenbank (PGlite), in Produktion Pflicht.
+  DATABASE_URL: z.string().optional(),
+  PGLITE_DATA_DIR: z.string().min(1).optional(),
 });
 
 export interface AppConfig {
@@ -28,6 +36,7 @@ export interface AppConfig {
   corsOrigins: string[];
   rateLimit: { max: number; windowMs: number };
   trustProxy: boolean;
+  database: DatabaseConfig;
 }
 
 export class ConfigError extends Error {
@@ -69,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   return {
+    database: databaseConfig(e.NODE_ENV, e.DATABASE_URL, e.PGLITE_DATA_DIR),
     env: e.NODE_ENV,
     host: e.API_HOST,
     port: e.API_PORT ?? e.PORT ?? 4000,
@@ -77,4 +87,34 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     rateLimit: { max: e.RATE_LIMIT_MAX, windowMs: e.RATE_LIMIT_WINDOW_MS },
     trustProxy: e.TRUST_PROXY,
   };
+}
+
+function databaseConfig(
+  env: AppConfig['env'],
+  url: string | undefined,
+  pgliteDir: string | undefined,
+): DatabaseConfig {
+  const trimmed = url?.trim();
+  if (trimmed) {
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      // Bewusst ohne den Wert: Die URL enthält meist ein Passwort.
+      throw new ConfigError(
+        'DATABASE_URL: keine gültige URL (Format: postgres://BENUTZER:PASSWORT@HOST:5432/DATENBANK)',
+      );
+    }
+    if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+      throw new ConfigError('DATABASE_URL: muss mit postgres:// oder postgresql:// beginnen');
+    }
+    return { kind: 'postgres', url: trimmed };
+  }
+  if (env === 'production') {
+    throw new ConfigError(
+      'DATABASE_URL: in Produktion erforderlich (die lokale Entwicklungsdatenbank ist dort nicht erlaubt)',
+    );
+  }
+  // Tests legen ihre Datenbanken selbst an und brauchen keinen Ordner auf der Festplatte.
+  return { kind: 'pglite', dataDir: env === 'test' ? null : (pgliteDir ?? DEFAULT_PGLITE_DIR) };
 }

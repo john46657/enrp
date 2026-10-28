@@ -25,3 +25,6 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Lokale Entwicklungsdatenbank (PGlite)
+.data/

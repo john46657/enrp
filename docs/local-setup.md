@@ -5,7 +5,7 @@
 - **Node.js 22.12+** und npm (`node -v`, `npm -v`). Empfehlung: über [nvm](https://github.com/nvm-sh/nvm),
   dann genügt `nvm use` (liest `.nvmrc`).
 - Git.
-- Ab Phase 2 zusätzlich: PostgreSQL 16+ (lokal oder per Docker).
+- Eine Datenbank musst du **nicht** installieren: Lokal läuft automatisch PGlite (siehe [database.md](database.md)).
 
 ## Einrichten
 

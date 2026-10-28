@@ -34,8 +34,9 @@ describe('loadConfig', () => {
   });
 
   it('verlangt HTTPS-Ursprünge in Produktion', () => {
-    expect(() => loadConfig({ NODE_ENV: 'production', CORS_ORIGINS: 'http://example.org' })).toThrow(/HTTPS/);
-    expect(loadConfig({ NODE_ENV: 'production', CORS_ORIGINS: 'https://example.org' }).corsOrigins).toEqual([
+    const prod = { NODE_ENV: 'production', DATABASE_URL: 'postgres://app@db.internal:5432/emden' };
+    expect(() => loadConfig({ ...prod, CORS_ORIGINS: 'http://example.org' })).toThrow(/HTTPS/);
+    expect(loadConfig({ ...prod, CORS_ORIGINS: 'https://example.org' }).corsOrigins).toEqual([
       'https://example.org',
     ]);
   });
@@ -55,5 +56,43 @@ describe('loadConfig', () => {
     expect(loadConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
     expect(loadConfig({ TRUST_PROXY: '0' }).trustProxy).toBe(false);
     expect(() => loadConfig({ TRUST_PROXY: 'ja' })).toThrow(ConfigError);
+  });
+
+  describe('Datenbank', () => {
+    it('nutzt ohne DATABASE_URL in der Entwicklung die lokale PGlite-Datenbank unter apps/api/.data', () => {
+      const { database } = loadConfig({});
+      expect(database.kind).toBe('pglite');
+      expect(database.kind === 'pglite' && database.dataDir).toMatch(/apps[\\/]api[\\/]\.data[\\/]pglite$/);
+    });
+
+    it('nutzt in Tests eine Datenbank nur im Arbeitsspeicher', () => {
+      expect(loadConfig({ NODE_ENV: 'test' }).database).toEqual({ kind: 'pglite', dataDir: null });
+    });
+
+    it('verwendet PostgreSQL, wenn DATABASE_URL gesetzt ist', () => {
+      expect(loadConfig({ DATABASE_URL: ' postgresql://u@localhost/emden ' }).database).toEqual({
+        kind: 'postgres',
+        url: 'postgresql://u@localhost/emden',
+      });
+    });
+
+    it('verlangt in Produktion eine echte PostgreSQL-Datenbank', () => {
+      expect(() => loadConfig({ NODE_ENV: 'production' })).toThrow(
+        /DATABASE_URL: in Produktion erforderlich/,
+      );
+    });
+
+    it('lehnt ungültige URLs ab, ohne Passwörter in der Meldung zu zeigen', () => {
+      for (const url of ['geheim:passwort@kaputt', 'mysql://u:passwort@host/db']) {
+        try {
+          loadConfig({ DATABASE_URL: url });
+          expect.unreachable();
+        } catch (err) {
+          expect(err).toBeInstanceOf(ConfigError);
+          expect((err as Error).message).toContain('DATABASE_URL');
+          expect((err as Error).message).not.toContain('passwort');
+        }
+      }
+    });
   });
 });

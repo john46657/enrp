@@ -17,6 +17,7 @@
     "dev:dashboard": "npm run dev -w @emden/dashboard",
     "start:api": "npm run start -w @emden/api",
     "start:dashboard": "npm run start -w @emden/dashboard",
+    "db:migrate": "npm run db:migrate -w @emden/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
