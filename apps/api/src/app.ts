@@ -11,6 +11,7 @@ import type { AppConfig } from './config.js';
 import type { DatabaseHandle } from './db/database.js';
 import { databaseReadiness } from './db/readiness.js';
 import { registerErrorHandling } from './errors.js';
+import { adminRoutes } from './routes/admin.js';
 import { authRoutes } from './routes/auth.js';
 import { healthRoutes } from './routes/health.js';
 import { registerOriginCheck } from './security/origin-check.js';
@@ -90,6 +91,7 @@ export async function buildApp(config: AppConfig, options: BuildAppOptions = {})
     const discord =
       options.discord !== undefined ? options.discord : config.discord && createDiscordOAuth(config.discord);
     await app.register(authRoutes, { discord });
+    await app.register(adminRoutes);
   }
 
   await app.register(healthRoutes, {

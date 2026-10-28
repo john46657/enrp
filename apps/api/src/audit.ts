@@ -7,8 +7,15 @@ export const AUDIT_ACTIONS = {
   'auth.login_denied': 'Anmeldung abgelehnt',
   'auth.logout': 'Abmeldung',
   'owner.bootstrap': 'Owner bei der Ersteinrichtung angelegt',
+  'user.create': 'Benutzer freigeschaltet',
+  'user.update': 'Benutzer geändert',
+  'role.permissions_update': 'Rollenrechte geändert',
 } as const;
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
+
+export function auditActionLabel(action: string): string {
+  return (AUDIT_ACTIONS as Record<string, string>)[action] ?? action;
+}
 
 export type AuditActor =
   | { type: 'user'; userId: string; label: string }

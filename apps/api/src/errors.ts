@@ -1,5 +1,8 @@
 import type { FastifyError, FastifyInstance } from 'fastify';
 import type { ApiError } from '@emden/shared';
+import type { z } from 'zod';
+
+type FieldError = { path: string; message: string };
 
 /** Fehler, deren Meldung bewusst an Clients gehen darf. */
 export class HttpError extends Error {
@@ -7,14 +10,30 @@ export class HttpError extends Error {
     readonly statusCode: number,
     readonly code: string,
     message: string,
+    readonly fields?: FieldError[],
   ) {
     super(message);
     this.name = 'HttpError';
   }
 }
 
-function body(code: string, message: string, requestId: string): ApiError {
-  return { error: { code, message, requestId } };
+/** Prüft Eingaben gegen ein Zod-Schema; bei Fehlern 400 mit Feldnamen und Hinweis, nie mit dem Wert. */
+export function parseInput<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
+  const result = schema.safeParse(value);
+  if (result.success) return result.data;
+  throw new HttpError(
+    400,
+    'VALIDATION_ERROR',
+    'Die Anfrage enthält ungültige Daten.',
+    result.error.issues.slice(0, 20).map((issue) => ({
+      path: issue.path.join('.') || '(gesamt)',
+      message: issue.message,
+    })),
+  );
+}
+
+function body(code: string, message: string, requestId: string, fields?: FieldError[]): ApiError {
+  return { error: { code, message, requestId, ...(fields ? { fields } : {}) } };
 }
 
 /**
@@ -28,7 +47,7 @@ export function registerErrorHandling(app: FastifyInstance): void {
 
   app.setErrorHandler((error: FastifyError | HttpError, request, reply) => {
     if (error instanceof HttpError) {
-      return reply.status(error.statusCode).send(body(error.code, error.message, request.id));
+      return reply.status(error.statusCode).send(body(error.code, error.message, request.id, error.fields));
     }
     if (error.validation) {
       return reply

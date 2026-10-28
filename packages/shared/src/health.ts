@@ -41,6 +41,8 @@ export const apiErrorSchema = z.object({
     code: z.string(),
     message: z.string(),
     requestId: z.string().optional(),
+    /** Bei VALIDATION_ERROR: welches Feld warum ungültig ist (ohne den eingegebenen Wert). */
+    fields: z.array(z.object({ path: z.string(), message: z.string() })).optional(),
   }),
 });
 export type ApiError = z.infer<typeof apiErrorSchema>;
