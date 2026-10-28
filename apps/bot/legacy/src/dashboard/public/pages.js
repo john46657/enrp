@@ -1471,6 +1471,18 @@ page({
       ],
     },
     {
+      title: 'Schutz vor Massenlöschung',
+      desc: 'Wer in kurzer Zeit mehrere Kanäle oder Rollen löscht oder Mitglieder bannt, verliert seine Rollen. Der Bot braucht „Audit-Log anzeigen“ und „Rollen verwalten“; Rollen über der Bot-Rolle kann er nicht entfernen. Server-Besitzer und vertrauenswürdige Rollen sind ausgenommen. Notfall-Sperre aller Kanäle: /sicherheit lockdown.',
+      fields: [
+        { t: 'toggle', p: 'security.antiNuke.enabled', label: 'Massenlöschungen erkennen' },
+        { t: 'number', p: 'security.antiNuke.actions', label: 'Aktionen', min: 2, max: 50 },
+        { t: 'number', p: 'security.antiNuke.seconds', label: 'in Sekunden', min: 5, max: 600 },
+        { t: 'select', p: 'security.antiNuke.punish', label: 'Maßnahme', options: [['strip', 'Rollen entfernen und melden'], ['log', 'Nur melden']] },
+        { t: 'roles', p: 'security.antiNuke.trustedRoles', label: 'Vertrauenswürdige Rollen', help: 'Werden nie bestraft.' },
+        { t: 'roles', p: 'security.antiNuke.pingRoles', label: 'Bei Alarm markieren' },
+      ],
+    },
+    {
       title: 'Log-Kanal',
       desc: 'Verifizierungen, neue Accounts und Raid-Alarm. Leer = Mod-Log.',
       fields: [{ t: 'channel', p: 'security.logChannel', label: 'Log-Kanal', empty: '— Mod-Log verwenden —' }],

@@ -1,6 +1,6 @@
 import { type Actor, type CoreContext } from '@enrp/core';
 import { type DatabaseHandle } from '@enrp/database';
-import { type BullJobQueue, type RealtimeHub } from '@enrp/integrations';
+import { type BullJobQueue, type RealtimeHub, type RobloxMessagingClient } from '@enrp/integrations';
 import { type Redis } from 'ioredis';
 import { type ApiEnv } from './env';
 import { type OAuthClients } from './lib/oauth';
@@ -15,6 +15,7 @@ export interface ApiDeps {
   metrics: Metrics;
   redis?: Redis;
   bullQueue?: BullJobQueue;
+  robloxMessaging?: RobloxMessagingClient;
 }
 
 export interface SessionInfo {

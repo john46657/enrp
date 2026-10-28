@@ -51,6 +51,7 @@ export const factionMemberships = pgTable(
 );
 
 export const gameServerStatus = pgEnum('game_server_status', ['online', 'offline']);
+export const gameServerType = pgEnum('game_server_type', ['public', 'private', 'reserved']);
 
 /** Laufende bzw. beendete Roblox-Server-Instanzen (eine Zeile pro JobId). */
 export const gameServers = pgTable(
@@ -64,11 +65,53 @@ export const gameServers = pgTable(
     status: gameServerStatus('status').notNull().default('online'),
     playerCount: integer('player_count').notNull().default(0),
     maxPlayers: integer('max_players'),
+    /** Öffentlich, privat (VIP-Server eines Spielers) oder reserviert (per TeleportService erstellt). */
+    serverType: gameServerType('server_type').notNull().default('public'),
+    privateServerOwnerId: robloxId('private_server_owner_id'),
     startedAt: ts('started_at').notNull().defaultNow(),
     lastHeartbeatAt: ts('last_heartbeat_at').notNull().defaultNow(),
     endedAt: ts('ended_at'),
   },
   (t) => [index('game_servers_status_idx').on(t.status, t.lastHeartbeatAt)],
+);
+
+export const serverCommandType = pgEnum('server_command_type', ['message_server', 'message_player', 'shutdown']);
+export const serverCommandStatus = pgEnum('server_command_status', [
+  'pending',
+  'delivered',
+  'succeeded',
+  'failed',
+  'expired',
+]);
+
+/**
+ * Befehle an einzelne Spielserver. Server holen offene Befehle selbst ab und bestätigen die Ausführung –
+ * Open Cloud Messaging dient nur als Weckruf, weil es keine Zustellung garantiert.
+ */
+export const serverCommands = pgTable(
+  'server_commands',
+  {
+    id: id(),
+    serverId: uuid('server_id')
+      .notNull()
+      .references(() => gameServers.id, { onDelete: 'cascade' }),
+    type: serverCommandType('type').notNull(),
+    /** Zielspieler bei message_player. */
+    robloxUserId: robloxId('roblox_user_id'),
+    message: text('message'),
+    reason: text('reason').notNull(),
+    status: serverCommandStatus('status').notNull().default('pending'),
+    createdBy: text('created_by').notNull(),
+    createdAt: createdAt(),
+    expiresAt: ts('expires_at').notNull(),
+    deliveredAt: ts('delivered_at'),
+    completedAt: ts('completed_at'),
+    error: text('error'),
+  },
+  (t) => [
+    index('server_commands_server_idx').on(t.serverId, t.status),
+    index('server_commands_created_idx').on(t.createdAt),
+  ],
 );
 
 export const dutyStatus = pgEnum('duty_status', DUTY_STATUS);

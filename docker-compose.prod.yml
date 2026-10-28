@@ -1,6 +1,7 @@
 # Produktions-/Staging-Vorlage: nutzt die in der Pipeline gebauten Images (ENRP_VERSION).
-# Vor der API einen TLS-terminierenden Reverse Proxy (z. B. Caddy/Traefik) betreiben; nur das Dashboard
-# (Port 3000) wird veröffentlicht, die API ist ausschließlich über /api des Dashboards erreichbar.
+# Vor dem Dashboard einen TLS-terminierenden Reverse Proxy betreiben; nur das Dashboard (Port 3000) wird
+# veröffentlicht, die API ist ausschließlich über /api des Dashboards erreichbar.
+# Eingebauter Caddy mit automatischem HTTPS: ENRP_DOMAIN in .env setzen und mit --profile caddy starten.
 name: enrp
 
 x-app: &app
@@ -47,7 +48,21 @@ services:
     ports: ['127.0.0.1:3000:3000']
     depends_on: [api]
 
+  caddy:
+    image: caddy:2-alpine
+    profiles: [caddy]
+    restart: unless-stopped
+    environment: { ENRP_DOMAIN: '${ENRP_DOMAIN:-}' }
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on: [dashboard]
+
 volumes:
   pgdata:
+  caddydata:
+  caddyconfig:
   redisdata:
   botdata:

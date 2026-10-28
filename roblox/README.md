@@ -10,7 +10,8 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 
 | Funktion | Ablauf |
 |---|---|
-| Heartbeat (alle 30 s) | Meldet JobId, Place, Spielerliste. Antwort: Kill-Switch, Wartung, neue Ankündigungen, ausstehende Sanktionen. |
+| Heartbeat (alle 30 s) | Meldet JobId, Place, Servertyp (`PrivateServerId`/`PrivateServerOwnerId` → öffentlich, privat, reserviert), Spielerliste. Antwort: Kill-Switch, Wartung, neue Ankündigungen, ausstehende Sanktionen und Server-Befehle. |
+| Server-Befehle | Aus dem Dashboard: Nachricht an alle Spieler eines Servers, Nachricht an einen Spieler, Server herunterfahren (Ankündigung, nach 10 s Kick aller Spieler). Abholen alle 5 s (`/game/commands/poll`), Bestätigen über `/game/commands/:id/ack`. Optionaler Weckruf über Open Cloud Messaging (Thema `ENRP_Commands`, `MessagingService:SubscribeAsync`) – siehe `ROBLOX_UNIVERSE_ID`/`ROBLOX_OPEN_CLOUD_KEY` in `.env.example`. |
 | Spielereignisse | `player_joined`, `player_left`, `duty_start`, `duty_end`, `redemption_delivered` werden gepuffert und gebündelt gesendet. Jedes Ereignis hat eine GUID → das Backend verarbeitet es genau einmal. |
 | Zugangsprüfung | Beim Betreten: aktiver Roblox-Bann → Kick mit Grund. Fraktion und erlaubte Fahrzeuge kommen vom Backend (Attribute `ENRP_Faction`, `ENRP_Vehicles`). |
 | Dienstsystem | Client fragt per `ReplicatedStorage.ENRP.DutyToggle` an. Server prüft Fraktion + Abstand, Backend entscheidet endgültig mit eigener Serverzeit. |
@@ -64,6 +65,9 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 - [ ] Roblox-Bann im Dashboard → Spieler wird gekickt, Aktion wechselt auf „Aktiv“.
 - [ ] Code einlösen: zweite Einlösung wird mit „bereits eingelöst“ abgelehnt.
 - [ ] Kill-Switch aktivieren → Dienst/Codes gesperrt; Wartungsmodus → Banner erscheint.
+- [ ] Privater Server (VIP) erscheint im Dashboard als „Privat“ mit Besitzer, reservierter Server als „Reserviert“.
+- [ ] Dashboard → Server → „Nachricht senden“ → Banner erscheint innerhalb weniger Sekunden, Befehl steht auf „Ausgeführt“.
+- [ ] „Herunterfahren“ → Ankündigung, nach 10 s werden alle Spieler gekickt, Server meldet sich ab.
 
 ## Grenzen der Roblox-Umgebung
 

@@ -26,3 +26,4 @@ export * as automations from './modules/automations';
 export * as privacy from './modules/privacy';
 export * as retention from './modules/retention';
 export * as monitoring from './modules/monitoring';
+export * as stats from './modules/stats';

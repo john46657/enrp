@@ -13,6 +13,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers, // privilegiert: Willkommen & Auto-Rolle
+    GatewayIntentBits.GuildModeration, // Banns für den Schutz vor Massenlöschung
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildVoiceStates, // Anwesenheit bei Meetings im Sprachkanal
     GatewayIntentBits.MessageContent, // privilegiert: Ticket-Transkripte

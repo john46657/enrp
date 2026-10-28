@@ -18,7 +18,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 💡 **Vorschläge** | `/vorschlag` mit bis zu 4 Kategorien und eigenem Formular · Abstimmung per Button · Team nimmt an/lehnt ab (optional mit Pflicht-Grund), „In Bearbeitung“ → „Fertiggestellt“ · Thread, DM und Log angenommener Vorschläge – Einstellungen `suggestions` bzw. Dashboard |
 | 🔢 **Zählen** | Zähl-Kanal: 1, 2, 3 … mit ✅ · falsche Zahl oder zweimal hintereinander → zurück auf 1 (oder nur löschen) · Rekord, Hinweis bei gelöschter Zahl · `/zaehlen stand\|bestenliste\|setzen` – Einstellungen `counting` bzw. Dashboard |
 | 🎁 **Giveaways** | `/giveaway start\|vorlage\|ende\|neu-ziehen\|abbrechen\|liste\|blacklist` · Teilnahme-Button · Bedingungen (Rollen, Tage auf dem Server, Account-Alter) · Bonus-Lose · Gewinner-DM und -Rolle (optional befristet) · Einlösefrist mit Neuziehung und Ticket · Vorlagen, auch wöchentlich automatisch – Einstellungen `giveaways` bzw. Dashboard |
-| 🔒 **Server-Sicherheit** | Verify-Button (`/sicherheit verify-panel`) · Scam-Bilder-Schutz (Bild-Vergleich, Rechtsklick „Als Scam-Bild melden“, Erkennung von Massen-Posts) · Mindest-Account-Alter (Kick, Timeout oder nur melden) · Anti-Raid-Alarm · eigener Log-Kanal – Einstellungen `security` bzw. Dashboard |
+| 🔒 **Server-Sicherheit** | Verify-Button (`/sicherheit verify-panel`) · Scam-Bilder-Schutz (Bild-Vergleich, Rechtsklick „Als Scam-Bild melden“, Erkennung von Massen-Posts) · Mindest-Account-Alter (Kick, Timeout oder nur melden) · Anti-Raid-Alarm · Schutz vor Massenlöschung (Kanäle, Rollen, Banns) · Notfall-Lockdown (`/sicherheit lockdown`, `/sicherheit entsperren`) · eigener Log-Kanal – Einstellungen `security` bzw. Dashboard |
 | 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
 | ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
@@ -125,6 +125,16 @@ stellt eine **Schließungs-Anfrage**: Ein Teammitglied stimmt zu oder lässt das
 | `scamImages` | `enabled`, `action` (`delete` `timeout` `kick` `ban`), `timeoutMinutes`, `threshold` (0–16, Standard 6), `autoDetect` (`enabled`, `members`, `minutes`) |
 | `accountAge` | `enabled`, `minDays`, `action` (`kick` `timeout` `log`), `dm` |
 | `antiRaid` | `enabled`, `joins` in `seconds`, `pingRoles` – nur Alarm, kein Massen-Kick |
+| `antiNuke` | `enabled`, `actions` in `seconds`, `punish` (`strip` = Rollen entfernen, `log` = nur melden), `trustedRoles`, `pingRoles` |
+
+**Schutz vor Massenlöschung:** Löscht jemand in kurzer Zeit mehrere Kanäle oder Rollen oder bannt mehrere Mitglieder,
+ermittelt der Bot den Täter über das Discord-Audit-Log und entfernt ihm alle Rollen, die er verwalten darf (oder meldet
+nur). Ausgenommen sind der Server-Besitzer, der Bot selbst und `trustedRoles`. Der Bot braucht „Audit-Log anzeigen“ und
+„Rollen verwalten“ und eine Rolle über den zu entfernenden Rollen. Neuer, nicht privilegierter Intent `GuildModeration`.
+
+**Lockdown:** `/sicherheit lockdown grund:…` nimmt @everyone in allen Text-, Ankündigungs- und Forenkanälen das
+Schreibrecht (auch in Threads). Die vorherigen Einstellungen werden gespeichert und mit `/sicherheit entsperren` genau
+wiederhergestellt. Beides läuft im eigenständigen Betrieb; im Brückenbetrieb (`apps/bot`) ist `/sicherheit` nicht geladen.
 
 **Scam-Bilder:** Der Bot vergleicht Bild-Anhänge über einen Differenz-Hash (verkleinerte Graustufen-Version). Kopien in
 anderer Größe oder Kompression werden erkannt. Bilder kommen in die Liste per Rechtsklick auf eine Nachricht →

@@ -600,6 +600,14 @@
       "joins": 10,
       "seconds": 60,
       "pingRoles": []
+    },
+    "antiNuke": {
+      "enabled": false,
+      "actions": 3,
+      "seconds": 30,
+      "punish": "strip",
+      "trustedRoles": [],
+      "pingRoles": []
     }
   },
   "giveaways": {

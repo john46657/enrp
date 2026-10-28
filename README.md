@@ -74,10 +74,14 @@ gegen echtes PostgreSQL/Redis bzw. manueller Start der gebauten Dienste.
 | Moderation, Einsprüche, Roblox-Banns über Spielserver | ✅ Logik getestet; Discord-Ausführung gegen Discord-Attrappe |
 | Community (Vorschläge, Umfragen, Giveaways, Ankündigungen, Regelwerk, Codes) | ✅ getestet (inkl. paralleler Code-Einlösung) |
 | Roblox-API (Heartbeat, Ereignisse, Replay-Schutz, Idempotenz) | ✅ API-seitig getestet |
+| Servertyp (öffentlich/privat/reserviert), Server-Befehle (Nachricht, Herunterfahren), Open-Cloud-Weckruf | ✅ API- und Integrationstests; Weckruf gegen Attrappe, mit echtem Open-Cloud-Schlüssel **nicht** getestet |
+| Statistiken (Spieler pro Stunde, Spitzenzeiten, Moderation, Ticket-Bearbeitungszeiten) | ✅ Integrationstest; Dashboard-Seite gebaut, im Browser **nicht** durchgeklickt |
+| Discord-Sicherheit: Schutz vor Massenlöschung, Lockdown (Altmodule) | ✅ Tests mit nachgebauten Discord-Objekten; mit echtem Discord-Server **nicht** getestet |
 | Roblox-Luau-Skripte | ⚠️ geschrieben, **nicht** in Roblox Studio ausgeführt – Testcheckliste in roblox/README.md |
 | Worker: Backups (pg_dump/pg_restore, Prüfsumme, Test-Wiederherstellung), Watchdogs, Aufbewahrung | ✅ gegen echtes PostgreSQL/Redis getestet |
 | Discord-Bot | ✅ Build, Befehlsregistrierung und Rechtekatalog geprüft, Start bis zum Login geprüft; mit echtem Discord-Server **nicht** getestet |
 | Dashboard | ✅ Build, alle Seiten kompiliert, Oberfläche im Browser (Desktop/Mobil) gegen laufende API geprüft |
+| Caddy (HTTPS) in `docker-compose.prod.yml` | ⚠️ Compose-Datei geprüft (`docker compose config`), Caddyfile mangels Caddy-Binary **nicht** validiert |
 | Docker-Images | ⚠️ Dockerfile geschrieben; Build-Schritte (Bundles, `pnpm deploy`, Next standalone) einzeln geprüft, `docker build` selbst mangels Docker-Daemon **nicht** ausgeführt |
 | CI/CD (GitHub Actions) | ⚠️ Workflows geschrieben, noch nicht auf GitHub gelaufen |
 | Release-Pipeline-Anbindung | ⚠️ Anstoß per `workflow_dispatch` implementiert, braucht `GITHUB_DEPLOY_*` und einen Zielserver |

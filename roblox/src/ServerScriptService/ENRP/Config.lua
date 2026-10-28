@@ -10,6 +10,10 @@ local Config = {
 
 	HeartbeatIntervalSeconds = 30,
 	EventFlushIntervalSeconds = 5,
+	-- Abstand für das Abholen von Server-Befehlen (Nachricht, Herunterfahren) zwischen zwei Heartbeats.
+	CommandPollIntervalSeconds = 5,
+	-- Thema für den Open-Cloud-Weckruf (muss zum Backend passen).
+	CommandWakeTopic = "ENRP_Commands",
 	MaxEventsPerBatch = 20,
 	MaxQueuedEvents = 500,
 	RequestTimeoutRetries = 3,
