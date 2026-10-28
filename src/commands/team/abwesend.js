@@ -14,7 +14,7 @@ module.exports = {
     const denied = team.guard(interaction, 'absence');
     if (denied) return replyPrivate(interaction, denied);
     if (!forGuild(interaction.guildId).team.absence.enabled) return replyPrivate(interaction, 'Die Abwesenheitsliste ist deaktiviert.');
-    const until = team.parseUntil(interaction.options.getString('bis'));
+    const until = team.parseUntil(interaction.options.getString('bis'), Date.now(), forGuild(interaction.guildId).timezone);
     if (!until) return replyPrivate(interaction, 'Gib eine Anzahl Tage (z. B. `7`) oder ein Datum in der Zukunft an (z. B. `31.12.2026`).');
     await team.setAbsence(interaction.member, { from: Date.now(), until, reason: interaction.options.getString('grund') ?? '' });
     return replyPrivate(interaction, `🌴 Du bist bis <t:${Math.floor(until / 1000)}:f> als abwesend eingetragen. Mit \`/zurueck\` meldest du dich früher zurück.`);

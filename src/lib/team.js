@@ -4,6 +4,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = re
 const { forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
 const { embed, fill, getChannel, truncate, replyPrivate } = require('./util');
+const { fromZoned } = require('./time');
 
 const settingsOf = (guildId) => forGuild(guildId).team;
 
@@ -142,15 +143,16 @@ async function expireOffers(guild) {
 
 const absencesOf = (guildId) => bucket('absences', guildId); // userId → { from, until, reason }
 
-// "3" (Tage) oder "31.12.2026" → Zeitpunkt; null bei ungültiger Eingabe.
-function parseUntil(text, now = Date.now()) {
+// "3" (Tage) oder "31.12.2026" (bis 23:59 in der Zeitzone des Servers) → Zeitpunkt; null bei ungültiger Eingabe.
+function parseUntil(text, now = Date.now(), timeZone = 'Europe/Berlin') {
   const value = text.trim();
   if (/^\d{1,3}$/.test(value)) return Number(value) > 0 ? now + Number(value) * 86_400_000 : null;
   const match = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;
   const [, d, m, y] = match.map(Number);
-  const date = new Date(y, m - 1, d, 23, 59);
-  return date.getMonth() === m - 1 && date.getTime() > now ? date.getTime() : null;
+  if (m < 1 || m > 12 || d < 1 || d > new Date(Date.UTC(y, m, 0)).getUTCDate()) return null;
+  const until = fromZoned({ year: y, month: m, day: d, hour: 23, minute: 59 }, timeZone);
+  return until > now ? until : null;
 }
 
 async function setAbsence(member, entry) {

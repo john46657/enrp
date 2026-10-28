@@ -65,6 +65,7 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 
 | Feld | Bedeutung |
 |---|---|
+| `timezone` | Zeitzone des Servers (IANA-Name, Standard `Europe/Berlin`) für Giveaway-Wochenplan, `/abwesend bis:TT.MM.JJJJ`, Ticket-Transkripte, Bewerbungsstatistik und Zeiten im Dashboard. Die Öffnungszeiten haben eine eigene Zeitzone (`tickets.openingHours.timezone`). |
 | `channels.welcome` | Willkommensnachrichten |
 | `channels.modLog` | Moderations-Log |
 | `channels.ticketLog` | Ticket-Aktivitäten und Transkripte |
@@ -182,6 +183,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
 | `fivem` | Server-Adresse und Verbinden-Link |
+| `zeitzone` | Zeitzone des Servers, z. B. `Europe/Berlin` (Giveaway-Wochenplan, Abwesenheits-Daten, Transkripte, Bewerbungsstatistik, Dashboard) |
 | `statistik` | Server-Statistiken an/aus, Kategorie für neue Kanäle, Statistik hinzufügen/umbenennen/entfernen |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 

@@ -4,6 +4,7 @@ const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
 const stats = require('../../lib/stats');
+const { isValidTimeZone } = require('../../lib/time');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -137,6 +138,7 @@ function overview(guild) {
         name: 'Server-Statistiken',
         value: `${onOff(config.stats.enabled)} · Kategorie ${channel(config.stats.categoryId)}\n${config.stats.counters.map((c) => `\`${c.name}\``).join('\n') || '—'}`,
       },
+      { name: 'Zeitzone', value: config.timezone, inline: true },
       { name: 'Willkommensnachricht', value: truncate(config.welcome.message, 1024) },
     );
 }
@@ -364,6 +366,12 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('zeitzone')
+      .setDescription('Zeitzone des Servers (Giveaway-Wochenplan, Abwesenheit, Transkripte, Statistiken).')
+      .addStringOption((o) => o.setName('zone').setDescription('z. B. Europe/Berlin, Europe/Vienna, America/New_York').setRequired(true).setMaxLength(60)),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('zuruecksetzen')
       .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
       .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
@@ -490,11 +498,7 @@ function changesFor(interaction, sub) {
     case 'oeffnungszeiten': {
       const zone = o.getString('zeitzone')?.trim();
       if (zone) {
-        try {
-          new Intl.DateTimeFormat('de-DE', { timeZone: zone });
-        } catch {
-          throw new Error(`Unbekannte Zeitzone „${zone}“. Beispiel: Europe/Berlin`);
-        }
+        if (!isValidTimeZone(zone)) throw new Error(`Unbekannte Zeitzone „${zone}“. Beispiel: Europe/Berlin`);
       }
       return collect(interaction, [
         ['aktiv', 'tickets.openingHours.enabled', 'getBoolean'],
@@ -570,6 +574,11 @@ function changesFor(interaction, sub) {
       }
       changes.push(['stats.counters', counters]);
       return changes;
+    }
+    case 'zeitzone': {
+      const zone = o.getString('zone').trim();
+      if (!isValidTimeZone(zone)) throw new Error(`Unbekannte Zeitzone „${zone}“. Beispiele: Europe/Berlin, Europe/Vienna, America/New_York`);
+      return [['timezone', zone]];
     }
     case 'fivem':
       return collect(interaction, [

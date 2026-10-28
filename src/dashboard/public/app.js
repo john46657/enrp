@@ -189,6 +189,17 @@ const ui = {
     draw();
     return wrap;
   },
+  // Zeitzone aus der Liste des Browsers (IANA-Namen wie Europe/Berlin).
+  timezone(b) {
+    const zones = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : ['Europe/Berlin'];
+    const current = b.get() || 'Europe/Berlin';
+    const now = new Date();
+    const label = (zone) => {
+      const time = now.toLocaleTimeString('de-DE', { timeZone: zone, hour: '2-digit', minute: '2-digit' });
+      return `${zone.replace(/_/g, ' ')} (${time})`;
+    };
+    return ui.select(b, (zones.includes(current) ? zones : [current, ...zones]).map((z) => [z, label(z)]));
+  },
   // Liste von Texten, eine Zeile je Eintrag (z. B. erlaubte Domains).
   lines(b, { placeholder } = {}) {
     const el = h('textarea', {

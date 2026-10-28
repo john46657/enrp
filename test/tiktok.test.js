@@ -260,6 +260,9 @@ test('Dashboard: Eingaben werden serverseitig geprüft', () => {
   assert.match(validateChange({ path: 'tiktok.template.text', value: 'x'.repeat(70_000) }), /zu groß/);
   assert.equal(settings.invalidPath('1', [{ path: 'tiktok.gibtsnicht.x', value: 1 }]), 'tiktok.gibtsnicht.x');
   assert.equal(settings.invalidPath('1', [{ path: 'tiktok.endGraceMinutes', value: 5 }]), null);
+  assert.equal(validateChange({ path: 'timezone', value: 'Europe/Vienna' }), null);
+  assert.match(validateChange({ path: 'timezone', value: 'Mars/Olympus' }), /Unbekannte Zeitzone/);
+  assert.match(validateChange({ path: 'tickets.openingHours.timezone', value: 42 }), /Unbekannte Zeitzone/);
 });
 
 test.after(() => {

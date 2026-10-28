@@ -143,8 +143,30 @@ const seq = [0.0, 0.99];
 const drawn = gw.drawWinners([{ id: 'a', weight: 1 }, { id: 'b', weight: 3 }, { id: 'c', weight: 1 }], 2, () => seq.shift());
 if (drawn.join() !== 'a,c' || new Set(drawn).size !== 2) fail(`drawWinners falsch: ${drawn}`);
 if (gw.drawWinners([{ id: 'a', weight: 1 }], 3).length !== 1) fail('drawWinners zieht mehr Gewinner als Teilnehmer');
-const day = gw.berlinNow(new Date('2026-10-30T17:00:00Z'));
-if (day.day !== 'fr' || day.time !== '18:00') fail(`berlinNow falsch: ${JSON.stringify(day)}`);
+const day = gw.localNow(new Date('2026-10-30T17:00:00Z'), 'Europe/Berlin');
+if (day.day !== 'fr' || day.time !== '18:00') fail(`localNow falsch: ${JSON.stringify(day)}`);
+const ny = gw.localNow(new Date('2026-10-30T03:30:00Z'), 'America/New_York');
+if (ny.day !== 'do' || ny.time !== '23:30' || ny.date !== '2026-10-29') fail(`localNow (New York) falsch: ${JSON.stringify(ny)}`);
+
+// Zeitzonen: Ortszeit → Zeitpunkt (mit Sommer-/Winterzeit) und /abwesend-Datum
+const time = require('../src/lib/time');
+const zoned = [
+  [{ year: 2026, month: 7, day: 1, hour: 12 }, 'Europe/Berlin', '2026-07-01T10:00:00.000Z'],
+  [{ year: 2026, month: 12, day: 1, hour: 12 }, 'Europe/Berlin', '2026-12-01T11:00:00.000Z'],
+  [{ year: 2026, month: 12, day: 31, hour: 23, minute: 59 }, 'America/New_York', '2027-01-01T04:59:00.000Z'],
+  [{ year: 2026, month: 3, day: 29, hour: 12 }, 'Asia/Tokyo', '2026-03-29T03:00:00.000Z'],
+];
+for (const [parts, zone, iso] of zoned) {
+  const got = new Date(time.fromZoned(parts, zone)).toISOString();
+  if (got !== iso) fail(`fromZoned(${JSON.stringify(parts)}, ${zone}) = ${got}, erwartet ${iso}`);
+}
+if (!time.isValidTimeZone('Europe/Berlin') || time.isValidTimeZone('Mars/Olympus') || time.isValidTimeZone('')) fail('isValidTimeZone falsch');
+const { parseUntil } = require('../src/lib/team');
+const ref = Date.parse('2026-10-28T12:00:00Z');
+if (new Date(parseUntil('31.12.2026', ref, 'Europe/Berlin')).toISOString() !== '2026-12-31T22:59:00.000Z') fail('parseUntil (Berlin) falsch');
+if (parseUntil('31.02.2027', ref, 'Europe/Berlin') !== null || parseUntil('01.01.2020', ref) !== null) fail('parseUntil akzeptiert ungültige Daten');
+if (parseUntil('7', ref) !== ref + 7 * 86_400_000) fail('parseUntil (Tage) falsch');
+console.log('✅ Zeitzonen');
 console.log('✅ Giveaways: Dauer, Ziehung, Wochentag');
 
 if (failed) process.exit(1);

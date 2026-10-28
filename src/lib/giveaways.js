@@ -6,6 +6,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFl
 const { forGuild } = require('./settings');
 const { bucket, save } = require('./db');
 const { embed, fill, getChannel, replyPrivate } = require('./util');
+const { zonedParts } = require('./time');
 
 const settingsOf = (guildId) => forGuild(guildId).giveaways;
 const giveawaysOf = (guildId) => bucket('giveaways', guildId);
@@ -298,20 +299,16 @@ async function handleClaim(interaction, messageId) {
 
 // ---------- Hintergrund ----------
 
-const WEEKDAYS = ['so', 'mo', 'di', 'mi', 'do', 'fr', 'sa'];
-function berlinNow(now = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', minute: '2-digit', year: 'numeric', month: '2-digit', day: '2-digit', hourCycle: 'h23' })
-      .formatToParts(now)
-      .map((p) => [p.type, p.value]),
-  );
-  return { day: parts.weekday.slice(0, 2).toLowerCase(), time: `${parts.hour}:${parts.minute}`, date: `${parts.year}-${parts.month}-${parts.day}` };
+// Wochentag, Uhrzeit und Datum in der Zeitzone des Servers (für wöchentliche Vorlagen).
+function localNow(now = new Date(), timeZone = 'Europe/Berlin') {
+  const p = zonedParts(now, timeZone);
+  return { day: p.weekday, time: p.time, date: p.date };
 }
 
 async function tick(client) {
   const now = Date.now();
-  const berlin = berlinNow();
   for (const guild of client.guilds.cache.values()) {
+    const local = localNow(new Date(now), forGuild(guild.id).timezone);
     const all = giveawaysOf(guild.id);
     for (const g of Object.values(all)) {
       if (!g.ended && g.endsAt <= now) await endGiveaway(guild, g).catch((err) => console.error('[giveaway]', err));
@@ -332,13 +329,13 @@ async function tick(client) {
       delete roles[key];
       save();
     }
-    // Wöchentliche Vorlagen (deutsche Zeit).
+    // Wöchentliche Vorlagen (Zeitzone des Servers).
     const cfg = settingsOf(guild.id);
     if (!cfg.enabled) continue;
     const runs = bucket('giveawayWeekly', guild.id);
     for (const t of cfg.templates) {
-      if (!t.weekly?.enabled || t.weekly.day !== berlin.day || t.weekly.time !== berlin.time || runs[t.id] === berlin.date) continue;
-      runs[t.id] = berlin.date;
+      if (!t.weekly?.enabled || t.weekly.day !== local.day || t.weekly.time !== local.time || runs[t.id] === local.date) continue;
+      runs[t.id] = local.date;
       save();
       await startFromTemplate(guild, t, client.user.id).catch((err) => log(guild, `⚠️ Vorlage **${t.name}** konnte nicht starten: ${err.message}`));
     }
@@ -384,6 +381,5 @@ module.exports = {
   handleClaim,
   startGiveawayWatcher,
   statsOf,
-  berlinNow,
-  WEEKDAYS,
+  localNow,
 };

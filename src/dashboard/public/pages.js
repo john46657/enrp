@@ -17,7 +17,8 @@ const LEAVE = [
   ['notify', 'Nur Hinweis im Ticket senden'],
   ['close', 'Hinweis senden und schließen'],
 ];
-const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString('de-DE') : '—');
+// Zeiten in der Zeitzone des Servers anzeigen.
+const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString('de-DE', { timeZone: state.draft?.timezone || undefined, dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const channelName = (id) => state.guild.channels.find((c) => c.id === id)?.name;
 const roleName = (id) => state.guild.roles.find((r) => r.id === id)?.name;
 
@@ -121,6 +122,11 @@ page({
         { t: 'role', p: 'roles.support', label: 'Support', help: 'Standard-Team für Tickets.' },
         { t: 'role', p: 'roles.staff', label: 'Staff', help: 'Darf Tickets freigeben, alle Bewerbungen entscheiden usw.' },
       ],
+    },
+    {
+      title: 'Zeitzone',
+      desc: 'Gilt für den Giveaway-Wochenplan, Abwesenheits-Daten, Ticket-Transkripte, die Bewerbungsstatistik und alle Zeiten hier im Dashboard. Zeitstempel in Discord-Nachrichten zeigt Discord sowieso in der Zeitzone des jeweiligen Mitglieds.',
+      fields: [{ t: 'timezone', p: 'timezone', label: 'Zeitzone des Servers' }],
     },
     {
       title: 'FiveM',
@@ -346,7 +352,7 @@ function templateEditor(t, i) {
         ),
       ),
       h('h3', { class: 'field wide' }, 'Automatisch wiederholen'),
-      ui.field({ wide: true }, ui.toggle(bindItem('giveaways.templates', t.weekly, 'enabled'), 'Wöchentlich automatisch starten (deutsche Zeit)')),
+      ui.field({ wide: true }, ui.toggle(bindItem('giveaways.templates', t.weekly, 'enabled'), `Wöchentlich automatisch starten (${state.draft.timezone})`)),
       ui.field({ label: 'Tag' }, ui.select(bindItem('giveaways.templates', t.weekly, 'day'), DAYS)),
       ui.field({ label: 'Uhrzeit' }, h('input', { type: 'time', value: t.weekly.time, onchange: (e) => bindItem('giveaways.templates', t.weekly, 'time').set(e.target.value) })),
     ],
@@ -426,7 +432,7 @@ page({
     },
     {
       title: 'Vorlagen',
-      desc: 'Starten mit <code>/giveaway vorlage name</code>, hier mit „Jetzt starten“ (nach dem Speichern) oder automatisch jede Woche.',
+      desc: 'Starten mit <code>/giveaway vorlage name</code>, hier mit „Jetzt starten“ (nach dem Speichern) oder automatisch jede Woche (Zeitzone des Servers, unter Einstellungen).',
       actions: () =>
         h(
           'button',
@@ -830,7 +836,7 @@ page({
           'div',
           { class: 'card-body', style: 'padding:0' },
           renderField({ t: 'toggle', p: 'tickets.openingHours.enabled', label: 'Öffnungszeiten verwenden' }),
-          renderField({ t: 'text', p: 'tickets.openingHours.timezone', label: 'Zeitzone', placeholder: 'Europe/Berlin' }),
+          renderField({ t: 'timezone', p: 'tickets.openingHours.timezone', label: 'Zeitzone der Öffnungszeiten' }),
           h('div', { class: 'field wide' }, periodsEditor()),
         ),
     },

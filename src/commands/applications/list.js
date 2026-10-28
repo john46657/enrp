@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { embed, replyPrivate, sendTo, truncate, isStaff } = require('../../lib/util');
 const { save } = require('../../lib/db');
+const settings = require('../../lib/settings');
 const store = require('../../lib/applications/store');
 const { buildTeamMessage, answersFile } = require('../../lib/applications/messages');
 const { buildStats } = require('../../lib/applications/stats');
@@ -110,7 +111,7 @@ module.exports = {
 
     if (sub === 'anzeigen') {
       const message = buildTeamMessage(record, type, { components: false });
-      return replyPrivate(interaction, { ...message, files: [answersFile(record, type)], content: link(record) ? `Zur Nachricht: ${link(record)}` : undefined });
+      return replyPrivate(interaction, { ...message, files: [answersFile(record, type, settings.forGuild(guildId).timezone)], content: link(record) ? `Zur Nachricht: ${link(record)}` : undefined });
     }
 
     // loeschen

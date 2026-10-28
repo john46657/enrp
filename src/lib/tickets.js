@@ -338,7 +338,7 @@ async function buildTranscript(channel) {
     before = batch.last().id;
   }
   const lines = all.reverse().map((m) => {
-    const time = m.createdAt.toLocaleString('de-DE', { timeZone: settingsOf(channel.guild.id).openingHours.timezone });
+    const time = m.createdAt.toLocaleString('de-DE', { timeZone: forGuild(channel.guild.id).timezone });
     const files = [...m.attachments.values()].map((a) => ` [Anhang: ${a.url}]`).join('');
     const embeds = m.embeds.map((e) => ` [Embed: ${e.title ?? e.description ?? ''}]`).join('');
     return `[${time}] ${m.author.tag}: ${m.content}${files}${embeds}`;

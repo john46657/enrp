@@ -7,13 +7,14 @@ const express = require('express');
 const { PermissionFlagsBits, OAuth2Scopes } = require('discord.js');
 const settings = require('../lib/settings');
 const { bucket, save } = require('../lib/db');
+const { isValidTimeZone } = require('../lib/time');
 
 const API = 'https://discord.com/api/v10';
 const SESSION_DAYS = 7;
 const MAX_VALUE_BYTES = 60_000;
 
 // Top-Level-Bereiche, die das Dashboard ändern darf (applications bleibt in der config.json).
-const EDITABLE = ['channels', 'roles', 'welcome', 'tickets', 'leveling', 'fivem', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions', 'tiktok'];
+const EDITABLE = ['timezone', 'channels', 'roles', 'welcome', 'tickets', 'leveling', 'fivem', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions', 'tiktok'];
 
 // Module können Aktionen (Buttons) und Live-Daten fürs Dashboard anmelden.
 const actions = new Map(); // name → async (guild, body, member) => Ergebnis
@@ -243,6 +244,7 @@ function validateChange(change) {
   if (!EDITABLE.includes(parts[0])) return `„${parts[0]}“ kann im Dashboard nicht geändert werden.`;
   if (parts.some((p) => !p || ['__proto__', 'prototype', 'constructor'].includes(p))) return 'Ungültiger Pfad.';
   if (change.value !== undefined && JSON.stringify(change.value).length > MAX_VALUE_BYTES) return 'Wert ist zu groß.';
+  if ((parts.at(-1) === 'timezone' || parts.at(-1) === 'timeZone') && !isValidTimeZone(change.value)) return `Unbekannte Zeitzone „${change.value}“.`;
   return null;
 }
 

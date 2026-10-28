@@ -1,5 +1,6 @@
 {
   "serverName": "ENRP",
+  "timezone": "Europe/Berlin",
   "colors": {
     "primary": "#5865F2",
     "success": "#57F287",
