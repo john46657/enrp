@@ -20,6 +20,7 @@ const { base, forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
 const { embed, sendTo, isStaff, replyPrivate, fill, truncate } = require('./util');
 const { isOpen, nextOpening } = require('./openingHours');
+const activity = require('./activity');
 
 // Ticket-Einstellungen eines Servers.
 const settingsOf = (guildId) => forGuild(guildId).tickets;
@@ -353,6 +354,7 @@ async function closeTicket(channel, closedBy, reason) {
   if (!ticket) return;
   delete tickets[channel.id];
   save();
+  if (ticket.claimedBy) activity.record(channel.guild.id, ticket.claimedBy, 'ticket'); // für den Rang-Aufstieg
 
   const { activities, transcripts } = settingsOf(channel.guild.id).logging;
   const transcript = transcripts ? await buildTranscript(channel) : null;

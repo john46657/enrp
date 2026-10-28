@@ -11,6 +11,7 @@ const automod = require('../lib/automod');
 const security = require('../lib/security');
 const giveaways = require('../lib/giveaways');
 const suggestions = require('../lib/suggestions');
+const careers = require('../lib/careers');
 const appMessages = require('../lib/applications/messages');
 
 const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
@@ -119,3 +120,8 @@ registerLive('suggestions', (guild) =>
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 100),
 );
+
+// ---------- Rang-Aufstieg ----------
+
+registerLive('careers', async (guild) => ({ progress: await careers.progressList(guild), history: careers.historyOf(guild.id).slice(0, 15).map((e) => ({ ...e, user: guild.members.cache.get(e.userId)?.user.username ?? e.userId })) }));
+registerAction('careers-check', async (guild) => careers.checkGuild(guild));

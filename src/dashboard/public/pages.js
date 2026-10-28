@@ -988,6 +988,52 @@ page({
   ],
 });
 
+// Laufbahn-Editor für den Rang-Aufstieg.
+function careerTrackEditor(t, i) {
+  const list = state.draft.team.careers.tracks;
+  const b = (key) => bindItem('team.careers.tracks', t, key);
+  const open = openItems.has(`track-${i}`);
+  return listItem(
+    {
+      title: t.name,
+      subtitle: [`@${roleName(t.baseRole) ?? '—'}`, ...t.stages.map((s) => `@${roleName(s.role) ?? '—'}`)].join(' → '),
+      badges: [h('span', { class: 'badge' }, t.mode === 'approval' ? 'Freigabe' : 'Automatisch')],
+      open,
+      onToggle: toggleOpen(`track-${i}`),
+      onRemove: () => confirm(`Laufbahn „${t.name}“ entfernen?`) && (list.splice(i, 1), markDirty('team.careers.tracks'), render()),
+    },
+    open && [
+      ui.field({ label: 'Name' }, ui.text(b('name'), { max: 60 })),
+      ui.field({ label: 'Hauptrolle (Basis-Rang)', help: 'Der unterste Rang. Hier starten alle.' }, ui.role(b('baseRole'), { empty: '— Rolle wählen —' })),
+      ui.field({ label: 'Modus' }, ui.select(b('mode'), [['auto', 'Automatisch befördern'], ['approval', 'Zur Freigabe vorschlagen']])),
+      ui.field({ label: 'Kanal für Vorschläge', help: 'Nur bei Freigabe. Leer = Log-Kanal der Teamverwaltung.' }, ui.channel(b('approvalChannel'), { empty: '— Log-Kanal —' })),
+      ui.field({ label: 'Freigeben dürfen', wide: true, help: 'Admins dürfen immer.' }, ui.roles(b('approverRoles'))),
+      h('h3', { class: 'field wide' }, 'Stufen (von unten nach oben)'),
+      h(
+        'div',
+        { class: 'field wide' },
+        t.stages.map((stage, k) => {
+          const sb = (key) => bindItem('team.careers.tracks', stage, key);
+          return h(
+            'div',
+            { class: 'item' },
+            h(
+              'div',
+              { class: 'item-body', style: 'padding-top:14px' },
+              ui.field({ label: `Stufe ${k + 1}` }, ui.role(sb('role'), { empty: '— Rolle wählen —' })),
+              ui.field({ label: 'Mind. Tage im vorherigen Rang' }, ui.number(sb('minDays'), { max: 3650 })),
+              ui.field({ label: 'Bearbeitete Tickets' }, ui.number(sb('tickets'), { max: 100000 })),
+              ui.field({ label: 'Moderations-Aktionen' }, ui.number(sb('modActions'), { max: 100000 })),
+              ui.field({}, h('button', { class: 'btn ghost small', onclick: () => (t.stages.splice(k, 1), markDirty('team.careers.tracks'), render()) }, 'Stufe entfernen')),
+            ),
+          );
+        }),
+        t.stages.length < 10 && h('button', { class: 'btn small', onclick: () => (t.stages.push({ role: '', minDays: 14, tickets: 10, modActions: 0 }), markDirty('team.careers.tracks'), render()) }, '+ Stufe hinzufügen'),
+      ),
+    ],
+  );
+}
+
 // ---------- Teamverwaltung ----------
 
 const TEAM_PERMS = [
@@ -1107,6 +1153,93 @@ page({
         { t: 'channel', p: 'team.absence.channel', label: 'Kanal für die Liste' },
         { t: 'role', p: 'team.absence.role', label: 'Rolle während der Abwesenheit' },
       ],
+    },
+    {
+      title: 'Rang-Aufstieg',
+      desc: 'Der Bot prüft alle 10 Minuten, wer die Voraussetzungen für den nächsten Rang einer Laufbahn erfüllt, und befördert automatisch oder schlägt die Beförderung zur Freigabe vor. Gezählt wird ab dem letzten Rangwechsel: bearbeitete (übernommene und geschlossene) Tickets, Moderations-Aktionen und Tage im Rang.',
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('careers-check', {}, 'Geprüft').then(render) }, 'Jetzt prüfen'),
+      fields: [
+        { t: 'toggle', p: 'team.careers.enabled', label: 'Rang-Aufstieg aktivieren' },
+        { t: 'toggle', p: 'team.careers.skipAbsent', label: 'Abwesende (Abwesenheitsliste) nicht befördern' },
+        { t: 'toggle', p: 'team.careers.countExisting', label: 'Beim ersten Erfassen vorhandene Daten mitzählen', help: 'Gilt nur für Mitglieder, die der Bot zum ersten Mal in einer Laufbahn sieht. Sonst beginnt die Zählung mit der Aktivierung.' },
+        { t: 'toggle', p: 'team.careers.dm', label: 'Befördertes Mitglied per DM informieren' },
+      ],
+    },
+    {
+      title: 'Laufbahnen',
+      desc: 'Eine Laufbahn ist eine Abfolge fester Ränge: die Hauptrolle als Basis und darüber die Stufen.',
+      actions: () =>
+        h(
+          'button',
+          {
+            class: 'btn primary small',
+            onclick: () => {
+              const list = state.draft.team.careers.tracks;
+              if (list.length >= 4) return Dash.toast('Höchstens 4 Laufbahnen.', true);
+              list.push({ id: `l${Date.now().toString(36)}`, name: 'Support', baseRole: '', mode: 'auto', approvalChannel: '', approverRoles: [], stages: [] });
+              openItems.add(`track-${list.length - 1}`);
+              markDirty('team.careers.tracks');
+              render();
+            },
+          },
+          `+ Laufbahn (${state.draft.team.careers.tracks.length}/4)`,
+        ),
+      render: () => (state.draft.team.careers.tracks.length ? h('div', {}, state.draft.team.careers.tracks.map(careerTrackEditor)) : h('div', { class: 'empty' }, 'Noch keine Laufbahn – lege die erste an.')),
+    },
+    {
+      title: 'Öffentliche Ankündigung der Beförderungen',
+      desc: 'Gehört nur zum Rang-Aufstieg. Unabhängig von der Rang-Ankündigung für <code>/team rang</code>.',
+      fields: [
+        { t: 'toggle', p: 'team.careers.announce.enabled', label: 'Beförderungen durch den Rang-Aufstieg öffentlich ankündigen' },
+        { t: 'channel', p: 'team.careers.announce.channel', label: 'Kanal' },
+        { t: 'text', p: 'team.careers.announce.title', label: 'Titel', max: 200 },
+        { t: 'text', p: 'team.careers.announce.color', label: 'Farbe', max: 7 },
+        { t: 'textarea', p: 'team.careers.announce.text', label: 'Text', wide: true, help: '<code>{user}</code> <code>{username}</code> <code>{oldrole}</code> <code>{newrole}</code> <code>{laufbahn}</code> <code>{server}</code>' },
+        { t: 'toggle', p: 'team.careers.announce.ping', label: 'Befördertes Mitglied per Ping benachrichtigen' },
+        { t: 'toggle', p: 'team.careers.announce.showStats', label: 'Geleistetes anzeigen (Tickets, Mod-Aktionen, Tage im Rang)' },
+      ],
+    },
+    {
+      title: 'Fortschritt',
+      desc: 'Zahlen seit dem letzten Rangwechsel.',
+      render: () =>
+        liveBlock('careers', ({ progress }) =>
+          progress.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Mitglied'), h('th', {}, 'Laufbahn'), h('th', {}, 'Rang'), h('th', {}, 'Nächster Rang'), h('th', {}, 'Fortschritt')),
+                progress.map((p) =>
+                  h(
+                    'tr',
+                    {},
+                    h('td', {}, p.user),
+                    h('td', {}, p.track),
+                    h('td', {}, p.stage ?? '—'),
+                    h('td', {}, p.next ?? 'höchste Stufe', p.pending && h('span', { class: 'badge yellow', style: 'margin-left:6px' }, 'Vorschlag offen')),
+                    h('td', { class: 'small' }, p.checks.map((c) => `${c.label} ${c.have}/${c.need}`).join(' · ') || '—'),
+                  ),
+                ),
+              )
+            : h('div', { class: 'empty' }, state.draft.team.careers.enabled ? 'Noch niemand erfasst – „Jetzt prüfen“ klicken.' : 'Aktiviere den Rang-Aufstieg, um den Fortschritt zu sehen.'),
+        ),
+    },
+    {
+      title: 'Verlauf',
+      desc: 'Die letzten 15 Beförderungen und Vorschläge.',
+      render: () =>
+        liveBlock('careers', ({ history }) =>
+          history.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Zeit'), h('th', {}, 'Mitglied'), h('th', {}, 'Laufbahn'), h('th', {}, 'Art'), h('th', {}, 'Neuer Rang')),
+                history.map((e) =>
+                  h('tr', {}, h('td', {}, fmtTime(e.at)), h('td', {}, e.user), h('td', {}, e.track), h('td', {}, { auto: 'automatisch', approved: 'freigegeben', suggested: 'vorgeschlagen', denied: 'abgelehnt' }[e.mode] ?? e.mode), h('td', {}, e.to ? `@${roleName(e.to) ?? e.to}` : '—')),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Beförderungen oder Vorschläge.'),
+        ),
     },
     {
       title: 'Aktuell abwesend',

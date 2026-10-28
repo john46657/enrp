@@ -1,6 +1,7 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { forGuild } = require('./settings');
 const { sendTo, embed } = require('./util');
+const activity = require('./activity');
 
 const settingsOf = (guildId) => forGuild(guildId).moderation;
 
@@ -46,6 +47,7 @@ async function notifyUser(user, guild, action, reason) {
 }
 
 function logAction(guild, { action, target, moderator, reason, color = 'danger', fields = [] }) {
+  if (!moderator.bot) activity.record(guild.id, moderator.id, 'mod'); // für den Rang-Aufstieg
   if (!settingsOf(guild.id).logEnabled) return null;
   return sendTo(guild, 'modLog', {
     embeds: [

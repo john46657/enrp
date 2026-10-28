@@ -142,6 +142,7 @@ module.exports = {
   },
 
   components: {
+    career: (interaction, [action, trackId, userId]) => require('../../lib/careers').answer(interaction, action === 'ok', `${trackId}:${userId}`),
     async team(interaction, [action]) {
       if (action === 'offeryes' || action === 'offerno') return team.answerRankOffer(interaction, action === 'offeryes');
     },

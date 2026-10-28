@@ -149,7 +149,11 @@ Die Moderationsbefehle sind jetzt für alle sichtbar und prüfen die Berechtigun
 | `teamList` | `enabled`, `channel`, `roles`: Nachricht mit allen Mitgliedern je Rolle, aktualisiert sich bei Rollenänderungen |
 | `absence` | `enabled`, `channel` (Liste der Abwesenden), `role` (wird während der Abwesenheit vergeben) |
 
-Rang-Aufstieg mit automatischen Laufbahnen und der Team-Kalender sind (noch) nicht enthalten.
+| `careers` | **Rang-Aufstieg**: `enabled`, `skipAbsent` (Abwesende nicht befördern), `countExisting` (beim ersten Erfassen vorhandene Aktivität mitzählen), `dm`, `announce` (`enabled`, `channel`, `title`, `text` mit `{user}` `{username}` `{oldrole}` `{newrole}` `{laufbahn}` `{server}`, `color`, `ping`, `showStats`) und `tracks[]`: `{ id, name, baseRole, mode: "auto" \| "approval", approvalChannel, approverRoles, stages: [{ role, minDays, tickets, modActions }] }` |
+
+Der Rang-Aufstieg prüft alle 10 Minuten. Gezählt wird ab dem letzten Rangwechsel (auch einem manuellen): bearbeitete
+Tickets (übernommen und geschlossen), Moderationsaktionen (`/warn`, `/kick`, `/ban`, `/timeout`, …) und Tage im Rang.
+Im Modus `approval` postet der Bot einen Vorschlag mit „Befördern“/„Ablehnen“.
 
 ### Server-Statistiken (`stats`)
 

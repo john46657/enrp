@@ -456,6 +456,22 @@
       "enabled": false,
       "channel": "",
       "role": ""
+    },
+    "careers": {
+      "enabled": false,
+      "skipAbsent": true,
+      "countExisting": false,
+      "dm": false,
+      "announce": {
+        "enabled": false,
+        "channel": "",
+        "title": "⬆️ Beförderung",
+        "text": "{user} wurde zu {newrole} befördert! 🎉",
+        "color": "#22C55E",
+        "ping": false,
+        "showStats": false
+      },
+      "tracks": []
     }
   },
   "moderation": {
