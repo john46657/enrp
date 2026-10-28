@@ -197,11 +197,16 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/game/players/access` | Zugangsprüfung beim Betreten (Bann, Fraktion, Fahrzeuge) |
 | `POST` | `/api/v1/game/redeem` | Code einlösen (Idempotency-Key-Header erforderlich) |
 | `POST` | `/api/v1/game/sanctions/{id}/ack` | Ausführung einer Roblox-Sanktion bestätigen |
+| `POST` | `/api/v1/game/commands/poll` | Offene Server-Befehle abholen |
+| `POST` | `/api/v1/game/commands/{id}/ack` | Ausführung eines Server-Befehls bestätigen |
 
 ## Roblox-Verwaltung
 
 | Methode | Pfad | Zweck |
 |---|---|---|
+| `GET` | `/api/v1/roblox/servers/{id}` | Server-Details mit Spielerliste und Befehlen |
+| `POST` | `/api/v1/roblox/commands` | Befehl an einen oder alle laufenden Server (Nachricht, Herunterfahren) |
+| `GET` | `/api/v1/roblox/commands` | Letzte Server-Befehle |
 | `GET` | `/api/v1/roblox/servers` | Serverstatus und -historie |
 | `GET` | `/api/v1/roblox/keys` | API-Schlüssel (ohne Klartext) |
 | `POST` | `/api/v1/roblox/keys` | API-Schlüssel erzeugen (Klartext nur einmal) |

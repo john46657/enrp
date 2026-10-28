@@ -332,3 +332,77 @@ describe('Verifizierung', () => {
     await expectAppError(verification.startVerification(ctx, user), 'KILL_SWITCH_ACTIVE');
   });
 });
+
+describe('Servertyp und Server-Befehle', () => {
+  it('speichert den Servertyp aus dem Heartbeat', async () => {
+    const ctx = createTestContext();
+    const { actor } = await setupServer(ctx);
+    await game.processHeartbeat(ctx, actor, {
+      jobId: 'job-vip',
+      placeId: '123',
+      privateServerId: 'ps-1',
+      privateServerOwnerId: 777,
+      players: [],
+    });
+    await game.processHeartbeat(ctx, actor, { jobId: 'job-res', placeId: '123', privateServerId: 'ps-2', players: [] });
+    const servers = await game.listServers(ctx.db);
+    const byJob = Object.fromEntries(servers.map((s) => [s.jobId, s]));
+    expect(byJob['job-1']).toMatchObject({ serverType: 'public', privateServerOwnerId: null });
+    expect(byJob['job-vip']).toMatchObject({ serverType: 'private', privateServerOwnerId: 777 });
+    expect(byJob['job-res']).toMatchObject({ serverType: 'reserved', privateServerOwnerId: null });
+  });
+
+  it('liefert Befehle aus, bestätigt sie einmalig und lässt alte verfallen', async () => {
+    const ctx = createTestContext();
+    const { actor, serverId, admin } = await setupServer(ctx);
+    await game.createServerCommand(ctx, admin, { serverId }, { type: 'message_server', message: 'Hallo' }, 'Test');
+    const first = await game.pollServerCommands(ctx, actor, 'job-1');
+    expect(first.commands).toHaveLength(1);
+    expect(first.commands[0]).toMatchObject({ type: 'message_server', message: 'Hallo' });
+    // Unbestätigt → wird erneut geliefert (Server führt per ID nur einmal aus).
+    expect((await game.pollServerCommands(ctx, actor, 'job-1')).commands).toHaveLength(1);
+    const id = first.commands[0]!.id;
+    expect(await game.acknowledgeServerCommand(ctx, actor, id, { jobId: 'job-1', success: true })).toEqual({
+      status: 'succeeded',
+    });
+    expect(await game.acknowledgeServerCommand(ctx, actor, id, { jobId: 'job-1', success: true })).toEqual({
+      status: 'ignored',
+    });
+    expect((await game.pollServerCommands(ctx, actor, 'job-1')).commands).toHaveLength(0);
+
+    await game.createServerCommand(ctx, admin, { allOnline: true }, { type: 'shutdown' }, 'Update');
+    advance(ctx, (game.SERVER_COMMAND_TTL_SECONDS + 1) * 1000);
+    expect((await game.pollServerCommands(ctx, actor, 'job-1')).commands).toHaveLength(0);
+    const all = await game.listServerCommands(ctx.db);
+    expect(all.map((c) => c.status).sort()).toEqual(['expired', 'succeeded']);
+  });
+
+  it('Heartbeat liefert offene Befehle mit; Rechte werden geprüft', async () => {
+    const ctx = createTestContext();
+    const { actor, serverId } = await setupServer(ctx);
+    const mod = await userWithRole(ctx, DISCORD, 'moderation');
+    await game.createServerCommand(
+      ctx,
+      mod,
+      { serverId },
+      { type: 'message_player', robloxUserId: PLAYER, message: 'Bitte melden' },
+      'Hinweis',
+    );
+    await expectAppError(
+      game.createServerCommand(ctx, mod, { serverId }, { type: 'shutdown' }, 'Neustart'),
+      'FORBIDDEN',
+    );
+    const reader = await userWithRole(ctx, POLICE_LEAD, 'read_only');
+    await expectAppError(
+      game.createServerCommand(ctx, reader, { serverId }, { type: 'message_server', message: 'x' }, 'x'),
+      'FORBIDDEN',
+    );
+    const hb = await game.processHeartbeat(ctx, actor, { jobId: 'job-1', placeId: '123', players: [] });
+    expect(hb.commands).toEqual([
+      expect.objectContaining({ type: 'message_player', robloxUserId: PLAYER, message: 'Bitte melden' }),
+    ]);
+    const detail = await game.getServerDetail(ctx.db, serverId);
+    expect(detail.server.jobId).toBe('job-1');
+    expect(detail.commands).toHaveLength(1);
+  });
+});

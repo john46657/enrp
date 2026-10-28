@@ -1,7 +1,7 @@
 import { createLogger } from '@enrp/config';
 import { NotConfiguredDiscordGateway, MemoryQueue, type CoreContext } from '@enrp/core';
 import { createDatabase } from '@enrp/database';
-import { BullJobQueue, DiscordRestGateway, RealtimeHub, createRedis } from '@enrp/integrations';
+import { BullJobQueue, DiscordRestGateway, RealtimeHub, RobloxMessagingClient, createRedis } from '@enrp/integrations';
 import { type ApiEnv } from './env';
 import { Metrics } from './lib/metrics';
 import { createOAuthClients } from './lib/oauth';
@@ -41,6 +41,10 @@ export function createDeps(env: ApiEnv): ApiDeps {
     bullQueue,
     realtime,
     metrics: new Metrics(),
+    robloxMessaging:
+      env.ROBLOX_UNIVERSE_ID && env.ROBLOX_OPEN_CLOUD_KEY
+        ? new RobloxMessagingClient(env.ROBLOX_UNIVERSE_ID, env.ROBLOX_OPEN_CLOUD_KEY)
+        : undefined,
     oauth: createOAuthClients({
       discordClientId: env.DISCORD_CLIENT_ID,
       discordClientSecret: env.DISCORD_CLIENT_SECRET,

@@ -290,4 +290,78 @@ describe('API: Roblox-Spielserver', () => {
     expect(redeemNoKey.statusCode).toBe(400);
     await app.close();
   });
+
+  it('Server-Befehle: Anlage mit Grund und Recht, Abholen, Bestätigen, Open-Cloud-Weckruf', async () => {
+    const ctx = createTestContext();
+    const { app, deps } = await createTestApp(ctx);
+    const published: string[] = [];
+    (deps as { robloxMessaging?: unknown }).robloxMessaging = {
+      publish: async (topic: string, message: string) => void published.push(`${topic} ${message}`),
+    };
+    const { key } = await game.createRobloxApiKey(ctx, await owner(ctx), { name: 'Live' }, 'Einrichtung');
+    let n = 0;
+    const headers = () => ({
+      authorization: `Bearer ${key}`,
+      'x-roblox-timestamp': String(Math.floor(ctx.now().getTime() / 1000)),
+      'x-roblox-nonce': `nonce-cmd-${String(++n).padStart(10, '0')}`,
+    });
+    const hb = await app.inject({
+      method: 'POST',
+      url: '/api/v1/game/heartbeat',
+      headers: headers(),
+      payload: { jobId: 'job-c', placeId: '1', privateServerId: 'ps', privateServerOwnerId: 5, players: [] },
+    });
+    const serverId = hb.json().serverId as string;
+
+    const noReason = await app.inject({
+      method: 'POST',
+      url: '/api/v1/roblox/commands',
+      headers: botHeaders(OWNER_ID),
+      payload: { serverId, command: { type: 'message_server', message: 'Hi' } },
+    });
+    expect(noReason.statusCode).toBe(400);
+    const forbidden = await app.inject({
+      method: 'POST',
+      url: '/api/v1/roblox/commands',
+      headers: botHeaders(USER),
+      payload: { serverId, command: { type: 'shutdown' }, reason: 'Neustart' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/roblox/commands',
+      headers: botHeaders(OWNER_ID),
+      payload: { command: { type: 'message_server', message: 'Restart in 5 Minuten' }, reason: 'Update' },
+    });
+    expect(created.statusCode).toBe(200);
+    expect(published).toEqual([`ENRP_Commands {"serverIds":["${serverId}"]}`]);
+
+    const poll = await app.inject({
+      method: 'POST',
+      url: '/api/v1/game/commands/poll',
+      headers: headers(),
+      payload: { jobId: 'job-c' },
+    });
+    const [command] = poll.json().commands;
+    expect(command).toMatchObject({ type: 'message_server', message: 'Restart in 5 Minuten' });
+    const ack = await app.inject({
+      method: 'POST',
+      url: `/api/v1/game/commands/${command.id}/ack`,
+      headers: headers(),
+      payload: { jobId: 'job-c', success: true },
+    });
+    expect(ack.json()).toEqual({ status: 'succeeded' });
+
+    const detail = await app.inject({ url: `/api/v1/roblox/servers/${serverId}`, headers: botHeaders(OWNER_ID) });
+    expect(detail.json()).toMatchObject({
+      server: { serverType: 'private', privateServerOwnerId: 5 },
+      commands: [{ status: 'succeeded' }],
+    });
+    const audit = await ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'server_command.message_server'));
+    expect(audit).toHaveLength(1);
+    await app.close();
+  });
 });

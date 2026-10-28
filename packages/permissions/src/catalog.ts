@@ -98,9 +98,9 @@ export const RESOURCES = {
     actions: ['view', 'create', 'edit', 'delete'],
   },
   roblox_servers: {
-    label: 'Roblox-Server & API-Schlüssel',
+    label: 'Roblox-Server & API-Schlüssel (Bearbeiten = Nachrichten an Server, Konfiguration = Herunterfahren)',
     group: 'Technik & Betrieb',
-    actions: ['view', 'configure'],
+    actions: ['view', 'edit', 'configure'],
   },
   audit: { label: 'Audit-Logs', group: 'Sicherheit & Kontrolle', actions: ['view', 'export'] },
   security: { label: 'Sicherheitsereignisse & Sitzungen', group: 'Sicherheit & Kontrolle', actions: ['view', 'edit'] },

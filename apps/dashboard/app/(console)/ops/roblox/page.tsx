@@ -1,11 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useState } from 'react';
 import { ActionDialog } from '@/components/data/action-dialog';
 import { Badge, Button, EmptyState, ErrorState, PageHeader, Panel, Skeleton, StatusBadge } from '@/components/ui/primitives';
 import { get, post } from '@/lib/api';
-import { fmtDateTime, fmtRelative } from '@/lib/format';
+import { fmtDateTime, fmtRelative, statusLabel } from '@/lib/format';
 import { useCan } from '@/lib/session';
 
 interface Server {
@@ -14,6 +15,8 @@ interface Server {
   placeId: string;
   placeVersion: number | null;
   status: string;
+  serverType: 'public' | 'private' | 'reserved';
+  privateServerOwnerId: number | null;
   playerCount: number;
   maxPlayers: number | null;
   startedAt: string;
@@ -41,7 +44,24 @@ export default function RobloxPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Roblox-Server" description={s.overview.connected ? `${s.overview.playersOnline} Spieler auf verbundenen Servern.` : 'Derzeit sendet kein Spielserver Heartbeats. Prüfe API-Schlüssel und HttpService (siehe roblox/README.md).'} />
-      <Panel title="Server-Instanzen">
+      <Panel
+        title="Server-Instanzen"
+        actions={
+          s.overview.connected &&
+          can('roblox_servers:edit') && (
+            <ActionDialog
+              title="Nachricht an alle Server"
+              description="Erscheint als Banner bei allen Spielern auf allen laufenden Servern."
+              submitLabel="Senden"
+              requireReason
+              fields={[{ name: 'message', label: 'Nachricht', type: 'textarea', required: true, max: 300 }]}
+              onSubmit={(v) => post('/roblox/commands', { command: { type: 'message_server', message: v.message }, reason: v.reason })}
+              successMessage="Nachricht in Zustellung"
+              trigger={(open) => <Button onClick={open}>Nachricht an alle</Button>}
+            />
+          )
+        }
+      >
         {s.recent.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -49,6 +69,7 @@ export default function RobloxPage() {
                 <tr>
                   <th className="py-1.5 font-medium">JobId</th>
                   <th className="font-medium">Status</th>
+                  <th className="font-medium">Typ</th>
                   <th className="font-medium">Spieler</th>
                   <th className="font-medium">Place / Version</th>
                   <th className="font-medium">Gestartet</th>
@@ -58,9 +79,16 @@ export default function RobloxPage() {
               <tbody className="divide-y divide-line">
                 {s.recent.map((x) => (
                   <tr key={x.id}>
-                    <td className="py-1.5 font-mono text-xs">{x.jobId.slice(0, 18)}</td>
+                    <td className="py-1.5 font-mono text-xs">
+                      <Link className="underline-offset-2 hover:underline" href={`/ops/roblox/${x.id}`}>
+                        {x.jobId.slice(0, 18)}
+                      </Link>
+                    </td>
                     <td>
                       <StatusBadge status={x.status} />
+                    </td>
+                    <td>
+                      <Badge>{statusLabel(x.serverType)}</Badge>
                     </td>
                     <td className="tabular">
                       {x.playerCount}

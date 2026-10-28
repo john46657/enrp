@@ -22,6 +22,15 @@ export const apiEnvSchema = baseEnvSchema.extend({
   VERIFIED_ROLE_ID: optionalString,
   ROBLOX_CLIENT_ID: optionalString,
   ROBLOX_CLIENT_SECRET: optionalString,
+  /** Optional: Open Cloud Messaging als Weckruf für neue Server-Befehle. */
+  ROBLOX_UNIVERSE_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .regex(/^\d{1,20}$/)
+      .optional(),
+  ),
+  ROBLOX_OPEN_CLOUD_KEY: optionalString,
   METRICS_TOKEN: optionalString,
   RELEASE_WEBHOOK_SECRET: optionalString,
   APP_VERSION: z.string().default('0.0.0-dev'),

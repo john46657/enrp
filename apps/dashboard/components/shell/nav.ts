@@ -39,7 +39,8 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  permission?: string;
+  /** Eine Berechtigung oder mehrere (eine davon genügt). */
+  permission?: string | string[];
 }
 
 export interface NavGroup {
@@ -84,7 +85,12 @@ export const NAV: NavGroup[] = [
     label: 'Technik & Betrieb',
     items: [
       { href: '/ops/health', label: 'Gesundheit', icon: Activity, permission: 'monitoring:view' },
-      { href: '/ops/roblox', label: 'Roblox-Server', icon: Server, permission: 'monitoring:view' },
+      {
+        href: '/ops/roblox',
+        label: 'Roblox-Server',
+        icon: Server,
+        permission: ['monitoring:view', 'roblox_servers:view'],
+      },
       { href: '/ops/jobs', label: 'Warteschlangen & Jobs', icon: ClipboardList, permission: 'jobs:view' },
       { href: '/ops/incidents', label: 'Vorfälle', icon: AlertTriangle, permission: 'incidents:view' },
       { href: '/ops/backups', label: 'Backups', icon: DatabaseBackup, permission: 'backups:view' },

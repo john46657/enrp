@@ -8,9 +8,11 @@ import {
   gameServers,
   isNull,
   lt,
+  inArray,
   playSessions,
   requestNonces,
   robloxUsers,
+  serverCommands,
   sql,
   type DbExecutor,
 } from '@enrp/database';
@@ -160,6 +162,9 @@ export const heartbeatSchema = z.object({
   placeId: z.string().regex(/^\d{1,20}$/),
   placeVersion: z.number().int().nonnegative().optional(),
   maxPlayers: z.number().int().min(0).max(1000).optional(),
+  /** game.PrivateServerId und game.PrivateServerOwnerId – daraus wird der Servertyp abgeleitet. */
+  privateServerId: z.string().max(100).optional(),
+  privateServerOwnerId: z.number().int().nonnegative().optional(),
   players: z
     .array(
       z.object({
@@ -174,6 +179,17 @@ export const heartbeatSchema = z.object({
 });
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>;
 
+export type ServerType = 'public' | 'private' | 'reserved';
+
+/**
+ * Servertyp nach Roblox-Regeln: ohne PrivateServerId öffentlich, mit Besitzer privat (VIP-Server),
+ * ohne Besitzer reserviert (per TeleportService:ReserveServer bzw. ShouldReserveServer erstellt).
+ */
+export function classifyServerType(input: { privateServerId?: string; privateServerOwnerId?: number }): ServerType {
+  if (!input.privateServerId) return 'public';
+  return input.privateServerOwnerId ? 'private' : 'reserved';
+}
+
 export async function getServerByJobId(db: DbExecutor, jobId: string) {
   const [row] = await db.select().from(gameServers).where(eq(gameServers.jobId, jobId));
   return row ?? null;
@@ -185,6 +201,8 @@ export async function getServerByJobId(db: DbExecutor, jobId: string) {
  */
 export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActor, input: HeartbeatInput) {
   const now = ctx.now();
+  const serverType = classifyServerType(input);
+  const privateServerOwnerId = serverType === 'private' ? input.privateServerOwnerId! : null;
   const result = await ctx.db.transaction(async (tx) => {
     const [server] = await tx
       .insert(gameServers)
@@ -195,6 +213,8 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
         apiKeyId: actor.apiKeyId,
         playerCount: input.players.length,
         maxPlayers: input.maxPlayers ?? null,
+        serverType,
+        privateServerOwnerId,
         status: 'online',
         startedAt: now,
         lastHeartbeatAt: now,
@@ -205,6 +225,8 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
           playerCount: input.players.length,
           maxPlayers: input.maxPlayers ?? null,
           placeVersion: input.placeVersion ?? null,
+          serverType,
+          privateServerOwnerId,
           status: 'online',
           lastHeartbeatAt: now,
           endedAt: null,
@@ -240,6 +262,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
     dutyTracking: await isFlagEnabled(ctx.db, 'duty_tracking'),
     announcements: await inGameAnnouncements(ctx.db, since),
     sanctions: await pendingRobloxSanctions(ctx.db),
+    commands: await takeServerCommands(ctx, result.id),
   };
 }
 
@@ -350,6 +373,165 @@ export async function serverOverview(db: DbExecutor, now: Date, staleSeconds = 1
 
 export async function listServers(db: DbExecutor, limit = 50) {
   return db.select().from(gameServers).orderBy(desc(gameServers.lastHeartbeatAt)).limit(limit);
+}
+
+/** Server-Detailseite: Stammdaten, aktuelle Spieler (offene Spielsessions) und letzte Befehle. */
+export async function getServerDetail(db: DbExecutor, id: string) {
+  const [server] = await db.select().from(gameServers).where(eq(gameServers.id, id));
+  if (!server) throw errors.notFound('Server');
+  const players = await db
+    .select({
+      userId: robloxUsers.id,
+      username: robloxUsers.username,
+      displayName: robloxUsers.displayName,
+      joinedAt: playSessions.joinedAt,
+    })
+    .from(playSessions)
+    .innerJoin(robloxUsers, eq(robloxUsers.id, playSessions.robloxUserId))
+    .where(and(eq(playSessions.serverId, id), isNull(playSessions.leftAt)))
+    .orderBy(playSessions.joinedAt);
+  return { server, players, commands: await listServerCommands(db, id, 25) };
+}
+
+// ---------------------------------------------------------------------------
+// Befehle an Spielserver (Nachricht, Herunterfahren)
+// ---------------------------------------------------------------------------
+
+/** Wie lange ein Befehl abgeholt werden darf, bevor er verfällt. */
+export const SERVER_COMMAND_TTL_SECONDS = 600;
+
+export const serverCommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('message_server'), message: z.string().trim().min(1).max(300) }),
+  z.object({
+    type: z.literal('message_player'),
+    robloxUserId: z.number().int().positive(),
+    message: z.string().trim().min(1).max(300),
+  }),
+  z.object({ type: z.literal('shutdown'), message: z.string().trim().max(300).optional() }),
+]);
+export type ServerCommandInput = z.infer<typeof serverCommandSchema>;
+
+/**
+ * Legt einen Befehl für einen oder alle laufenden Server an. Nachrichten brauchen roblox_servers:edit,
+ * Herunterfahren roblox_servers:configure. Jede Anlage steht mit Grund im Audit-Log.
+ */
+export async function createServerCommand(
+  ctx: CoreContext,
+  actor: Actor,
+  target: { serverId: string } | { allOnline: true },
+  input: ServerCommandInput,
+  reason: string,
+) {
+  requirePermission(actor, input.type === 'shutdown' ? 'roblox_servers:configure' : 'roblox_servers:edit');
+  const now = ctx.now();
+  const servers =
+    'serverId' in target
+      ? await ctx.db.select().from(gameServers).where(eq(gameServers.id, target.serverId))
+      : (await serverOverview(ctx.db, now)).servers;
+  if ('serverId' in target && !servers[0]) throw errors.notFound('Server');
+  const online = servers.filter((s) => s.status === 'online');
+  if (!online.length) throw errors.badRequest('Kein laufender Server erreichbar.');
+  const rows = await ctx.db.transaction(async (tx) => {
+    const created = await tx
+      .insert(serverCommands)
+      .values(
+        online.map((s) => ({
+          serverId: s.id,
+          type: input.type,
+          robloxUserId: input.type === 'message_player' ? input.robloxUserId : null,
+          message: input.message ?? null,
+          reason,
+          createdBy: actorId(actor),
+          createdAt: now,
+          expiresAt: new Date(now.getTime() + SERVER_COMMAND_TTL_SECONDS * 1000),
+        })),
+      )
+      .returning();
+    for (const row of created) {
+      await writeAudit(
+        tx,
+        actor,
+        {
+          action: `server_command.${input.type}`,
+          resourceType: 'game_server',
+          resourceId: row.serverId,
+          reason,
+          after: { commandId: row.id, message: row.message, robloxUserId: row.robloxUserId },
+        },
+        now,
+      );
+    }
+    return created;
+  });
+  ctx.realtime.publish('servers', 'server.command', { count: rows.length, type: input.type });
+  return { items: rows };
+}
+
+/**
+ * Liefert offene Befehle eines Servers und markiert sie als zugestellt. Abgelaufene werden verworfen.
+ * Zugestellte, aber unbestätigte Befehle werden erneut geliefert – der Server führt sie anhand der ID nur einmal aus.
+ */
+export async function takeServerCommands(ctx: CoreContext, serverId: string) {
+  const now = ctx.now();
+  await ctx.db
+    .update(serverCommands)
+    .set({ status: 'expired', completedAt: now })
+    .where(
+      and(
+        eq(serverCommands.serverId, serverId),
+        inArray(serverCommands.status, ['pending', 'delivered']),
+        lt(serverCommands.expiresAt, now),
+      ),
+    );
+  const open = await ctx.db
+    .update(serverCommands)
+    .set({ status: 'delivered', deliveredAt: sql`coalesce(${serverCommands.deliveredAt}, ${now})` })
+    .where(and(eq(serverCommands.serverId, serverId), inArray(serverCommands.status, ['pending', 'delivered'])))
+    .returning();
+  return open
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((c) => ({ id: c.id, type: c.type, robloxUserId: c.robloxUserId, message: c.message }));
+}
+
+/** Kurzes Abfragen offener Befehle zwischen zwei Heartbeats. */
+export async function pollServerCommands(ctx: CoreContext, actor: RobloxServerActor, jobId: string) {
+  const server = await getServerByJobId(ctx.db, jobId);
+  if (!server || server.apiKeyId !== actor.apiKeyId) throw errors.badRequest('Unbekannter Server.');
+  return { commands: await takeServerCommands(ctx, server.id) };
+}
+
+export async function acknowledgeServerCommand(
+  ctx: CoreContext,
+  actor: RobloxServerActor,
+  commandId: string,
+  input: { jobId: string; success: boolean; error?: string },
+) {
+  const server = await getServerByJobId(ctx.db, input.jobId);
+  if (!server || server.apiKeyId !== actor.apiKeyId) throw errors.badRequest('Unbekannter Server.');
+  const status = input.success ? 'succeeded' : 'failed';
+  const [row] = await ctx.db
+    .update(serverCommands)
+    .set({ status, completedAt: ctx.now(), error: input.error?.slice(0, 500) ?? null })
+    .where(
+      and(
+        eq(serverCommands.id, commandId),
+        eq(serverCommands.serverId, server.id),
+        inArray(serverCommands.status, ['pending', 'delivered']),
+      ),
+    )
+    .returning();
+  if (!row) return { status: 'ignored' as const };
+  ctx.realtime.publish('servers', 'server.command_result', { id: row.id, status });
+  return { status };
+}
+
+export async function listServerCommands(db: DbExecutor, serverId?: string, limit = 50) {
+  return db
+    .select()
+    .from(serverCommands)
+    .where(serverId ? eq(serverCommands.serverId, serverId) : undefined)
+    .orderBy(desc(serverCommands.createdAt))
+    .limit(Math.min(limit, 200));
 }
 
 // ---------------------------------------------------------------------------

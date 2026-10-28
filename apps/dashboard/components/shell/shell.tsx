@@ -37,7 +37,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav aria-label="Hauptnavigation" className="space-y-5 px-3 py-4">
       {NAV.map((group) => {
-        const items = group.items.filter((i) => can(i.permission));
+        const items = group.items.filter((i) =>
+          Array.isArray(i.permission) ? i.permission.some(can) : can(i.permission),
+        );
         if (!items.length) return null;
         return (
           <div key={group.label}>

@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
+local MessagingService = game:GetService("MessagingService")
 
 local Api = require(script.Parent.Api)
 local Config = require(script.Parent.Config)
@@ -34,6 +35,8 @@ local state = {
 	maintenance = { active = false, message = nil :: string? },
 	announcementsSince = DateTime.now():ToIsoDate(),
 	handledSanctions = {} :: { [string]: boolean },
+	handledCommands = {} :: { [string]: boolean },
+	shuttingDown = false,
 	connected = false,
 }
 
@@ -127,6 +130,53 @@ local function applySanction(sanction: any)
 	Api.request("POST", ("/api/v1/game/sanctions/%s/ack"):format(sanction.id), { jobId = game.JobId, success = ok, error = if ok then nil else tostring(err) })
 end
 
+-- Befehle aus dem Dashboard (Nachricht an Server/Spieler, Herunterfahren). Jede ID wird nur einmal ausgeführt.
+local function applyCommand(command: any)
+	if state.handledCommands[command.id] then
+		return
+	end
+	state.handledCommands[command.id] = true
+	local ok, err = pcall(function()
+		if command.type == "message_server" then
+			announce:FireAllClients("Nachricht vom Team", command.message)
+		elseif command.type == "message_player" then
+			local player = Players:GetPlayerByUserId(command.robloxUserId)
+			if not player then
+				error("Spieler ist nicht auf diesem Server")
+			end
+			announce:FireClient(player, "Nachricht vom Team", command.message)
+		elseif command.type == "shutdown" then
+			state.shuttingDown = true
+			local text = command.message or "Der Server wird vom Team neu gestartet."
+			announce:FireAllClients("Server wird geschlossen", text)
+			task.delay(10, function()
+				for _, player in Players:GetPlayers() do
+					player:Kick(text)
+				end
+			end)
+			-- Neue Spieler werden bis zum Schließen ebenfalls abgewiesen.
+			Players.PlayerAdded:Connect(function(player)
+				player:Kick(text)
+			end)
+		else
+			error("Unbekannter Befehl: " .. tostring(command.type))
+		end
+	end)
+	if not ok then
+		warn("[ENRP] Befehl fehlgeschlagen: " .. tostring(err))
+	end
+	Api.request("POST", ("/api/v1/game/commands/%s/ack"):format(command.id), { jobId = game.JobId, success = ok, error = if ok then nil else tostring(err) })
+end
+
+local function pollCommands()
+	local response = Api.request("POST", "/api/v1/game/commands/poll", { jobId = game.JobId })
+	if response.ok and response.body then
+		for _, command in response.body.commands or {} do
+			task.spawn(applyCommand, command)
+		end
+	end
+end
+
 local function heartbeat()
 	local players = {}
 	for _, p in Players:GetPlayers() do
@@ -137,6 +187,9 @@ local function heartbeat()
 		placeId = tostring(game.PlaceId),
 		placeVersion = game.PlaceVersion,
 		maxPlayers = Players.MaxPlayers,
+		-- Servertyp: öffentlich, privat (VIP) oder reserviert – das Backend leitet ihn daraus ab.
+		privateServerId = game.PrivateServerId,
+		privateServerOwnerId = game.PrivateServerOwnerId,
 		players = players,
 		announcementsSince = state.announcementsSince,
 	})
@@ -163,6 +216,9 @@ local function heartbeat()
 	for _, sanction in data.sanctions or {} do
 		task.spawn(applySanction, sanction)
 	end
+	for _, command in data.commands or {} do
+		task.spawn(applyCommand, command)
+	end
 end
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
@@ -180,6 +236,30 @@ task.spawn(function()
 		if state.connected or EventQueue.size() > 0 then
 			EventQueue.flush()
 		end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(Config.CommandPollIntervalSeconds)
+		if state.connected and not state.shuttingDown then
+			pollCommands()
+		end
+	end
+end)
+
+-- Optionaler Weckruf über Open Cloud Messaging: sofort abholen statt auf das nächste Intervall zu warten.
+-- Die Nachricht enthält nur Server-IDs; der Befehl selbst kommt immer authentifiziert von der API.
+task.spawn(function()
+	local ok, err = pcall(function()
+		MessagingService:SubscribeAsync(Config.CommandWakeTopic, function()
+			if state.connected then
+				pollCommands()
+			end
+		end)
+	end)
+	if not ok then
+		warn("[ENRP] Weckruf nicht verfügbar (Befehle werden weiter regelmäßig abgeholt): " .. tostring(err))
 	end
 end)
 
