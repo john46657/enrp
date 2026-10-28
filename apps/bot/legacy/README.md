@@ -10,7 +10,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | Bereich | Befehle / Features |
 |---|---|
 | 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [APPLICATIONS.md](APPLICATIONS.md)** |
-| 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
+| 🎭 **Roleplay** | `/serverstatus`: Roblox-Spiel mit Spielern online, Servern und „Spielen“-Button · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` `/melden` · Berechtigungen per Rolle · Warn-Limit, Ablauf, Warn-Rollen, öffentliche Verwarnung · Honeypot-Köderkanal · Auto-Mod (Hoisting, Einladungen, Links, Spam, Caps, Pings) · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
@@ -20,7 +20,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 🎁 **Giveaways** | `/giveaway start\|vorlage\|ende\|neu-ziehen\|abbrechen\|liste\|blacklist` · Teilnahme-Button · Bedingungen (Rollen, Tage auf dem Server, Account-Alter) · Bonus-Lose · Gewinner-DM und -Rolle (optional befristet) · Einlösefrist mit Neuziehung und Ticket · Vorlagen, auch wöchentlich automatisch – Einstellungen `giveaways` bzw. Dashboard |
 | 🔒 **Server-Sicherheit** | Verify-Button (`/sicherheit verify-panel`) · Scam-Bilder-Schutz (Bild-Vergleich, Rechtsklick „Als Scam-Bild melden“, Erkennung von Massen-Posts) · Mindest-Account-Alter (Kick, Timeout oder nur melden) · Anti-Raid-Alarm · eigener Log-Kanal – Einstellungen `security` bzw. Dashboard |
 | 📊 **Server-Statistiken** | Gesperrte Sprachkanäle mit Zählern (Mitglieder, Menschen, Bots, Boosts, Kanäle, Rollen, offene Tickets), Name mit `{count}`, Umbenennung höchstens alle 5 Minuten |
-| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
+| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und Roblox-Spiel direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
 
 ## 1. Bot bei Discord anlegen
@@ -75,8 +75,7 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 | `roles.support` | Standard-Team für Tickets |
 | `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben usw. |
 | `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [APPLICATIONS.md](APPLICATIONS.md) |
-| `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
-| `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
+| `roblox.game` | Spiel-Link oder Place-ID, z. B. `https://www.roblox.com/games/123456` (leer = kein Spiel) |
 | `leveling.roleRewards` | z. B. `{ "10": "ROLLEN_ID" }` gibt ab Level 10 eine Rolle |
 
 ### Ticket-Einstellungen (`tickets`)
@@ -204,7 +203,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
-| `fivem` | Server-Adresse und Verbinden-Link |
+| `roblox` | Roblox-Spiel (Link oder Place-ID) |
 | `zeitzone` | Zeitzone des Servers, z. B. `Europe/Berlin` (Giveaway-Wochenplan, Abwesenheits-Daten, Transkripte, Bewerbungsstatistik, Dashboard) |
 | `statistik` | Server-Statistiken an/aus, Kategorie für neue Kanäle, Statistik hinzufügen/umbenennen/entfernen |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
@@ -273,6 +272,6 @@ config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
 src/dashboard/…       Web-Dashboard (Express-Server, Login, Oberfläche in public/)
-src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
+src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, Roblox-Spiel)
 scripts/check.js      Offline-Prüfung: npm run check
 ```

@@ -1,6 +1,6 @@
 const { Events, ActivityType } = require('discord.js');
 const settings = require('../lib/settings');
-const { fetchFivemStatus } = require('../lib/fivem');
+const { fetchRobloxStatus } = require('../lib/robloxGame');
 const { startTicketWatcher } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
@@ -54,17 +54,15 @@ module.exports = {
     }, 60_000);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
-    // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.
+    // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Roblox-Spiel, sonst der Name aus config.json.
     const updatePresence = async () => {
-      const address = client.guilds.cache.map((g) => settings.forGuild(g.id).fivem.address).find(Boolean);
-      if (!address) {
+      const game = client.guilds.cache.map((g) => settings.forGuild(g.id).roblox.game).find(Boolean);
+      const status = game ? await fetchRobloxStatus(game) : null;
+      if (!status?.online) {
         client.user.setActivity(settings.base.serverName, { type: ActivityType.Watching });
         return;
       }
-      const status = await fetchFivemStatus(address);
-      client.user.setActivity(status.online ? `${status.players}/${status.maxPlayers} Spieler online` : 'Server offline', {
-        type: ActivityType.Watching,
-      });
+      client.user.setActivity(`${status.playing.toLocaleString('de-DE')} Spieler in Roblox`, { type: ActivityType.Watching });
     };
     await updatePresence();
     setInterval(updatePresence, 60_000);

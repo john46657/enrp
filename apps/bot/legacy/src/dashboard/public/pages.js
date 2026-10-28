@@ -129,11 +129,9 @@ page({
       fields: [{ t: 'timezone', p: 'timezone', label: 'Zeitzone des Servers' }],
     },
     {
-      title: 'FiveM',
-      fields: [
-        { t: 'text', p: 'fivem.address', label: 'Server-Adresse', placeholder: '123.45.67.89:30120' },
-        { t: 'text', p: 'fivem.connectUrl', label: 'Verbinden-Link', placeholder: 'https://cfx.re/join/abc123' },
-      ],
+      title: 'Roblox',
+      desc: 'Für <code>/serverstatus</code> und den Bot-Status (Spieler online).',
+      fields: [{ t: 'text', p: 'roblox.game', label: 'Spiel', placeholder: 'https://www.roblox.com/games/123456 oder 123456', help: 'Spiel-Link oder Place-ID.' }],
     },
     {
       title: 'Zurücksetzen',
