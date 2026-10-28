@@ -1,0 +1,3 @@
+pnpm-lock.yaml
+# Der bestehende Bot wird in Phase 5 nach TypeScript migriert und dabei formatiert.
+apps/bot/

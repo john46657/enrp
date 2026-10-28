@@ -1,0 +1,20 @@
+{
+  "name": "@enrp/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Gemeinsamer Code für API, Bot, Dashboard und Worker",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@enrp/config": "workspace:*"
+  }
+}

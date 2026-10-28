@@ -1,3 +1,9 @@
 node_modules/
 .env
+.env.*
+!.env.example
 data/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
