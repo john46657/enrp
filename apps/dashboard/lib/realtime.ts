@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 const TOPIC_QUERIES: Record<string, string[][]> = {
-  servers: [['overview'], ['roblox-servers']],
+  servers: [['overview'], ['roblox-servers'], ['roblox-server']],
   tickets: [['list', '/tickets'], ['overview']],
   reports: [['list', '/reports'], ['overview']],
   alerts: [['overview'], ['alerts']],

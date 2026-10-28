@@ -70,6 +70,7 @@ export const STATUS_LABELS: Record<string, string> = {
   online: 'Online',
   offline: 'Offline',
   delivered: 'Zugestellt',
+  planned: 'Geplant',
   public: 'Öffentlich',
   private: 'Privat',
   reserved: 'Reserviert',
