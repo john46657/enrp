@@ -1,0 +1,647 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Item class="Folder" referent="RBX6"><Properties><string name="Name">ENRP</string></Properties><Item class="ModuleScript" referent="RBX0"><Properties><string name="Name">Api</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Authentifizierter HTTP-Client für die ENRP-API. Läuft ausschließlich auf dem Server.
+-- Jede Anfrage trägt: Bearer-Schlüssel (aus dem Secrets Store), Zeitstempel und Nonce (Replay-Schutz).
+local HttpService = game:GetService("HttpService")
+local Config = require(script.Parent.Config)
+
+local Api = {}
+
+export type Response = {
+	ok: boolean,
+	status: number,
+	body: any?,
+	errorCode: string?,
+	message: string?,
+}
+
+local secret: any? = nil
+local function authorization(): any?
+	if secret == nil then
+		local ok, result = pcall(function()
+			return HttpService:GetSecret(Config.SecretName)
+		end)
+		if not ok then
+			warn("[ENRP] Secret '" .. Config.SecretName .. "' fehlt oder ist nicht für diese Domain freigegeben.")
+			return nil
+		end
+		secret = result:AddPrefix("Bearer ")
+	end
+	return secret
+end
+
+-- Einfaches Budget, damit das Roblox-Limit für HttpService (Anfragen pro Minute) nicht erreicht wird.
+local budget = { windowStart = os.clock(), used = 0, limit = 300 }
+local function takeBudget(): boolean
+	local now = os.clock()
+	if now - budget.windowStart >= 60 then
+		budget.windowStart = now
+		budget.used = 0
+	end
+	if budget.used >= budget.limit then
+		return false
+	end
+	budget.used += 1
+	return true
+end
+
+function Api.newId(): string
+	return HttpService:GenerateGUID(false)
+end
+
+-- In Roblox Studio ist game.JobId leer; dann gilt für die Sitzung eine eigene Kennung.
+local studioJobId = "studio-" .. HttpService:GenerateGUID(false)
+function Api.jobId(): string
+	return if game.JobId ~= "" then game.JobId else studioJobId
+end
+
+-- Führt eine Anfrage aus. Wiederholt bei Netzwerkfehlern, 429 und 5xx mit exponentiellem Backoff.
+-- idempotencyKey sorgt dafür, dass Wiederholungen keine doppelten Wirkungen haben.
+function Api.request(method: string, path: string, body: any?, idempotencyKey: string?): Response
+	local auth = authorization()
+	if auth == nil then
+		return { ok = false, status = 0, errorCode = "NOT_CONFIGURED", message = "API-Schlüssel fehlt" }
+	end
+	local encoded = if body ~= nil then HttpService:JSONEncode(body) else nil
+	local attempt = 0
+	while true do
+		attempt += 1
+		if not takeBudget() then
+			return { ok = false, status = 0, errorCode = "LOCAL_RATE_LIMIT", message = "HTTP-Budget erschöpft" }
+		end
+		local headers: { [string]: any } = {
+			["Authorization"] = auth,
+			["Content-Type"] = "application/json",
+			["X-Roblox-Timestamp"] = tostring(os.time()),
+			["X-Roblox-Nonce"] = HttpService:GenerateGUID(false),
+			["X-Roblox-Place-Id"] = tostring(game.PlaceId),
+		}
+		if idempotencyKey then
+			headers["Idempotency-Key"] = idempotencyKey
+		end
+		local ok, result = pcall(function()
+			return HttpService:RequestAsync({
+				Url = Config.ApiBaseUrl .. path,
+				Method = method,
+				Headers = headers,
+				Body = encoded,
+			})
+		end)
+		if ok then
+			local decoded = nil
+			if result.Body and #result.Body > 0 then
+				local parsed, value = pcall(function()
+					return HttpService:JSONDecode(result.Body)
+				end)
+				if parsed then
+					decoded = value
+				end
+			end
+			local status = result.StatusCode
+			local retryable = status == 429 or status >= 500
+			if result.Success then
+				return { ok = true, status = status, body = decoded }
+			end
+			if not retryable or attempt >= Config.RequestTimeoutRetries then
+				local err = decoded and decoded.error
+				return { ok = false, status = status, body = decoded, errorCode = err and err.code, message = err and err.message }
+			end
+		elseif attempt >= Config.RequestTimeoutRetries then
+			return { ok = false, status = 0, errorCode = "NETWORK_ERROR", message = tostring(result) }
+		end
+		task.wait(math.min(2 ^ attempt, 10))
+	end
+end
+
+return Api
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Konfiguration der ENRP-Integration. Enthält KEINE Geheimnisse:
+-- Der API-Schlüssel liegt ausschließlich im Roblox Secrets Store (Creator Hub → Spiel → Secrets).
+local Config = {
+	-- Öffentliche HTTPS-Adresse der API (ohne abschließenden Schrägstrich).
+	ApiBaseUrl = "https://dashboard.example.de",
+	-- Name des Secrets im Secrets Store. Wert: der im Dashboard erzeugte Schlüssel (enrp_rbx_…).
+	-- Für den Domain-Filter des Secrets die Domain der API eintragen.
+	SecretName = "ENRP_API_KEY",
+
+	HeartbeatIntervalSeconds = 30,
+	EventFlushIntervalSeconds = 5,
+	-- Abstand für das Abholen von Server-Befehlen (Nachricht, Herunterfahren) zwischen zwei Heartbeats.
+	CommandPollIntervalSeconds = 5,
+	-- Thema für den Open-Cloud-Weckruf (muss zum Backend passen).
+	CommandWakeTopic = "ENRP_Commands",
+	MaxEventsPerBatch = 20,
+	MaxQueuedEvents = 500,
+	RequestTimeoutRetries = 3,
+
+	-- Fraktionen mit Dienstsystem (Schlüssel wie im Backend).
+	DutyFactions = { polizei = true, feuerwehr = true, rettungsdienst = true },
+	-- Mindestabstand zwischen Dienst-Umschaltungen pro Spieler (Schutz gegen Spam).
+	DutyToggleCooldownSeconds = 10,
+	-- Mindestabstand zwischen Code-Einlösungen pro Spieler.
+	RedeemCooldownSeconds = 10,
+
+	-- Zugang verweigern, wenn das Backend beim Betreten nicht erreichbar ist?
+	-- false = Spieler dürfen spielen; Bann-Prüfung wird beim nächsten Heartbeat nachgeholt.
+	DenyJoinWhenBackendDown = false,
+}
+
+return Config
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties><string name="Name">Duty</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Dienstsystem auf dem Spielserver. Der Client darf Dienst nur ANFRAGEN; der Server prüft Fraktion und
+-- Abstand, meldet das Ereignis, und das Backend entscheidet endgültig (Serverzeit, Mitgliedschaft).
+local Players = game:GetService("Players")
+local Config = require(script.Parent.Config)
+local EventQueue = require(script.Parent.EventQueue)
+
+local Duty = {}
+local onDuty: { [number]: boolean } = {}
+local lastToggle: { [number]: number } = {}
+-- Vom Backend beim Betreten gemeldete Fraktion (maßgeblich, nicht vom Client).
+local factionOf: { [number]: string? } = {}
+
+function Duty.setFaction(player: Player, factionKey: string?)
+	factionOf[player.UserId] = factionKey
+	player:SetAttribute("ENRP_Faction", factionKey)
+	if onDuty[player.UserId] and factionKey ~= nil and not Config.DutyFactions[factionKey] then
+		Duty.stop(player)
+	end
+end
+
+function Duty.isOnDuty(player: Player): boolean
+	return onDuty[player.UserId] == true
+end
+
+function Duty.start(player: Player): (boolean, string?)
+	local faction = factionOf[player.UserId]
+	if faction == nil or not Config.DutyFactions[faction] then
+		return false, "Du gehörst keiner Fraktion mit Dienstsystem an."
+	end
+	if onDuty[player.UserId] then
+		return false, "Du bist bereits im Dienst."
+	end
+	onDuty[player.UserId] = true
+	player:SetAttribute("ENRP_OnDuty", true)
+	EventQueue.push("duty_start", { userId = player.UserId, username = player.Name, faction = faction })
+	return true, nil
+end
+
+function Duty.stop(player: Player): (boolean, string?)
+	if not onDuty[player.UserId] then
+		return false, "Du bist nicht im Dienst."
+	end
+	onDuty[player.UserId] = nil
+	player:SetAttribute("ENRP_OnDuty", false)
+	EventQueue.push("duty_end", { userId = player.UserId, username = player.Name })
+	return true, nil
+end
+
+-- Wird von der RemoteFunction aufgerufen; begrenzt die Häufigkeit pro Spieler.
+function Duty.toggleRequest(player: Player): (boolean, string?)
+	local now = os.clock()
+	local last = lastToggle[player.UserId]
+	if last and now - last < Config.DutyToggleCooldownSeconds then
+		return false, "Bitte kurz warten."
+	end
+	lastToggle[player.UserId] = now
+	if onDuty[player.UserId] then
+		return Duty.stop(player)
+	end
+	return Duty.start(player)
+end
+
+-- Beim Verlassen beendet das Backend den Dienst selbst (player_left); hier nur lokalen Zustand aufräumen.
+Players.PlayerRemoving:Connect(function(player)
+	onDuty[player.UserId] = nil
+	lastToggle[player.UserId] = nil
+	factionOf[player.UserId] = nil
+end)
+
+return Duty
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties><string name="Name">EventQueue</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Puffert Spielereignisse und sendet sie gebündelt. Jedes Ereignis hat eine feste ID (GUID):
+-- Das Backend verarbeitet jede ID genau einmal, Wiederholungen nach Fehlern sind daher sicher.
+local Api = require(script.Parent.Api)
+local Config = require(script.Parent.Config)
+
+local EventQueue = {}
+local queue: { any } = {}
+local flushing = false
+local rejectedInARow = 0
+
+local function isoNow(): string
+	return DateTime.now():ToIsoDate()
+end
+
+function EventQueue.push(eventType: string, data: { [string]: any })
+	-- Testspieler im lokalen Studio-Server haben negative IDs; das Backend kennt nur echte Konten.
+	if typeof(data.userId) == "number" and data.userId <= 0 then
+		return
+	end
+	if #queue >= Config.MaxQueuedEvents then
+		-- Älteste Ereignisse verwerfen, damit der Server nicht unbegrenzt Speicher belegt.
+		table.remove(queue, 1)
+		warn("[ENRP] Ereigniswarteschlange voll – ältestes Ereignis verworfen")
+	end
+	table.insert(queue, { id = Api.newId(), type = eventType, occurredAt = isoNow(), data = data })
+end
+
+-- Sendet ausstehende Ereignisse. Bei Fehlern bleiben sie (mit denselben IDs) in der Warteschlange.
+function EventQueue.flush(): boolean
+	if flushing or #queue == 0 then
+		return true
+	end
+	flushing = true
+	local batch = {}
+	for i = 1, math.min(#queue, Config.MaxEventsPerBatch) do
+		batch[i] = queue[i]
+	end
+	local response = Api.request("POST", "/api/v1/game/events", { jobId = Api.jobId(), events = batch })
+	if response.ok then
+		rejectedInARow = 0
+		for _ = 1, #batch do
+			table.remove(queue, 1)
+		end
+		local results = response.body and response.body.results or {}
+		for _, result in results do
+			if result.status == "rejected" then
+				warn(("[ENRP] Ereignis %s abgelehnt: %s"):format(result.id, tostring(result.result and result.result.reason or result.error)))
+			end
+		end
+	elseif response.status == 400 then
+		-- Ungültige Charge (z. B. Server noch nicht per Heartbeat bekannt): später erneut versuchen,
+		-- aber dauerhaft ungültige Ereignisse nicht endlos senden.
+		rejectedInARow += 1
+		warn("[ENRP] Ereignisse abgelehnt: " .. tostring(response.message))
+		if rejectedInARow >= 3 then
+			for _ = 1, #batch do
+				table.remove(queue, 1)
+			end
+			rejectedInARow = 0
+			warn("[ENRP] Dauerhaft ungültige Ereignisse verworfen")
+		end
+	else
+		warn("[ENRP] Ereignisse konnten nicht gesendet werden: " .. tostring(response.errorCode))
+	end
+	flushing = false
+	return response.ok
+end
+
+function EventQueue.size(): number
+	return #queue
+end
+
+return EventQueue
+]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX4"><Properties><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Einstiegspunkt der ENRP-Integration (Script in ServerScriptService/ENRP).
+-- Voraussetzungen: Spieleinstellungen → Sicherheit → „HTTP-Anfragen zulassen“ aktiv,
+-- Secret ENRP_API_KEY im Creator Hub hinterlegt (siehe roblox/README.md).
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local MessagingService = game:GetService("MessagingService")
+
+local Api = require(script.Parent.Api)
+local Config = require(script.Parent.Config)
+local Duty = require(script.Parent.Duty)
+local EventQueue = require(script.Parent.EventQueue)
+local Rewards = require(script.Parent.Rewards)
+
+-- Remotes für Clients (keine Geheimnisse, jede Anfrage wird serverseitig geprüft).
+local remotes = Instance.new("Folder")
+remotes.Name = "ENRP"
+remotes.Parent = ReplicatedStorage
+local announce = Instance.new("RemoteEvent")
+announce.Name = "Announcement"
+announce.Parent = remotes
+local maintenanceEvent = Instance.new("RemoteEvent")
+maintenanceEvent.Name = "Maintenance"
+maintenanceEvent.Parent = remotes
+local dutyToggle = Instance.new("RemoteFunction")
+dutyToggle.Name = "DutyToggle"
+dutyToggle.Parent = remotes
+local redeemCode = Instance.new("RemoteFunction")
+redeemCode.Name = "RedeemCode"
+redeemCode.Parent = remotes
+
+local state = {
+	killSwitch = false,
+	maintenance = { active = false, message = nil :: string? },
+	announcementsSince = DateTime.now():ToIsoDate(),
+	handledSanctions = {} :: { [string]: boolean },
+	handledCommands = {} :: { [string]: boolean },
+	shuttingDown = false,
+	connected = false,
+}
+
+dutyToggle.OnServerInvoke = function(player: Player)
+	if state.killSwitch then
+		return false, "Diese Funktion ist vorübergehend gesperrt."
+	end
+	return Duty.toggleRequest(player)
+end
+
+redeemCode.OnServerInvoke = function(player: Player, code: any)
+	if state.killSwitch or state.maintenance.active then
+		return false, "Diese Funktion ist vorübergehend gesperrt."
+	end
+	if typeof(code) ~= "string" then
+		return false, "Ungültige Eingabe."
+	end
+	return Rewards.redeem(player, string.upper(string.gsub(code, "%s", "")))
+end
+
+-- Zugangsprüfung beim Betreten: Bann (Backend maßgeblich), Fraktion, erlaubte Fahrzeuge.
+local function checkAccess(player: Player)
+	if player.UserId <= 0 then
+		return -- Studio-Testspieler
+	end
+	local response = Api.request("POST", "/api/v1/game/players/access", { jobId = Api.jobId(), userId = player.UserId })
+	if not response.ok then
+		if Config.DenyJoinWhenBackendDown then
+			player:Kick("Die Spielerprüfung ist gerade nicht erreichbar. Bitte versuche es gleich erneut.")
+		end
+		return
+	end
+	local access = response.body
+	if not access.allowed then
+		local until_ = access.ban and access.ban.expiresAt and (" bis " .. access.ban.expiresAt) or ""
+		player:Kick(("Du bist gesperrt%s. Grund: %s (Aktion #%s). Einspruch über Discord: /appeal create"):format(until_, tostring(access.ban and access.ban.reason), tostring(access.ban and access.ban.number)))
+		return
+	end
+	Duty.setFaction(player, access.faction and access.faction.key or nil)
+	local vehicles = {}
+	for _, v in access.vehicles or {} do
+		table.insert(vehicles, v.identifier)
+	end
+	-- Andere Spielskripte lesen erlaubte Fahrzeuge über dieses Attribut (kommagetrennte Kennungen).
+	player:SetAttribute("ENRP_Vehicles", table.concat(vehicles, ","))
+end
+
+Players.PlayerAdded:Connect(function(player)
+	EventQueue.push("player_joined", { userId = player.UserId, username = player.Name, displayName = player.DisplayName })
+	task.spawn(checkAccess, player)
+	if state.maintenance.active then
+		maintenanceEvent:FireClient(player, state.maintenance.message)
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	EventQueue.push("player_left", { userId = player.UserId, username = player.Name })
+end)
+
+-- Sanktionen ausführen, die das Backend für Roblox angeordnet hat (Players:BanAsync/UnbanAsync, Kick).
+local function applySanction(sanction: any)
+	if state.handledSanctions[sanction.id] then
+		return
+	end
+	state.handledSanctions[sanction.id] = true
+	local userId = sanction.robloxUserId
+	local ok, err = pcall(function()
+		if sanction.type == "ban" then
+			local duration = -1
+			if sanction.expiresAt then
+				local expires = DateTime.fromIsoDate(sanction.expiresAt)
+				duration = if expires then math.max(60, math.floor((expires.UnixTimestampMillis - DateTime.now().UnixTimestampMillis) / 1000)) else -1
+			end
+			Players:BanAsync({
+				UserIds = { userId },
+				ApplyToUniverse = true,
+				Duration = duration,
+				DisplayReason = ("%s (Aktion #%s)"):format(sanction.reason, tostring(sanction.number)),
+				PrivateReason = "ENRP Moderationsaktion " .. tostring(sanction.id),
+				ExcludeAltAccounts = false,
+			})
+		elseif sanction.type == "unban" then
+			Players:UnbanAsync({ UserIds = { userId }, ApplyToUniverse = true })
+		elseif sanction.type == "kick" then
+			local player = Players:GetPlayerByUserId(userId)
+			if player then
+				player:Kick("Du wurdest vom Server entfernt. Grund: " .. sanction.reason)
+			end
+		end
+	end)
+	if not ok then
+		warn("[ENRP] Sanktion fehlgeschlagen: " .. tostring(err))
+	end
+	Api.request("POST", ("/api/v1/game/sanctions/%s/ack"):format(sanction.id), { jobId = Api.jobId(), success = ok, error = if ok then nil else tostring(err) })
+end
+
+-- Befehle aus dem Dashboard (Nachricht an Server/Spieler, Herunterfahren). Jede ID wird nur einmal ausgeführt.
+local function applyCommand(command: any)
+	if state.handledCommands[command.id] then
+		return
+	end
+	state.handledCommands[command.id] = true
+	local ok, err = pcall(function()
+		if command.type == "message_server" then
+			announce:FireAllClients("Nachricht vom Team", command.message)
+		elseif command.type == "message_player" then
+			local player = Players:GetPlayerByUserId(command.robloxUserId)
+			if not player then
+				error("Spieler ist nicht auf diesem Server")
+			end
+			announce:FireClient(player, "Nachricht vom Team", command.message)
+		elseif command.type == "shutdown" then
+			state.shuttingDown = true
+			local text = command.message or "Der Server wird vom Team neu gestartet."
+			announce:FireAllClients("Server wird geschlossen", text)
+			task.delay(10, function()
+				for _, player in Players:GetPlayers() do
+					player:Kick(text)
+				end
+			end)
+			-- Neue Spieler werden bis zum Schließen ebenfalls abgewiesen.
+			Players.PlayerAdded:Connect(function(player)
+				player:Kick(text)
+			end)
+		else
+			error("Unbekannter Befehl: " .. tostring(command.type))
+		end
+	end)
+	if not ok then
+		warn("[ENRP] Befehl fehlgeschlagen: " .. tostring(err))
+	end
+	Api.request("POST", ("/api/v1/game/commands/%s/ack"):format(command.id), { jobId = Api.jobId(), success = ok, error = if ok then nil else tostring(err) })
+end
+
+local function pollCommands()
+	local response = Api.request("POST", "/api/v1/game/commands/poll", { jobId = Api.jobId() })
+	if response.ok and response.body then
+		for _, command in response.body.commands or {} do
+			task.spawn(applyCommand, command)
+		end
+	end
+end
+
+local function heartbeat()
+	local players = {}
+	for _, p in Players:GetPlayers() do
+		if p.UserId > 0 then
+			table.insert(players, { userId = p.UserId, username = p.Name, displayName = p.DisplayName })
+		end
+	end
+	local response = Api.request("POST", "/api/v1/game/heartbeat", {
+		jobId = Api.jobId(),
+		placeId = tostring(game.PlaceId),
+		placeVersion = game.PlaceVersion,
+		maxPlayers = Players.MaxPlayers,
+		-- Servertyp: öffentlich, privat (VIP) oder reserviert – das Backend leitet ihn daraus ab.
+		privateServerId = game.PrivateServerId,
+		privateServerOwnerId = game.PrivateServerOwnerId,
+		players = players,
+		announcementsSince = state.announcementsSince,
+	})
+	state.connected = response.ok
+	if not response.ok then
+		warn("[ENRP] Heartbeat fehlgeschlagen: " .. tostring(response.errorCode or response.status))
+		return
+	end
+	local data = response.body
+	state.killSwitch = data.killSwitch == true
+	local wasMaintenance = state.maintenance.active
+	state.maintenance = { active = data.maintenance.active == true, message = data.maintenance.message }
+	if state.maintenance.active and not wasMaintenance then
+		maintenanceEvent:FireAllClients(state.maintenance.message or "Wartungsarbeiten laufen.")
+	elseif wasMaintenance and not state.maintenance.active then
+		maintenanceEvent:FireAllClients(nil)
+	end
+	for _, a in data.announcements or {} do
+		announce:FireAllClients(a.title, a.body)
+		if a.publishedAt then
+			state.announcementsSince = a.publishedAt
+		end
+	end
+	for _, sanction in data.sanctions or {} do
+		task.spawn(applySanction, sanction)
+	end
+	for _, command in data.commands or {} do
+		task.spawn(applyCommand, command)
+	end
+end
+
+-- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
+task.spawn(function()
+	heartbeat()
+	while true do
+		task.wait(Config.HeartbeatIntervalSeconds)
+		heartbeat()
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(Config.EventFlushIntervalSeconds)
+		if state.connected or EventQueue.size() > 0 then
+			EventQueue.flush()
+		end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(Config.CommandPollIntervalSeconds)
+		if state.connected and not state.shuttingDown then
+			pollCommands()
+		end
+	end
+end)
+
+-- Optionaler Weckruf über Open Cloud Messaging: sofort abholen statt auf das nächste Intervall zu warten.
+-- Die Nachricht enthält nur Server-IDs; der Befehl selbst kommt immer authentifiziert von der API.
+task.spawn(function()
+	local ok, err = pcall(function()
+		MessagingService:SubscribeAsync(Config.CommandWakeTopic, function()
+			if state.connected then
+				pollCommands()
+			end
+		end)
+	end)
+	if not ok then
+		warn("[ENRP] Weckruf nicht verfügbar (Befehle werden weiter regelmäßig abgeholt): " .. tostring(err))
+	end
+end)
+
+-- Beim Herunterfahren: ausstehende Ereignisse senden und Server abmelden (max. 30 s erlaubt).
+game:BindToClose(function()
+	for _ = 1, 3 do
+		if EventQueue.size() == 0 then
+			break
+		end
+		EventQueue.flush()
+	end
+	Api.request("POST", "/api/v1/game/shutdown", { jobId = Api.jobId() })
+end)
+
+if not HttpService.HttpEnabled then
+	warn("[ENRP] HTTP-Anfragen sind deaktiviert. Spieleinstellungen → Sicherheit → „HTTP-Anfragen zulassen“.")
+end
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">Rewards</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Vergabe von Code-Belohnungen. Das Backend prüft Gültigkeit, Limits und Doppelungen;
+-- das Spiel vergibt die Belohnung serverseitig über die hier registrierten Handler.
+--
+-- Eigene Belohnungstypen registrieren (z. B. in einem anderen Server-Skript):
+--   local Rewards = require(game.ServerScriptService.ENRP.Rewards)
+--   Rewards.register("cash", function(player, payload) ... return true end)
+local Players = game:GetService("Players")
+local Api = require(script.Parent.Api)
+local Config = require(script.Parent.Config)
+local EventQueue = require(script.Parent.EventQueue)
+
+local Rewards = {}
+local handlers: { [string]: (Player, { [string]: any }) -> boolean } = {}
+local lastAttempt: { [number]: number } = {}
+
+local MESSAGES = {
+	invalid_code = "Dieser Code ist ungültig.",
+	not_started = "Dieser Code ist noch nicht gültig.",
+	expired = "Dieser Code ist abgelaufen.",
+	disabled = "Dieser Code ist deaktiviert.",
+	exhausted = "Dieser Code wurde bereits zu oft eingelöst.",
+	user_limit = "Du hast diesen Code bereits eingelöst.",
+	feature_disabled = "Das Einlösen von Codes ist derzeit deaktiviert.",
+}
+
+function Rewards.register(rewardType: string, handler: (Player, { [string]: any }) -> boolean)
+	handlers[rewardType] = handler
+end
+
+function Rewards.redeem(player: Player, code: string): (boolean, string)
+	if typeof(code) ~= "string" or #code < 4 or #code > 40 then
+		return false, MESSAGES.invalid_code
+	end
+	local now = os.clock()
+	if lastAttempt[player.UserId] and now - lastAttempt[player.UserId] < Config.RedeemCooldownSeconds then
+		return false, "Bitte kurz warten."
+	end
+	lastAttempt[player.UserId] = now
+
+	-- Ein Idempotenzschlüssel pro Versuch: Netzwerk-Wiederholungen führen nicht zu doppelten Einlösungen.
+	local key = Api.newId()
+	local response = Api.request("POST", "/api/v1/game/redeem", { jobId = Api.jobId(), userId = player.UserId, code = code }, key)
+	if not response.ok then
+		return false, "Der Code konnte gerade nicht geprüft werden. Bitte später erneut versuchen."
+	end
+	local result = response.body
+	if result.status ~= "redeemed" then
+		return false, MESSAGES[result.reason] or "Einlösen nicht möglich."
+	end
+	local handler = handlers[result.rewardType]
+	if handler == nil then
+		warn("[ENRP] Kein Handler für Belohnungstyp " .. tostring(result.rewardType))
+		return false, "Diese Belohnung kann in diesem Spiel nicht vergeben werden. Bitte melde dich beim Team."
+	end
+	local ok, granted = pcall(handler, player, result.rewardPayload or {})
+	if not ok or not granted then
+		warn("[ENRP] Belohnung konnte nicht vergeben werden: " .. tostring(granted))
+		return false, "Die Belohnung konnte nicht vergeben werden. Bitte melde dich beim Team."
+	end
+	EventQueue.push("redemption_delivered", { userId = player.UserId, redemptionId = result.redemptionId })
+	return true, "Code eingelöst!"
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	lastAttempt[player.UserId] = nil
+end)
+
+return Rewards
+]]></ProtectedString></Properties></Item></Item></roblox>

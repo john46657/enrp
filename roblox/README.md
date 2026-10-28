@@ -40,7 +40,9 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
    Domain = Domain deiner API (z. B. `dashboard.example.de`).
    Für Tests in Studio: *Game Settings → Security → Secrets* (lokale Secrets).
 3. **Game Settings → Security → „Allow HTTP Requests“** aktivieren.
-4. Skripte einfügen – per [Rojo](https://rojo.space) (`rojo serve` mit `default.project.json`) oder manuell:
+4. Skripte einfügen – am einfachsten per Rechtsklick → *Aus Datei einfügen…* mit `ENRP-Server.rbxmx`
+   (in ServerScriptService) und `ENRP-Client.rbxmx` (in StarterPlayerScripts); neu bauen mit
+   `node roblox/scripts/build-model.mjs [--url https://…]`. Oder per [Rojo](https://rojo.space) (`rojo serve` mit `default.project.json`) oder manuell:
    - `src/ServerScriptService/ENRP/` → Ordner `ENRP` in **ServerScriptService** (`Main.server.lua` als Script,
      die übrigen Dateien als ModuleScripts mit gleichem Namen ohne `.lua`).
    - `src/StarterPlayer/StarterPlayerScripts/ENRPClient.client.lua` → LocalScript in StarterPlayerScripts.
