@@ -9,6 +9,8 @@ const { setupGuild } = require('../lib/guilds');
 const { startStatsWatcher } = require('../lib/stats');
 const { sweepExpired } = require('../lib/warnings');
 const { startTeamWatcher } = require('../lib/team');
+const { startDashboard } = require('../dashboard/server');
+require('../dashboard/modules');
 
 module.exports = {
   name: Events.ClientReady,
@@ -33,6 +35,7 @@ module.exports = {
     startTicketWatcher(client);
     startStatsWatcher(client);
     startTeamWatcher(client);
+    startDashboard(client);
     // Abgelaufene Verwarnungen (Moderation und Team) markieren und Warn-Rollen anpassen.
     setInterval(async () => {
       for (const guild of client.guilds.cache.values()) {

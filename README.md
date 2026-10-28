@@ -183,6 +183,31 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 
 Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
 
+## Web-Dashboard
+
+Der Bot bringt ein eigenes Dashboard mit, das im selben Prozess läuft. Anmeldung per Discord; bearbeiten darf nur, wer
+auf dem Server **„Server verwalten“** hat (geprüft über den Bot, nicht über den Browser). Änderungen gelten sofort und
+nur für diesen Server, genau wie `/einstellungen`.
+
+**Einrichten:**
+
+1. Developer Portal → deine Application → **OAuth2**:
+   - **Client Secret** kopieren → `DISCORD_CLIENT_SECRET` in der `.env`
+   - Unter **Redirects** eintragen: `https://2pgwy073wo.apps.bot-hosting.cloud/auth/callback` (bzw. deine `DASHBOARD_URL` + `/auth/callback`)
+2. In der `.env`:
+   ```env
+   DASHBOARD_URL=https://2pgwy073wo.apps.bot-hosting.cloud
+   DISCORD_CLIENT_SECRET=dein-client-secret
+   DASHBOARD_SECRET=ein-langer-zufaelliger-text
+   ```
+3. Port: bot-hosting/Pterodactyl setzen `SERVER_PORT` automatisch, das Dashboard nutzt ihn. Lokal z. B. `DASHBOARD_PORT=3000`
+   und `DASHBOARD_URL=http://localhost:3000`.
+4. Bot neu starten. In der Konsole steht `✅ Dashboard läuft auf Port …`.
+
+Ohne diese Werte startet nur der Bot. Bewerbungsarten und -fragen bleiben in der `config.json`. Neue Ticket-Kategorien aus
+dem Dashboard funktionieren im Panel; in den Auswahllisten von `/ticket fuer` und `/einstellungen` stehen weiterhin nur die
+Kategorien aus der `config.json`.
+
 ## 3. Starten
 
 ### Lokal / VPS
@@ -219,6 +244,7 @@ index.js              Start, lädt Befehle und Events
 config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
+src/dashboard/…       Web-Dashboard (Express-Server, Login, Oberfläche in public/)
 src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
 scripts/check.js      Offline-Prüfung: npm run check
 ```

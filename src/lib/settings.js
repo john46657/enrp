@@ -82,6 +82,12 @@ function set(guildId, path, value) {
   db.save();
 }
 
+// Prüft Änderungen an einer Kopie, ohne zu speichern. Gibt den ersten ungültigen Pfad zurück (oder null).
+function invalidPath(guildId, changes) {
+  const copy = structuredClone(forGuild(guildId));
+  return changes.find(({ path, value }) => !apply(copy, path, value))?.path ?? null;
+}
+
 // Alle Änderungen eines Servers verwerfen und wieder die Werte aus config.json verwenden.
 function reset(guildId) {
   delete overrides[guildId];
@@ -94,6 +100,7 @@ module.exports = {
   forGuild,
   get,
   set,
+  invalidPath,
   reset,
   adoptLegacy,
   hasLegacy: () => Boolean(overrides._legacy),

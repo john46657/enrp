@@ -1,0 +1,802 @@
+// Seiten des Dashboards. Jede Seite beschreibt ihre Bereiche und Felder; Pfade entsprechen der config.json.
+(() => {
+'use strict';
+const { h, setChildren, ui, page, renderField, bindPath, bindItem, markDirty, getPath, render, runAction, live, state } = window.Dash;
+
+const DAYS = [
+  ['mo', 'Mo'],
+  ['di', 'Di'],
+  ['mi', 'Mi'],
+  ['do', 'Do'],
+  ['fr', 'Fr'],
+  ['sa', 'Sa'],
+  ['so', 'So'],
+];
+const LEAVE = [
+  ['nothing', 'Nichts tun'],
+  ['notify', 'Nur Hinweis im Ticket senden'],
+  ['close', 'Hinweis senden und schließen'],
+];
+const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString('de-DE') : '—');
+const channelName = (id) => state.guild.channels.find((c) => c.id === id)?.name;
+const roleName = (id) => state.guild.roles.find((r) => r.id === id)?.name;
+
+// Aufklappbarer Listeneintrag mit Entfernen-Knopf.
+function listItem({ title, subtitle, badges = [], open, onToggle, onRemove }, body) {
+  return h(
+    'div',
+    { class: 'item' },
+    h(
+      'div',
+      { class: 'item-head', onclick: onToggle },
+      h('div', { class: 'grow' }, h('b', {}, title), subtitle && h('div', { class: 'muted small' }, subtitle)),
+      badges,
+      onRemove && h('button', { class: 'btn ghost small', onclick: (e) => (e.stopPropagation(), onRemove()) }, 'Entfernen'),
+      h('span', { class: 'muted' }, open ? '▴' : '▾'),
+    ),
+    open && h('div', { class: 'item-body' }, body),
+  );
+}
+const openItems = new Set();
+const toggleOpen = (key) => () => {
+  openItems.has(key) ? openItems.delete(key) : openItems.add(key);
+  render();
+};
+
+// Live-Daten nachladen und in einen Platzhalter zeichnen.
+function liveBlock(name, draw) {
+  const box = h('div', { class: 'muted' }, 'Lädt …');
+  live(name)
+    .then((data) => setChildren(box, draw(data)))
+    .catch((err) => box.replaceChildren(h('span', {}, err.message)));
+  return box;
+}
+
+// ---------- Übersicht ----------
+
+page({
+  id: 'overview',
+  title: 'Übersicht',
+  icon: '🏠',
+  desc: 'Der aktuelle Stand dieses Servers auf einen Blick.',
+  sections: () => [
+    {
+      title: 'Zahlen',
+      render: () =>
+        liveBlock('overview', (d) =>
+          h(
+            'div',
+            { class: 'stats-grid' },
+            [
+              ['Offene Tickets', d.openTickets],
+              ['Verwarnungen', d.warnings],
+              ['Abwesend', d.absences],
+              ['Statistik-Kanäle', d.statChannels],
+            ].map(([label, value]) => h('div', { class: 'stat' }, h('div', { class: 'label' }, label), h('div', { class: 'value' }, value))),
+          ),
+        ),
+    },
+    {
+      title: 'Module',
+      render: () =>
+        h(
+          'div',
+          { class: 'stats-grid' },
+          state.pages
+            .filter((p) => p.enabledPath && (!p.requires || p.requires in state.guild.config))
+            .map((p) =>
+              h(
+                'a',
+                { class: 'stat', href: `#/g/${state.guild.guild.id}/${p.id}` },
+                h('div', { class: 'label' }, `${p.icon} ${p.title}`),
+                h('span', { class: `badge ${getPath(state.draft, p.enabledPath) ? 'green' : ''}` }, getPath(state.draft, p.enabledPath) ? 'Aktiv' : 'Aus'),
+              ),
+            ),
+        ),
+    },
+  ],
+});
+
+// ---------- Einstellungen ----------
+
+page({
+  id: 'settings',
+  title: 'Einstellungen',
+  icon: '⚙️',
+  desc: 'Kanäle und Rollen, die mehrere Module nutzen.',
+  sections: [
+    {
+      title: 'Kanäle',
+      fields: [
+        { t: 'channel', p: 'channels.welcome', label: 'Willkommen' },
+        { t: 'channel', p: 'channels.modLog', label: 'Mod-Log' },
+        { t: 'channel', p: 'channels.ticketLog', label: 'Ticket-Log' },
+        { t: 'channel', p: 'channels.levelUp', label: 'Level-Up', empty: '— Im selben Kanal —' },
+      ],
+    },
+    {
+      title: 'Rollen',
+      fields: [
+        { t: 'role', p: 'roles.autoRole', label: 'Auto-Rolle', help: 'Bekommt jedes neue Mitglied.' },
+        { t: 'role', p: 'roles.support', label: 'Support', help: 'Standard-Team für Tickets.' },
+        { t: 'role', p: 'roles.staff', label: 'Staff', help: 'Darf Tickets freigeben, alle Bewerbungen entscheiden usw.' },
+      ],
+    },
+    {
+      title: 'FiveM',
+      fields: [
+        { t: 'text', p: 'fivem.address', label: 'Server-Adresse', placeholder: '123.45.67.89:30120' },
+        { t: 'text', p: 'fivem.connectUrl', label: 'Verbinden-Link', placeholder: 'https://cfx.re/join/abc123' },
+      ],
+    },
+    {
+      title: 'Zurücksetzen',
+      desc: 'Verwirft alle Änderungen dieses Servers (Dashboard und /einstellungen) und verwendet wieder die config.json.',
+      render: () =>
+        h(
+          'button',
+          {
+            class: 'btn danger',
+            onclick: async () => {
+              if (!confirm('Wirklich alle Einstellungen dieses Servers zurücksetzen?')) return;
+              await Dash.api(`/api/guilds/${state.guild.guild.id}/reset`, { method: 'POST' });
+              location.reload();
+            },
+          },
+          'Alles zurücksetzen',
+        ),
+    },
+  ],
+});
+
+// ---------- Community ----------
+
+page({
+  id: 'welcome',
+  group: 'Community',
+  title: 'Willkommen',
+  icon: '👋',
+  desc: 'Nachricht für neue Mitglieder im Willkommens-Kanal (unter Einstellungen).',
+  sections: [
+    {
+      title: 'Nachricht',
+      fields: [
+        { t: 'textarea', p: 'welcome.message', label: 'Text', wide: true, max: 1500, help: 'Platzhalter: <code>{user}</code> <code>{name}</code> <code>{server}</code> <code>{count}</code>' },
+        { t: 'role', p: 'roles.autoRole', label: 'Auto-Rolle' },
+        { t: 'channel', p: 'channels.welcome', label: 'Kanal' },
+      ],
+    },
+  ],
+});
+
+page({
+  id: 'leveling',
+  group: 'Community',
+  title: 'Leveling',
+  icon: '📈',
+  enabledPath: 'leveling.enabled',
+  desc: 'XP für Nachrichten, Level-Ups und Rollen-Belohnungen.',
+  sections: () => [
+    {
+      title: 'XP',
+      fields: [
+        { t: 'number', p: 'leveling.cooldownSeconds', label: 'Cooldown (Sekunden)', max: 3600 },
+        { t: 'number', p: 'leveling.xpMin', label: 'XP mindestens', max: 1000 },
+        { t: 'number', p: 'leveling.xpMax', label: 'XP höchstens', max: 1000 },
+        { t: 'channel', p: 'channels.levelUp', label: 'Level-Up-Kanal', empty: '— Im selben Kanal —' },
+      ],
+    },
+    {
+      title: 'Rollen-Belohnungen',
+      render: () => {
+        const rewards = state.draft.leveling.roleRewards;
+        const level = h('input', { type: 'number', min: 1, max: 500, placeholder: 'Level' });
+        let role = '';
+        return h(
+          'div',
+          {},
+          Object.keys(rewards).length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Level'), h('th', {}, 'Rolle'), h('th', {})),
+                Object.entries(rewards)
+                  .sort(([a], [b]) => a - b)
+                  .map(([lvl, id]) =>
+                    h(
+                      'tr',
+                      {},
+                      h('td', {}, lvl),
+                      h('td', {}, `@${roleName(id) ?? id}`),
+                      h('td', {}, h('button', { class: 'btn ghost small', onclick: () => (delete rewards[lvl], markDirty('leveling.roleRewards'), render()) }, 'Entfernen')),
+                    ),
+                  ),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Belohnungen.'),
+          h(
+            'div',
+            { class: 'card-body', style: 'padding:16px 0 0' },
+            level,
+            ui.role({ get: () => role, set: (v) => (role = v) }),
+            h(
+              'button',
+              {
+                class: 'btn',
+                onclick: () => {
+                  if (!level.value || !role) return Dash.toast('Level und Rolle wählen', true);
+                  rewards[level.value] = role;
+                  markDirty('leveling.roleRewards');
+                  render();
+                },
+              },
+              'Hinzufügen',
+            ),
+          ),
+        );
+      },
+    },
+  ],
+});
+
+const STAT_TYPES = {
+  members: ['Mitglieder', '👥 Mitglieder: {count}'],
+  humans: ['Menschen', '🧑 Menschen: {count}'],
+  bots: ['Bots', '🤖 Bots: {count}'],
+  boosts: ['Boosts', '💎 Boosts: {count}'],
+  channels: ['Kanäle', '💬 Kanäle: {count}'],
+  roles: ['Rollen', '🏷️ Rollen: {count}'],
+  tickets: ['Offene Tickets', '🎫 Tickets: {count}'],
+};
+page({
+  id: 'stats',
+  group: 'Community',
+  title: 'Server-Statistiken',
+  icon: '📊',
+  requires: 'stats',
+  enabledPath: 'stats.enabled',
+  offText: 'Es werden keine Kanäle angelegt oder umbenannt. Bereits angelegte Kanäle bleiben unverändert bestehen.',
+  desc: 'Gesperrte Sprachkanäle, deren Name einen Zählerstand zeigt, z. B. „👥 Mitglieder: 1.284“.',
+  sections: () => [
+    {
+      title: 'Einstellungen',
+      fields: [{ t: 'channel', kind: 'category', p: 'stats.categoryId', label: 'Kategorie für die Statistik-Kanäle', empty: '— Keine (ganz oben) —', help: 'Hier legt der Bot neue Kanäle an. Bereits angelegte bleiben, wo sie sind.' }],
+    },
+    {
+      title: 'Statistiken',
+      desc: 'Jede Statistik ist ein gesperrter Sprachkanal. <code>{count}</code> wird durch die Zahl ersetzt; der Name ändert sich höchstens alle 5 Minuten (Discord-Limit). Entfernen löscht den Kanal.',
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('stats-update', {}, 'Statistiken werden aktualisiert') }, 'Jetzt aktualisieren'),
+      render: () => {
+        const counters = state.draft.stats.counters;
+        const free = Object.keys(STAT_TYPES).filter((t) => !counters.some((c) => c.type === t));
+        let type = free[0];
+        return h(
+          'div',
+          {},
+          counters.length
+            ? counters.map((c, i) =>
+                h(
+                  'div',
+                  { class: 'item' },
+                  h(
+                    'div',
+                    { class: 'item-head' },
+                    h('b', { style: 'min-width:140px' }, STAT_TYPES[c.type]?.[0] ?? c.type),
+                    h('div', { class: 'grow' }, ui.text(bindItem('stats.counters', c, 'name'), { max: 90 })),
+                    i > 0 && h('button', { class: 'btn ghost small', title: 'Nach oben', onclick: () => (counters.splice(i - 1, 0, counters.splice(i, 1)[0]), markDirty('stats.counters'), render()) }, '↑'),
+                    h('button', { class: 'btn ghost small', onclick: () => (counters.splice(i, 1), markDirty('stats.counters'), render()) }, 'Entfernen'),
+                  ),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Statistik.'),
+          free.length &&
+            h(
+              'div',
+              { class: 'card-body', style: 'padding:16px 0 0' },
+              ui.select({ get: () => type, set: (v) => (type = v) }, free.map((t) => [t, STAT_TYPES[t][0]])),
+              h('button', { class: 'btn', onclick: () => (counters.push({ type, name: STAT_TYPES[type][1] }), markDirty('stats.counters'), render()) }, 'Hinzufügen'),
+            ),
+        );
+      },
+    },
+  ],
+});
+
+// ---------- Tickets ----------
+
+function ticketTypeEditor(t, index) {
+  const list = state.draft.tickets.types;
+  const g = state.draft.tickets;
+  const b = (key) => bindItem('tickets.types', t, key);
+  // Überschreibbare Regel: an = eigener Wert, aus = allgemeine Einstellung.
+  const override = (key, label, makeDefault, editor) => {
+    const own = t[key] !== undefined;
+    return [
+      ui.field(
+        { wide: true },
+        ui.toggle({ get: () => own, set: (v) => (b(key).set(v ? structuredClone(makeDefault()) : undefined), render()) }, `${label}: eigene Einstellung für diese Kategorie`),
+      ),
+      own && editor(),
+    ];
+  };
+  const open = openItems.has(`type-${index}`);
+  return listItem(
+    {
+      title: `${t.emoji} ${t.label}`,
+      subtitle: t.description,
+      badges: [t.enabled === false ? h('span', { class: 'badge red' }, 'Aus') : h('span', { class: 'badge green' }, 'Aktiv')],
+      open,
+      onToggle: toggleOpen(`type-${index}`),
+      onRemove: () => {
+        if (!confirm(`Kategorie „${t.label}“ entfernen?`)) return;
+        list.splice(index, 1);
+        markDirty('tickets.types');
+        render();
+      },
+    },
+    open && [
+      ui.field({ label: 'Name' }, ui.text(b('label'), { max: 80 })),
+      ui.field({ label: 'Emoji' }, ui.text(b('emoji'), { max: 60 })),
+      ui.field({ label: 'Prefix (für den Kanalnamen)' }, ui.text(b('prefix'), { max: 30 })),
+      ui.field({ label: 'Beschreibung', wide: true, help: 'Wird im Panel angezeigt.' }, ui.textarea(b('description'), { max: 500 })),
+      ui.field({ label: 'Discord-Kategorie' }, ui.channel(b('categoryId'), { kind: 'category', empty: '— Allgemeine Ticket-Kategorie —' })),
+      ui.field({ label: 'Auslastung (0 = ausblenden)' }, ui.number(b('capacity'), { max: 1000 })),
+      ui.field({ label: 'Support-Rollen', wide: true, help: 'Leer = allgemeine Support-Rolle.' }, ui.roles(b('roles'))),
+      ui.field({ wide: true }, ui.toggle({ get: () => t.enabled !== false, set: (v) => b('enabled').set(v) }, 'Kategorie aktiv')),
+      ui.field({ wide: true }, ui.toggle({ get: () => t.allowClaim !== false, set: (v) => b('allowClaim').set(v) }, 'Claimen erlauben')),
+      ui.field({ wide: true }, ui.toggle({ get: () => t.allowOnBehalf !== false, set: (v) => b('allowOnBehalf').set(v) }, 'Im Auftrag erlauben (/ticket fuer)')),
+      h('h3', { class: 'field wide' }, 'Eröffnungs-Embed'),
+      ui.field({ label: 'Titel', help: 'Leer = Standard' }, ui.text(bindItem('tickets.types', (t.openEmbed ??= {}), 'title'), { max: 200 })),
+      ui.field({ label: 'Bild-URL' }, ui.text(bindItem('tickets.types', t.openEmbed, 'image'), { placeholder: 'https://…' })),
+      ui.field(
+        { label: 'Text', wide: true, help: 'Platzhalter: <code>{user}</code> <code>{username}</code> <code>{category}</code> <code>{emoji}</code> <code>{number}</code>' },
+        ui.textarea(bindItem('tickets.types', t.openEmbed, 'description'), { max: 1500 }),
+      ),
+      h('h3', { class: 'field wide' }, 'Schließen-Formular (max. 5 Felder)'),
+      h('div', { class: 'field wide' }, closeFormEditor(t)),
+      h('h3', { class: 'field wide' }, 'Schließen & Automationen'),
+      override('onlyTeamCanClose', 'Schließen einschränken', () => true, () =>
+        ui.field({ wide: true, help: 'Der Ersteller kann um Schließung bitten, ein Teammitglied stimmt zu.' }, ui.toggle(b('onlyTeamCanClose'), 'Nur Support darf schließen')),
+      ),
+      override('autoClose', 'Auto-Close', () => g.autoClose, () => [
+        ui.field({ wide: true }, ui.toggle(bindItem('tickets.types', t.autoClose, 'enabled'), 'Auto-Close bei Inaktivität')),
+        ui.field({ label: 'Schließen nach (Stunden ohne Nachricht)' }, ui.number(bindItem('tickets.types', t.autoClose, 'afterHours'), { min: 1, max: 2160 })),
+      ]),
+      override('autoTeamAlert', 'Erinnerung', () => g.autoTeamAlert, () => [
+        ui.field({ wide: true }, ui.toggle(bindItem('tickets.types', t.autoTeamAlert, 'enabled'), 'Erinnerung, falls noch niemand geantwortet hat')),
+        ui.field({ label: 'Erinnern nach (Minuten)' }, ui.number(bindItem('tickets.types', t.autoTeamAlert, 'afterMinutes'), { min: 1, max: 10080 })),
+        ui.field({ label: 'Erinnerungsnachricht', wide: true, help: 'Leer = Standard. Platzhalter: <code>{user}</code> <code>{since}</code>' }, ui.textarea(bindItem('tickets.types', t.autoTeamAlert, 'message'), { max: 500 })),
+      ]),
+      override('onCreatorLeave', 'Verlassen des Erstellers', () => g.onCreatorLeave, () => [
+        ui.field({ label: 'Aktion' }, ui.select(b('onCreatorLeave'), LEAVE)),
+        ui.field({ label: 'Nachricht / Grund', wide: true, help: 'Platzhalter: <code>{user}</code> <code>{username}</code>' }, ui.textarea({ get: () => t.leaveMessage ?? g.leaveMessage, set: (v) => b('leaveMessage').set(v) }, { max: 500 })),
+      ]),
+    ],
+  );
+}
+
+function closeFormEditor(t) {
+  const form = (t.closeForm ??= []);
+  const fb = (field, key) => bindItem('tickets.types', field, key);
+  return h(
+    'div',
+    {},
+    form.map((field, i) =>
+      h(
+        'div',
+        { class: 'item' },
+        h(
+          'div',
+          { class: 'item-body', style: 'padding-top:14px' },
+          ui.field({ label: `Feld ${i + 1}` }, ui.text(fb(field, 'label'), { max: 45, placeholder: 'Frage / Label' })),
+          ui.field({ label: 'Art' }, ui.select(fb(field, 'style'), [['short', 'Einzeiliger Text'], ['paragraph', 'Mehrzeiliger Text']])),
+          ui.field({ label: 'Platzhalter' }, ui.text(fb(field, 'placeholder'), { max: 100 })),
+          ui.field({ label: 'Max. Länge' }, ui.number(fb(field, 'maxLength'), { min: 1, max: 4000 })),
+          ui.field({}, ui.toggle({ get: () => field.required !== false, set: (v) => fb(field, 'required').set(v) }, 'Pflichtfeld')),
+          ui.field({}, h('button', { class: 'btn ghost small', onclick: () => (form.splice(i, 1), markDirty('tickets.types'), render()) }, 'Feld entfernen')),
+        ),
+      ),
+    ),
+    form.length < 5 &&
+      h('button', { class: 'btn small', onclick: () => (form.push({ label: '', style: 'short', placeholder: '', maxLength: 500, required: true }), markDirty('tickets.types'), render()) }, `+ Feld hinzufügen (${form.length}/5)`),
+  );
+}
+
+function periodsEditor() {
+  const periods = state.draft.tickets.openingHours.periods;
+  return h(
+    'div',
+    {},
+    periods.map((p, i) =>
+      h(
+        'div',
+        { class: 'item' },
+        h(
+          'div',
+          { class: 'item-head' },
+          h(
+            'div',
+            { class: 'pills grow' },
+            DAYS.map(([day, label]) =>
+              h(
+                'button',
+                {
+                  class: `chip${p.days.includes(day) ? ' active' : ''}`,
+                  style: p.days.includes(day) ? 'border-color:var(--accent);color:#8fb6ff' : '',
+                  onclick: () => {
+                    p.days = p.days.includes(day) ? p.days.filter((d) => d !== day) : DAYS.map(([d]) => d).filter((d) => d === day || p.days.includes(d));
+                    markDirty('tickets.openingHours.periods');
+                    render();
+                  },
+                },
+                label,
+              ),
+            ),
+          ),
+          h('input', { type: 'time', value: p.from, style: 'width:120px', onchange: (e) => ((p.from = e.target.value), markDirty('tickets.openingHours.periods')) }),
+          '–',
+          h('input', { type: 'text', value: p.to, style: 'width:90px', placeholder: '24:00', onchange: (e) => ((p.to = e.target.value), markDirty('tickets.openingHours.periods')) }),
+          h('button', { class: 'btn ghost small', onclick: () => (periods.splice(i, 1), markDirty('tickets.openingHours.periods'), render()) }, 'Entfernen'),
+        ),
+      ),
+    ),
+    h('button', { class: 'btn small', onclick: () => (periods.push({ days: ['mo', 'di', 'mi', 'do', 'fr'], from: '15:00', to: '23:00' }), markDirty('tickets.openingHours.periods'), render()) }, '+ Zeitraum'),
+  );
+}
+
+page({
+  id: 'tickets',
+  group: 'Support',
+  title: 'Tickets',
+  icon: '🎫',
+  desc: 'Panel, Kategorien, Öffnungszeiten und Automationen. Das Panel postest du mit <code>/ticket panel</code>.',
+  sections: () => [
+    {
+      title: 'Kategorien',
+      desc: 'Jede Kategorie erscheint im Auswahlmenü des Panels. Aufklappen für alle Einstellungen.',
+      actions: () =>
+        h(
+          'button',
+          {
+            class: 'btn primary small',
+            onclick: () => {
+              const name = prompt('Name der neuen Kategorie:');
+              if (!name) return;
+              const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `kategorie-${Date.now()}`;
+              if (state.draft.tickets.types.some((t) => t.id === id)) return Dash.toast('Diese Kategorie gibt es schon.', true);
+              state.draft.tickets.types.push({ id, prefix: id, label: name, emoji: '🎫', capacity: 0, roles: [], description: 'Beschreibung', enabled: true, allowClaim: true, allowOnBehalf: true, openEmbed: { title: '', description: '', image: '' }, closeForm: [] });
+              openItems.add(`type-${state.draft.tickets.types.length - 1}`);
+              markDirty('tickets.types');
+              render();
+            },
+          },
+          '+ Neue Kategorie',
+        ),
+      render: () => h('div', {}, state.draft.tickets.types.map(ticketTypeEditor), h('p', { class: 'help' }, 'Hinweis: In den Slash-Befehlen (/ticket fuer, /einstellungen) stehen nur die Kategorien aus der config.json zur Auswahl.')),
+    },
+    {
+      title: 'Allgemein',
+      fields: [
+        { t: 'channel', kind: 'category', p: 'tickets.categoryId', label: 'Discord-Kategorie für Tickets' },
+        { t: 'channel', p: 'channels.ticketLog', label: 'Ticket-Log' },
+        { t: 'number', p: 'tickets.maxOpenPerUser', label: 'Offene Tickets pro Nutzer (0 = kein Limit)', max: 50 },
+        { t: 'text', p: 'tickets.channelName', label: 'Kanalname', help: '<code>%PREFIX%</code> <code>%USERNAME%</code> <code>%USER_ID%</code> <code>%USER_NICK_NAME%</code> <code>%DISPLAY_NAME%</code> <code>%EMOTE%</code> <code>%TICKET_NUMBER%</code> <code>%CASEID%</code>' },
+        { t: 'toggle', p: 'tickets.pingTeam', label: 'Team beim Öffnen markieren' },
+        { t: 'toggle', p: 'tickets.onlyTeamCanClose', label: 'Nur das Team darf schließen (Ersteller stellt eine Schließungs-Anfrage)' },
+        { t: 'toggle', p: 'tickets.creatorCanAddUsers', label: 'Ersteller darf Personen anfragen (/ticket hinzufuegen)' },
+        { t: 'toggle', p: 'tickets.logging.activities', label: 'Aktivitäten im Ticket-Log protokollieren' },
+        { t: 'toggle', p: 'tickets.logging.transcripts', label: 'Transkript beim Schließen speichern (Log + DM)' },
+        { t: 'toggle', p: 'tickets.claimCategory.enabled', label: 'Übernommene Tickets in eine eigene Kategorie verschieben' },
+        { t: 'channel', kind: 'category', p: 'tickets.claimCategory.categoryId', label: 'Claim-Kategorie' },
+      ],
+    },
+    {
+      title: 'Panel',
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('ticket-panels-refresh', {}, 'Panels aktualisiert') }, 'Panels neu zeichnen'),
+      fields: [
+        { t: 'text', p: 'tickets.panel.title', label: 'Titel', max: 200 },
+        { t: 'text', p: 'tickets.panel.placeholder', label: 'Text im Auswahlmenü', max: 150 },
+        { t: 'textarea', p: 'tickets.panel.description', label: 'Beschreibung', wide: true, max: 1500 },
+        { t: 'text', p: 'tickets.panel.image', label: 'Banner (Bild-URL)', placeholder: 'https://…' },
+        { t: 'text', p: 'tickets.panel.footer', label: 'Fußzeile', max: 200 },
+        { t: 'toggle', p: 'tickets.panel.showLoad', label: 'Auslastung im Panel anzeigen' },
+      ],
+    },
+    {
+      title: 'Öffnungszeiten',
+      desc: 'Außerhalb bekommt jedes neue Ticket einen Hinweis, wann das Team wieder da ist; Erinnerungen und Auto-Close pausieren.',
+      render: () =>
+        h(
+          'div',
+          { class: 'card-body', style: 'padding:0' },
+          renderField({ t: 'toggle', p: 'tickets.openingHours.enabled', label: 'Öffnungszeiten verwenden' }),
+          renderField({ t: 'text', p: 'tickets.openingHours.timezone', label: 'Zeitzone', placeholder: 'Europe/Berlin' }),
+          h('div', { class: 'field wide' }, periodsEditor()),
+        ),
+    },
+    {
+      title: 'Automationen (allgemein)',
+      desc: 'Gelten für alle Kategorien ohne eigene Einstellung.',
+      fields: [
+        { t: 'toggle', p: 'tickets.autoClose.enabled', label: 'Auto-Close bei Inaktivität' },
+        { t: 'number', p: 'tickets.autoClose.afterHours', label: 'Schließen nach (Stunden ohne Nachricht)', min: 1, max: 2160 },
+        { t: 'toggle', p: 'tickets.autoTeamAlert.enabled', label: 'Team erinnern, falls noch niemand geantwortet hat' },
+        { t: 'number', p: 'tickets.autoTeamAlert.afterMinutes', label: 'Erinnern nach (Minuten)', min: 1, max: 10080 },
+        { t: 'textarea', p: 'tickets.autoTeamAlert.message', label: 'Erinnerungsnachricht', wide: true, max: 500, help: 'Leer = Standard. <code>{user}</code> <code>{since}</code>' },
+        { t: 'toggle', p: 'tickets.autoUnclaim.enabled', label: 'Automatisch freigeben, wenn der Bearbeiter inaktiv ist' },
+        { t: 'number', p: 'tickets.autoUnclaim.afterHours', label: 'Freigeben nach (Stunden)', min: 1, max: 720 },
+        { t: 'select', p: 'tickets.onCreatorLeave', label: 'Wenn der Ersteller den Server verlässt', options: LEAVE },
+        { t: 'textarea', p: 'tickets.leaveMessage', label: 'Nachricht / Grund', wide: true, max: 500, help: '<code>{user}</code> <code>{username}</code>' },
+      ],
+    },
+    {
+      title: 'Offene Tickets',
+      render: () =>
+        liveBlock('tickets', (list) =>
+          list.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, '#'), h('th', {}, 'Kanal'), h('th', {}, 'Kategorie'), h('th', {}, 'Bearbeiter'), h('th', {}, 'Geöffnet')),
+                list.map((t) => h('tr', {}, h('td', {}, t.number), h('td', {}, `#${t.channel ?? t.channelId}`), h('td', {}, t.type), h('td', {}, t.claimedBy ? '✅' : '—'), h('td', {}, fmtTime(t.openedAt)))),
+              )
+            : h('div', { class: 'empty' }, 'Keine offenen Tickets.'),
+        ),
+    },
+  ],
+});
+
+// ---------- Moderation ----------
+
+const WARN_ROLES = (path) => ({
+  title: 'Warn-Rollen',
+  desc: 'Der Bot hält die Rolle passend zur Anzahl aktiver Verwarnungen. Die Bot-Rolle muss über diesen Rollen stehen.',
+  render: () => {
+    const roles = getPath(state.draft, path);
+    return h(
+      'div',
+      { class: 'card-body', style: 'padding:0' },
+      [0, 1, 2, 3, 4].map((i) =>
+        ui.field({ label: `Warn ${i + 1}` }, ui.role({ get: () => roles[i] ?? '', set: (v) => ((roles[i] = v), markDirty(path)) }, { empty: '— keine Rolle —' })),
+      ),
+    );
+  },
+});
+const warnExpiry = (base) => [
+  { t: 'toggle', p: `${base}.expire.enabled`, label: 'Verwarnungen laufen automatisch ab' },
+  { t: 'number', p: `${base}.expire.days`, label: 'Standard-Ablauf nach (Tagen)', min: 1, max: 3650, help: 'Mit der Option <code>ablauf</code> beim Verwarnen je Verwarnung anders (0 = nie).' },
+  { t: 'toggle', p: `${base}.dmOnExpire`, label: 'Mitglied per DM informieren, wenn eine Verwarnung abgelaufen ist' },
+];
+
+page({
+  id: 'moderation',
+  group: 'Moderation',
+  title: 'Moderation',
+  icon: '🛡️',
+  requires: 'moderation',
+  enabledPath: 'moderation.enabled',
+  offText: 'Moderationsbefehle, Auto-Mod und Honeypot sind abgeschaltet.',
+  desc: 'Berechtigungen, Verwarnungen, Meldungen, Honeypot und Auto-Mod.',
+  sections: () => [
+    {
+      title: 'Berechtigungen',
+      desc: 'Mitglieder mit diesen Rollen dürfen die Aktion ausführen. Admins und Mitglieder mit dem passenden Discord-Recht dürfen immer.',
+      fields: [
+        { t: 'roles', p: 'moderation.permissions.timeout', label: 'Timeout' },
+        { t: 'roles', p: 'moderation.permissions.warn', label: 'Verwarnen' },
+        { t: 'roles', p: 'moderation.permissions.kick', label: 'Kicken' },
+        { t: 'roles', p: 'moderation.permissions.ban', label: 'Bannen' },
+        { t: 'roles', p: 'moderation.permissions.viewLogs', label: 'Verwarnungen ansehen' },
+      ],
+    },
+    {
+      title: 'Allgemeines',
+      fields: [
+        { t: 'roles', p: 'moderation.ignoredRoles', label: 'Ignorierte Rollen', help: 'Können nicht bestraft werden.' },
+        { t: 'toggle', p: 'moderation.dmOnAction', label: 'Nutzer bei Mod-Aktionen per DM benachrichtigen' },
+        { t: 'toggle', p: 'moderation.logEnabled', label: 'Mod-Aktionen loggen' },
+        { t: 'channel', p: 'channels.modLog', label: 'Mod-Log-Kanal' },
+      ],
+    },
+    {
+      title: 'Limit an Verwarnungen',
+      fields: [
+        { t: 'toggle', p: 'moderation.warnings.limit.enabled', label: 'Aktion ausführen, wenn ein Nutzer das Limit erreicht' },
+        { t: 'number', p: 'moderation.warnings.limit.count', label: 'Anzahl aktiver Verwarnungen', min: 1, max: 50 },
+        { t: 'select', p: 'moderation.warnings.limit.action', label: 'Aktion', options: [['ban', 'Bannen'], ['kick', 'Kicken'], ['timeout', 'Timeout']] },
+        { t: 'number', p: 'moderation.warnings.limit.timeoutMinutes', label: 'Timeout-Dauer (Minuten)', min: 1, max: 40320 },
+      ],
+    },
+    { title: 'Ablauf von Verwarnungen', fields: warnExpiry('moderation.warnings') },
+    WARN_ROLES('moderation.warnings.roles'),
+    {
+      title: 'Öffentliche Verwarnung',
+      desc: 'Postet jede Verwarnung zusätzlich in einen Kanal. Leer = aus.',
+      fields: [{ t: 'channel', p: 'moderation.warnings.publicChannel', label: 'Kanal', empty: '— Nicht öffentlich posten —' }],
+    },
+    {
+      title: 'Report-System',
+      desc: 'Mitglieder melden andere mit <code>/melden</code>.',
+      fields: [
+        { t: 'toggle', p: 'moderation.report.enabled', label: 'Nutzer dürfen andere Nutzer melden' },
+        { t: 'channel', p: 'moderation.report.channel', label: 'Kanal für Meldungen' },
+        { t: 'roles', p: 'moderation.report.pingRoles', label: 'Bei Meldungen markieren' },
+      ],
+    },
+    {
+      title: 'Honeypot',
+      desc: 'Köderkanal gegen Scam-Konten: Wer dort schreibt, wird automatisch entfernt. Teammitglieder, Besitzer und ignorierte Rollen sind ausgenommen.',
+      fields: [
+        { t: 'toggle', p: 'moderation.honeypot.enabled', label: 'Köderkanal aktivieren' },
+        { t: 'channel', p: 'moderation.honeypot.channel', label: 'Köderkanal' },
+        { t: 'select', p: 'moderation.honeypot.action', label: 'Aktion', options: [['kick', 'Kicken'], ['ban', 'Bannen'], ['timeout', 'Timeout (24 Std.)']] },
+        { t: 'select', p: 'moderation.honeypot.deleteMessages', label: 'Nachrichten löschen', options: [['hour', 'Letzte Stunde (alle Kanäle)'], ['day', 'Letzte 24 Stunden'], ['none', 'Nur die Köder-Nachricht']] },
+        { t: 'toggle', p: 'moderation.honeypot.dm', label: 'Nutzer vorher per DM informieren' },
+        { t: 'text', p: 'moderation.honeypot.dmTitle', label: 'DM-Titel', placeholder: 'Du wurdest entfernt' },
+        { t: 'textarea', p: 'moderation.honeypot.dmText', label: 'DM-Text', wide: true, help: 'Leer = Standardtext. <code>{user}</code> <code>{server}</code> <code>{action}</code> <code>{invite}</code>' },
+        { t: 'toggle', p: 'moderation.honeypot.invite', label: 'Einmaligen Einladungslink in der Kick-Nachricht mitschicken' },
+        { t: 'text', p: 'moderation.honeypot.warnTitle', label: 'Warn-Hinweis: Titel' },
+        { t: 'textarea', p: 'moderation.honeypot.warnText', label: 'Warn-Hinweis: Text', wide: true },
+      ],
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('honeypot-notice', {}, 'Hinweis gepostet') }, 'Hinweis posten'),
+    },
+    {
+      title: 'Auto-Mod-Regeln',
+      desc: 'Admins, Mitglieder mit „Nachrichten verwalten“ und die ignorierten Rollen sind ausgenommen.',
+      fields: [
+        { t: 'roles', p: 'moderation.automod.ignoredRoles', label: 'Ignorierte Rollen (Whitelist)', wide: true },
+        { t: 'toggle', p: 'moderation.automod.hoisting.enabled', label: 'Anti-Hoisting: Sonderzeichen am Namensanfang entfernen' },
+        { t: 'toggle', p: 'moderation.automod.invites.enabled', label: 'Anti-Invite: Discord-Einladungen löschen' },
+        { t: 'toggle', p: 'moderation.automod.links.enabled', label: 'Anti-Link: externe Links löschen' },
+        { t: 'lines', p: 'moderation.automod.links.allowed', label: 'Erlaubte Domains', placeholder: 'tenor.com', help: 'Eine Domain pro Zeile.' },
+        { t: 'toggle', p: 'moderation.automod.spam.enabled', label: 'Anti-Spam: Nachrichten-Flood löschen' },
+        { t: 'number', p: 'moderation.automod.spam.messages', label: 'Nachrichten', min: 2, max: 50 },
+        { t: 'number', p: 'moderation.automod.spam.seconds', label: 'in Sekunden', min: 1, max: 120 },
+        { t: 'toggle', p: 'moderation.automod.caps.enabled', label: 'Anti-Caps' },
+        { t: 'number', p: 'moderation.automod.caps.percent', label: 'Anteil Großbuchstaben (%)', min: 10, max: 100 },
+        { t: 'number', p: 'moderation.automod.caps.minLength', label: 'Ab Buchstaben', min: 1, max: 200 },
+        { t: 'toggle', p: 'moderation.automod.ping.enabled', label: 'Anti-Ping: Pings geschützter Rollen löschen' },
+        { t: 'roles', p: 'moderation.automod.ping.roles', label: 'Geschützte Rollen', wide: true },
+      ],
+    },
+  ],
+});
+
+// ---------- Teamverwaltung ----------
+
+const TEAM_PERMS = [
+  ['absence', 'Sich abwesend melden', '/abwesend und /zurueck'],
+  ['warn', 'Team verwarnen', '/team verwarnen, verwarnungen, verwarnung-entfernen'],
+  ['rank', 'Up-/Downrank', '/team rang'],
+];
+page({
+  id: 'team',
+  group: 'Moderation',
+  title: 'Teamverwaltung',
+  icon: '👥',
+  requires: 'team',
+  enabledPath: 'team.enabled',
+  offText: 'Die Team-Befehle antworten mit einem Hinweis, solange das Modul deaktiviert ist.',
+  desc: 'Team & Rechte, Rang-Änderungen, Team-Verwarnungen, Live-Teamliste und Abwesenheit.',
+  sections: () => [
+    {
+      title: 'Team & Rechte',
+      desc: 'Wer eine dieser Rollen hat, zählt als Teammitglied und darf, was angehakt ist. Admins dürfen immer.',
+      render: () => {
+        const roles = state.draft.team.roles;
+        let add = '';
+        return h(
+          'div',
+          {},
+          roles.length
+            ? roles.map((r, i) =>
+                h(
+                  'div',
+                  { class: 'item' },
+                  h('div', { class: 'item-head' }, h('b', { class: 'grow' }, `@${roleName(r.id) ?? r.id}`), h('button', { class: 'btn ghost small', onclick: () => (roles.splice(i, 1), markDirty('team.roles'), render()) }, 'Entfernen')),
+                  h(
+                    'div',
+                    { class: 'item-body' },
+                    TEAM_PERMS.map(([perm, label, help]) =>
+                      ui.field(
+                        { help },
+                        ui.toggle(
+                          {
+                            get: () => r.perms.includes(perm),
+                            set: (v) => {
+                              r.perms = v ? [...r.perms, perm] : r.perms.filter((p) => p !== perm);
+                              markDirty('team.roles');
+                            },
+                          },
+                          label,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Team-Rolle festgelegt.'),
+          h(
+            'div',
+            { class: 'card-body', style: 'padding:16px 0 0' },
+            ui.role({ get: () => add, set: (v) => (add = v) }, { empty: '— Rolle wählen —' }),
+            h(
+              'button',
+              { class: 'btn', onclick: () => add && !roles.some((r) => r.id === add) && (roles.push({ id: add, perms: TEAM_PERMS.map(([p]) => p) }), markDirty('team.roles'), render()) },
+              'Rolle zum Team hinzufügen',
+            ),
+          ),
+        );
+      },
+    },
+    {
+      title: 'Benachrichtigung & Protokoll',
+      fields: [
+        { t: 'toggle', p: 'team.dmNotify', label: 'Mitglied per DM über Rang-Änderung oder Team-Verwarnung informieren' },
+        { t: 'channel', p: 'team.logChannel', label: 'Log-Kanal', empty: '— Kein Log-Kanal —' },
+      ],
+    },
+    {
+      title: 'Team-Verwarnungen',
+      fields: [
+        { t: 'toggle', p: 'team.warnings.enabled', label: 'Team-Verwarnungen über /team verwarnen erlauben' },
+        ...warnExpiry('team.warnings'),
+        { t: 'channel', p: 'team.warnings.publicChannel', label: 'Öffentlich posten in', empty: '— Nicht öffentlich posten —' },
+      ],
+    },
+    WARN_ROLES('team.warnings.roles'),
+    {
+      title: 'Rang-Änderungen (/team rang)',
+      fields: [
+        { t: 'toggle', p: 'team.rank.reasonRequired', label: 'Beim Befehl muss ein Grund angegeben werden' },
+        { t: 'channel', p: 'team.rank.announceChannel', label: 'Öffentliche Rang-Ankündigung', empty: '— Nicht ankündigen —' },
+        { t: 'text', p: 'team.rank.announceTitle', label: 'Titel', max: 200 },
+        { t: 'textarea', p: 'team.rank.announceText', label: 'Text', wide: true, help: '<code>{user}</code> <code>{username}</code> <code>{oldrole}</code> <code>{newrole}</code> <code>{server}</code>' },
+      ],
+    },
+    {
+      title: 'Uprank-Angebot',
+      desc: 'Upranks werden erst als Angebot gepostet; nur das Mitglied kann annehmen oder ablehnen. Rückstufungen sind nicht betroffen.',
+      fields: [
+        { t: 'toggle', p: 'team.rank.offer.enabled', label: 'Uprank nur nach Annehmen durch das Mitglied' },
+        { t: 'channel', p: 'team.rank.offer.channel', label: 'Kanal für Angebote', empty: '— Kanal der Rang-Ankündigung —' },
+        { t: 'number', p: 'team.rank.offer.hours', label: 'Frist (Stunden)', min: 1, max: 720 },
+      ],
+    },
+    {
+      title: 'Live-Teamliste',
+      desc: 'Eine Nachricht, die automatisch aktuell gehalten wird: Mitglieder unter ihrer Rolle (🌴 = abwesend).',
+      actions: () => h('button', { class: 'btn small', onclick: () => runAction('team-lists-update', {}, 'Listen werden aktualisiert') }, 'Jetzt aktualisieren'),
+      fields: [
+        { t: 'toggle', p: 'team.teamList.enabled', label: 'Live-Teamliste posten' },
+        { t: 'channel', p: 'team.teamList.channel', label: 'Kanal' },
+        { t: 'roles', p: 'team.teamList.roles', label: 'Rollen in der Teamliste (in dieser Reihenfolge)', wide: true },
+      ],
+    },
+    {
+      title: 'Abwesenheit',
+      desc: 'Teammitglieder melden sich mit <code>/abwesend</code> ab und mit <code>/zurueck</code> zurück.',
+      fields: [
+        { t: 'toggle', p: 'team.absence.enabled', label: 'Abwesenheitsliste und /abwesend, /zurueck aktivieren' },
+        { t: 'channel', p: 'team.absence.channel', label: 'Kanal für die Liste' },
+        { t: 'role', p: 'team.absence.role', label: 'Rolle während der Abwesenheit' },
+      ],
+    },
+    {
+      title: 'Aktuell abwesend',
+      render: () =>
+        liveBlock('absences', (list) =>
+          list.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Mitglied'), h('th', {}, 'Bis'), h('th', {}, 'Grund'), h('th', {})),
+                list.map((a) =>
+                  h('tr', {}, h('td', {}, a.userId), h('td', {}, fmtTime(a.until)), h('td', {}, a.reason || '—'), h('td', {}, h('button', { class: 'btn ghost small', onclick: () => runAction('absence-end', { userId: a.userId }, 'Abwesenheit beendet').then(render) }, 'Beenden'))),
+                ),
+              )
+            : h('div', { class: 'empty' }, 'Aktuell ist niemand abwesend.'),
+        ),
+    },
+  ],
+});
+})();
