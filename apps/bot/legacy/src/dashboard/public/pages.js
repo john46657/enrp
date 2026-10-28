@@ -628,6 +628,61 @@ page({
   ],
 });
 
+// ---------- Zählen ----------
+
+page({
+  id: 'counting',
+  group: 'Community',
+  title: 'Zählen',
+  icon: '🔢',
+  requires: 'counting',
+  enabledPath: 'counting.enabled',
+  offText: 'Im Zähl-Kanal reagiert der Bot nicht.',
+  desc: 'Mitglieder zählen in einem Kanal 1, 2, 3 … hoch. Richtige Zahlen bekommen ✅. Nachrichten ohne Zahl am Anfang werden ignoriert.',
+  sections: () => [
+    {
+      title: 'Einstellungen',
+      fields: [
+        { t: 'channel', p: 'counting.channel', label: 'Zähl-Kanal', help: 'Tipp: Slow-Modus im Kanal einschalten.' },
+        { t: 'toggle', p: 'counting.resetOnFail', label: 'Falsche Zahl setzt auf 1 zurück', help: 'Aus = falsche Zahlen werden nur gelöscht, der Stand bleibt.' },
+        { t: 'toggle', p: 'counting.allowTwice', label: 'Dieselbe Person darf zweimal hintereinander zählen' },
+      ],
+    },
+    {
+      title: 'Stand',
+      render: () => {
+        const input = h('input', { type: 'number', min: 0, placeholder: 'Zahl' });
+        return h(
+          'div',
+          {},
+          liveBlock('counting', (d) =>
+            h(
+              'div',
+              { class: 'card-body', style: 'padding:0' },
+              h('div', {}, `Aktuell: `, h('b', {}, d.current), ` · Nächste Zahl: `, h('b', {}, d.current + 1), ` · Rekord: `, h('b', {}, d.record), d.recordAt ? ` (${fmtTime(d.recordAt)})` : '', ` · Zurückgesetzt: ${d.resets}×`),
+            ),
+          ),
+          h(
+            'div',
+            { class: 'card-body', style: 'padding:16px 0 0' },
+            input,
+            h('button', { class: 'btn small', onclick: () => input.value !== '' && confirm(`Stand auf ${input.value} setzen?`) && runAction('counting-set', { number: Number(input.value) }, 'Stand gesetzt').then(render) }, 'Stand setzen'),
+          ),
+        );
+      },
+    },
+    {
+      title: 'Beste Zähler',
+      render: () =>
+        liveBlock('counting', ({ top }) =>
+          top.length
+            ? h('table', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Mitglied'), h('th', {}, 'Richtig'), h('th', {}, 'Fehler')), top.map((t, i) => h('tr', {}, h('td', {}, i + 1), h('td', {}, t.user), h('td', {}, t.count), h('td', {}, t.fails))))
+            : h('div', { class: 'empty' }, 'Noch hat niemand gezählt.'),
+        ),
+    },
+  ],
+});
+
 // ---------- Tickets ----------
 
 function ticketTypeEditor(t, index) {

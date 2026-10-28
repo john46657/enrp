@@ -560,6 +560,12 @@
       }
     }
   },
+  "counting": {
+    "enabled": false,
+    "channel": "",
+    "resetOnFail": true,
+    "allowTwice": false
+  },
   "security": {
     "enabled": false,
     "logChannel": "",

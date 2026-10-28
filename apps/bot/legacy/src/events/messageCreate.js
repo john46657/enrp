@@ -7,6 +7,7 @@ const { trackMessage } = require('../lib/tickets');
 const { handleDirectMessage } = require('../lib/applications/flow');
 const automod = require('../lib/automod');
 const scamImages = require('../lib/scamImages');
+const counting = require('../lib/counting');
 
 const cooldowns = new Map();
 
@@ -18,6 +19,7 @@ module.exports = {
     if (await automod.handleMessage(message)) return; // Auto-Mod oder Honeypot hat die Nachricht entfernt
     if (await scamImages.checkMessage(message)) return; // bekanntes oder massenhaft gepostetes Scam-Bild
     trackMessage(message);
+    await counting.handleMessage(message);
 
     const config = forGuild(message.guildId);
     const { leveling } = config;

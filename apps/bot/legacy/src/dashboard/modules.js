@@ -8,6 +8,7 @@ const automod = require('../lib/automod');
 const security = require('../lib/security');
 const giveaways = require('../lib/giveaways');
 const suggestions = require('../lib/suggestions');
+const counting = require('../lib/counting');
 const careers = require('../lib/careers');
 const meetings = require('../lib/meetings');
 const scamImages = require('../lib/scamImages');
@@ -53,6 +54,25 @@ registerAction('absence-end', async (guild, { userId }) => {
   const member = await guild.members.fetch(String(userId)).catch(() => null);
   if (!member) throw new Error('Mitglied nicht gefunden.');
   await team.setAbsence(member, null);
+});
+
+// ---------- Zählen ----------
+
+registerLive('counting', (guild) => {
+  const s = counting.stateOf(guild.id);
+  const name = (id) => guild.members.cache.get(id)?.user.username ?? id;
+  return {
+    current: s.current,
+    record: s.record,
+    recordAt: s.recordAt,
+    resets: s.resets,
+    top: counting.topCounters(guild.id).map(([id, n]) => ({ user: name(id), count: n, fails: s.fails[id] ?? 0 })),
+  };
+});
+registerAction('counting-set', (guild, { number }) => {
+  const n = Number(number);
+  if (!Number.isInteger(n) || n < 0 || n > 1_000_000_000) throw new Error('Ungültige Zahl.');
+  counting.setCurrent(guild.id, n);
 });
 
 // ---------- Giveaways ----------
