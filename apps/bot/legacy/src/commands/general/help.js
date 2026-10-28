@@ -6,8 +6,7 @@ const SECTIONS = {
   '🎭 Roleplay': ['serverstatus', 'ankuendigung'],
   '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear', 'melden', 'sicherheit'],
   '🎫 Tickets': ['ticket'],
-  '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste', 'giveaway', 'vorschlag'],
-  '🎵 Social Media': ['tiktok-live'],
+  '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste', 'giveaway', 'vorschlag', 'zaehlen'],
   '👥 Team': ['team', 'abwesend', 'zurueck', 'meeting'],
   '⚙️ Verwaltung': ['einstellungen'],
 };

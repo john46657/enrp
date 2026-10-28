@@ -560,25 +560,11 @@
       }
     }
   },
-  "tiktok": {
+  "counting": {
     "enabled": false,
     "channel": "",
-    "role": "",
-    "provider": "none",
-    "pollSeconds": 120,
-    "endMessages": false,
-    "endGraceMinutes": 10,
-    "manualRoles": [],
-    "template": {
-      "title": "🔴 {brand} – TikTok LIVE",
-      "text": "Ein Creator aus unserer Community ist jetzt live!",
-      "footer": "Schaut vorbei und unterstützt unsere Community!",
-      "color": "#FE2C55"
-    },
-    "endTemplate": {
-      "title": "⚫ {brand} – LIVE beendet",
-      "text": "Der TikTok-Livestream von @{creator} ist beendet."
-    }
+    "resetOnFail": true,
+    "allowTwice": false
   },
   "security": {
     "enabled": false,
