@@ -12,6 +12,8 @@ const security = require('../lib/security');
 const giveaways = require('../lib/giveaways');
 const suggestions = require('../lib/suggestions');
 const careers = require('../lib/careers');
+const meetings = require('../lib/meetings');
+const settingsLib = require('../lib/settings');
 const appMessages = require('../lib/applications/messages');
 
 const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
@@ -125,3 +127,36 @@ registerLive('suggestions', (guild) =>
 
 registerLive('careers', async (guild) => ({ progress: await careers.progressList(guild), history: careers.historyOf(guild.id).slice(0, 15).map((e) => ({ ...e, user: guild.members.cache.get(e.userId)?.user.username ?? e.userId })) }));
 registerAction('careers-check', async (guild) => careers.checkGuild(guild));
+
+// ---------- Meetings ----------
+
+registerLive('meetings', (guild) => {
+  const name = (id) => guild.members.cache.get(id)?.user.username ?? id;
+  const list = Object.values(meetings.meetingsOf(guild.id))
+    .sort((a, b) => b.start - a.start)
+    .slice(0, 50)
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      start: m.start,
+      duration: m.duration,
+      cancelled: m.cancelled,
+      voice: m.voiceChannelId ? guild.channels.cache.get(m.voiceChannelId)?.name : null,
+      yes: Object.values(m.rsvp).filter((v) => v === 'yes').length,
+      maybe: Object.values(m.rsvp).filter((v) => v === 'maybe').length,
+      no: Object.values(m.rsvp).filter((v) => v === 'no').length,
+      present: Object.keys(m.attendance ?? {}).length,
+    }));
+  const stats = Object.entries(meetings.attendanceStats(guild.id)).map(([id, s]) => ({ user: name(id), ...s }));
+  return { list, stats };
+});
+registerAction('meeting-create', (guild, body, member) => {
+  const start = meetings.parseStart(body.date, body.time, settingsLib.forGuild(guild.id).timezone);
+  if (!start) throw new Error('Ungültiges Datum oder Uhrzeit (TT.MM.JJJJ und HH:MM).');
+  const roles = Array.isArray(body.roles) ? body.roles.filter((id) => guild.roles.cache.has(id)) : [];
+  const voice = guild.channels.cache.get(String(body.voiceChannelId ?? ''))?.isVoiceBased() ? String(body.voiceChannelId) : null;
+  return meetings
+    .createMeeting(guild, { title: String(body.title ?? ''), description: String(body.description ?? ''), start, duration: Number(body.duration) || 60, roles, voiceChannelId: voice, createdBy: member.id })
+    .then((m) => m.id);
+});
+registerAction('meeting-cancel', (guild, { id }, member) => meetings.cancelMeeting(guild, String(id), member.id));

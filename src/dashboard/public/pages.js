@@ -1040,6 +1040,9 @@ const TEAM_PERMS = [
   ['absence', 'Sich abwesend melden', '/abwesend und /zurueck'],
   ['warn', 'Team verwarnen', '/team verwarnen, verwarnungen, verwarnung-entfernen'],
   ['rank', 'Up-/Downrank', '/team rang'],
+  ['calendarView', 'Kalender ansehen', '/meeting liste'],
+  ['calendarCreate', 'Kalender-Einträge erstellen', 'Termine anlegen und absagen'],
+  ['attendanceView', 'Anwesenheitsstatistik ansehen', 'Anwesenheit aller im Team-Kalender'],
 ];
 page({
   id: 'team',
@@ -1239,6 +1242,75 @@ page({
                 ),
               )
             : h('div', { class: 'empty' }, 'Noch keine Beförderungen oder Vorschläge.'),
+        ),
+    },
+    {
+      title: 'Meetings & Team-Kalender',
+      desc: 'Termine mit Zu-/Absage und Erinnerung. Hat ein Meeting einen Sprachkanal, erfasst der Bot die Anwesenheit (zu Beginn, nach 10 Minuten und zur Hälfte). Wer Termine sehen oder anlegen darf, legst du oben unter „Team &amp; Rechte“ fest.',
+      fields: [
+        { t: 'toggle', p: 'team.meetings.enabled', label: 'Meetings und Team-Kalender aktivieren' },
+        { t: 'channel', p: 'team.meetings.channel', label: 'Ankündigungskanal' },
+        { t: 'number', p: 'team.meetings.reminderMinutes', label: 'Erinnerung vorher (Minuten, 0 = aus)', max: 1440 },
+      ],
+    },
+    {
+      title: 'Kalender',
+      render: () => {
+        const form = { title: '', date: '', time: '', duration: 60, description: '', roles: [], voiceChannelId: '' };
+        const bind = (key) => ({ get: () => form[key], set: (v) => (form[key] = v) });
+        const act = (name, body, msg) => runAction(name, body, msg).then(render);
+        return h(
+          'div',
+          {},
+          liveBlock('meetings', ({ list }) =>
+            list.length
+              ? h(
+                  'table',
+                  {},
+                  h('tr', {}, h('th', {}, 'Termin'), h('th', {}, 'Beginn'), h('th', {}, 'Zusagen'), h('th', {}, 'Anwesend'), h('th', {})),
+                  list.map((m) =>
+                    h(
+                      'tr',
+                      {},
+                      h('td', {}, m.cancelled ? h('s', {}, m.title) : m.title, m.voice && h('div', { class: 'muted small' }, `🔊 ${m.voice}`)),
+                      h('td', {}, fmtTime(m.start), h('div', { class: 'muted small' }, `${m.duration} Min.`)),
+                      h('td', {}, `✅ ${m.yes} · ❔ ${m.maybe} · ❌ ${m.no}`),
+                      h('td', {}, m.voice ? m.present : '—'),
+                      h('td', {}, !m.cancelled && m.start + m.duration * 60000 > Date.now() && h('button', { class: 'btn ghost small', onclick: () => confirm(`„${m.title}“ absagen?`) && act('meeting-cancel', { id: m.id }, 'Abgesagt') }, 'Absagen')),
+                    ),
+                  ),
+                )
+              : h('div', { class: 'empty' }, 'Noch keine Termine.'),
+          ),
+          h('h3', {}, 'Neuer Termin'),
+          h(
+            'div',
+            { class: 'card-body', style: 'padding:0' },
+            ui.field({ label: 'Titel' }, ui.text(bind('title'), { max: 150 })),
+            ui.field({ label: `Datum (TT.MM.JJJJ)` }, ui.text(bind('date'), { placeholder: '31.12.2026', max: 10 })),
+            ui.field({ label: `Uhrzeit (${state.draft.timezone})` }, h('input', { type: 'time', oninput: (e) => (form.time = e.target.value) })),
+            ui.field({ label: 'Dauer (Minuten)' }, ui.number(bind('duration'), { min: 5, max: 1440 })),
+            ui.field({ label: 'Sprachkanal (Anwesenheit)' }, ui.channel(bind('voiceChannelId'), { kind: 'voice', empty: '— Ohne —' })),
+            ui.field({ label: 'Einladen' }, ui.roles(bind('roles'))),
+            ui.field({ label: 'Beschreibung', wide: true }, ui.textarea(bind('description'), { max: 1000 })),
+            ui.field({}, h('button', { class: 'btn primary', onclick: () => act('meeting-create', form, 'Meeting angelegt und angekündigt') }, 'Termin anlegen')),
+          ),
+        );
+      },
+    },
+    {
+      title: 'Anwesenheitsstatistik',
+      desc: 'Letzte 90 Tage. „Anwesend“ zählt nur Meetings mit Sprachkanal.',
+      render: () =>
+        liveBlock('meetings', ({ stats }) =>
+          stats.length
+            ? h(
+                'table',
+                {},
+                h('tr', {}, h('th', {}, 'Mitglied'), h('th', {}, 'Anwesend'), h('th', {}, 'Zusagen'), h('th', {}, 'Vielleicht'), h('th', {}, 'Absagen')),
+                stats.sort((a, b) => b.present - a.present).map((s) => h('tr', {}, h('td', {}, s.user), h('td', {}, s.present), h('td', {}, s.yes), h('td', {}, s.maybe), h('td', {}, s.no))),
+              )
+            : h('div', { class: 'empty' }, 'Noch keine Daten.'),
         ),
     },
     {

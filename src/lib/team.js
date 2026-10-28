@@ -13,6 +13,9 @@ const PERMS = {
   absence: 'Sich abwesend melden (/abwesend, /zurueck)',
   warn: 'Team verwarnen (/team verwarnen …)',
   rank: 'Up-/Downrank (/team rang)',
+  calendarView: 'Kalender ansehen (/meeting liste)',
+  calendarCreate: 'Kalender-Einträge erstellen (/meeting erstellen, absagen)',
+  attendanceView: 'Anwesenheitsstatistik ansehen (/meeting anwesenheit für alle)',
 };
 
 const isAdmin = (member) => member.id === member.guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild);

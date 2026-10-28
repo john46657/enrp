@@ -13,6 +13,7 @@ const { startDashboard } = require('../dashboard/server');
 const { startTiktokWatcher } = require('../lib/tiktok/service');
 const { startGiveawayWatcher } = require('../lib/giveaways');
 const { startCareerWatcher } = require('../lib/careers');
+const { startMeetingWatcher } = require('../lib/meetings');
 require('../dashboard/modules');
 
 module.exports = {
@@ -42,6 +43,7 @@ module.exports = {
     startTiktokWatcher(client);
     startGiveawayWatcher(client);
     startCareerWatcher(client);
+    startMeetingWatcher(client);
     // Abgelaufene Verwarnungen (Moderation und Team) markieren und Warn-Rollen anpassen.
     setInterval(async () => {
       for (const guild of client.guilds.cache.values()) {

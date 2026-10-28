@@ -14,7 +14,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` `/melden` · Berechtigungen per Rolle · Warn-Limit, Ablauf, Warn-Rollen, öffentliche Verwarnung · Honeypot-Köderkanal · Auto-Mod (Hoisting, Einladungen, Links, Spam, Caps, Pings) · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
-| 👥 **Teamverwaltung** | Team-Rollen mit Rechten · `/team verwarnen\|verwarnungen\|verwarnung-entfernen` mit Ablauf, Warn-Rollen, öffentlichem Post · `/team rang` (Up-/Downrank mit Fall-Nummer, Log, DM, Ankündigung, optional Angebot zum Annehmen) · Live-Teamliste · `/abwesend` `/zurueck` mit Abwesenheitsliste und -rolle |
+| 👥 **Teamverwaltung** | `/meeting erstellen\|liste\|absagen\|anwesenheit` (Team-Kalender mit Zu-/Absage, Erinnerung, Anwesenheit im Sprachkanal) · Rang-Aufstieg mit Laufbahnen · Team-Rollen mit Rechten · `/team verwarnen\|verwarnungen\|verwarnung-entfernen` mit Ablauf, Warn-Rollen, öffentlichem Post · `/team rang` (Up-/Downrank mit Fall-Nummer, Log, DM, Ankündigung, optional Angebot zum Annehmen) · Live-Teamliste · `/abwesend` `/zurueck` mit Abwesenheitsliste und -rolle |
 | 💡 **Vorschläge** | `/vorschlag` mit bis zu 4 Kategorien und eigenem Formular · Abstimmung per Button · Team nimmt an/lehnt ab (optional mit Pflicht-Grund), „In Bearbeitung“ → „Fertiggestellt“ · Thread, DM und Log angenommener Vorschläge – Einstellungen `suggestions` bzw. Dashboard |
 | 🎁 **Giveaways** | `/giveaway start\|vorlage\|ende\|neu-ziehen\|abbrechen\|liste\|blacklist` · Teilnahme-Button · Bedingungen (Rollen, Tage auf dem Server, Account-Alter) · Bonus-Lose · Gewinner-DM und -Rolle (optional befristet) · Einlösefrist mit Neuziehung und Ticket · Vorlagen, auch wöchentlich automatisch – Einstellungen `giveaways` bzw. Dashboard |
 | 🔒 **Server-Sicherheit** | Verify-Button (`/sicherheit verify-panel`) · Mindest-Account-Alter (Kick, Timeout oder nur melden) · Anti-Raid-Alarm · eigener Log-Kanal – Einstellungen `security` bzw. Dashboard |
@@ -29,7 +29,8 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 2. Links auf **Bot** → **Reset Token** → Token kopieren (niemals teilen!).
 3. Unter **Bot → Privileged Gateway Intents** einschalten:
    - ✅ **Server Members Intent** (Willkommen, Auto-Rolle, Tickets und Bewerbungen beim Verlassen)
-   - ✅ **Message Content Intent** (Ticket-Transkripte)
+   - ✅ **Message Content Intent** (Ticket-Transkripte, Auto-Mod)
+   - „Voice States“ (Anwesenheit bei Meetings) ist nicht privilegiert und braucht kein Häkchen.
 4. Links auf **OAuth2 → URL Generator**: Scopes `bot` und `applications.commands`, Berechtigung
    `Administrator` (am einfachsten) → Link öffnen und Bot auf deinen Server einladen. Mit demselben Link
    kannst du ihn auf weitere Server einladen.
@@ -143,12 +144,12 @@ Die Moderationsbefehle sind jetzt für alle sichtbar und prüfen die Berechtigun
 |---|---|
 | `enabled` | Aus = `/team`, `/abwesend`, `/zurueck` antworten nur mit einem Hinweis |
 | `logChannel` / `dmNotify` | Log für Rang-Änderungen und Team-Verwarnungen / Mitglied per DM informieren |
-| `roles[]` | Team-Rollen: `{ "id": "ROLLEN_ID", "perms": ["absence", "warn", "rank"] }`. Admins („Server verwalten“) dürfen immer. |
+| `roles[]` | Team-Rollen: `{ "id": "ROLLEN_ID", "perms": ["absence", "warn", "rank", "calendarView", "calendarCreate", "attendanceView"] }`. Admins („Server verwalten“) dürfen immer. |
 | `warnings` | Team-Verwarnungen: `enabled`, `expire`, `dmOnExpire`, `roles` (Warn 1–5), `publicChannel` – wie bei der Moderation |
 | `rank` | `reasonRequired`, `announceChannel` (öffentliche Ankündigung, leer = aus), `announceTitle`/`announceText` (`{user}` `{username}` `{oldrole}` `{newrole}` `{server}`), `offer` (`enabled`, `channel`, `hours`): Upranks erst nach „Annehmen“ durch das Mitglied |
 | `teamList` | `enabled`, `channel`, `roles`: Nachricht mit allen Mitgliedern je Rolle, aktualisiert sich bei Rollenänderungen |
 | `absence` | `enabled`, `channel` (Liste der Abwesenden), `role` (wird während der Abwesenheit vergeben) |
-
+| `meetings` | **Team-Kalender**: `enabled`, `channel` (Ankündigungen), `reminderMinutes`. Termine mit `/meeting erstellen` oder im Dashboard; Rechte `calendarView`, `calendarCreate`, `attendanceView` in `roles[].perms` |
 | `careers` | **Rang-Aufstieg**: `enabled`, `skipAbsent` (Abwesende nicht befördern), `countExisting` (beim ersten Erfassen vorhandene Aktivität mitzählen), `dm`, `announce` (`enabled`, `channel`, `title`, `text` mit `{user}` `{username}` `{oldrole}` `{newrole}` `{laufbahn}` `{server}`, `color`, `ping`, `showStats`) und `tracks[]`: `{ id, name, baseRole, mode: "auto" \| "approval", approvalChannel, approverRoles, stages: [{ role, minDays, tickets, modActions }] }` |
 
 Der Rang-Aufstieg prüft alle 10 Minuten. Gezählt wird ab dem letzten Rangwechsel (auch einem manuellen): bearbeitete

@@ -472,6 +472,11 @@
         "showStats": false
       },
       "tracks": []
+    },
+    "meetings": {
+      "enabled": false,
+      "channel": "",
+      "reminderMinutes": 30
     }
   },
   "moderation": {
