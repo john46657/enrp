@@ -7,7 +7,6 @@ const SECTIONS = {
   '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear', 'melden', 'sicherheit'],
   '🎫 Tickets': ['ticket'],
   '🎉 Community': ['rollenpanel', 'umfrage', 'rang', 'bestenliste', 'giveaway', 'vorschlag'],
-  '🎵 Social Media': ['tiktok-live'],
   '👥 Team': ['team', 'abwesend', 'zurueck', 'meeting'],
   '⚙️ Verwaltung': ['einstellungen'],
 };

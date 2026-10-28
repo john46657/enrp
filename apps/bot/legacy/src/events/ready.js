@@ -9,7 +9,6 @@ const { setupGuild } = require('../lib/guilds');
 const { startStatsWatcher } = require('../lib/stats');
 const { sweepExpired } = require('../lib/warnings');
 const { startTeamWatcher } = require('../lib/team');
-const { startTiktokWatcher } = require('../lib/tiktok/service');
 const { startGiveawayWatcher } = require('../lib/giveaways');
 const { startCareerWatcher } = require('../lib/careers');
 const { startMeetingWatcher } = require('../lib/meetings');
@@ -42,7 +41,6 @@ module.exports = {
       require('../dashboard/modules');
       require('../dashboard/server').startDashboard(client);
     } else console.log('ℹ️  Dashboard aus (DASHBOARD_URL und DISCORD_CLIENT_SECRET in der .env setzen)');
-    startTiktokWatcher(client);
     startGiveawayWatcher(client);
     startCareerWatcher(client);
     startMeetingWatcher(client);

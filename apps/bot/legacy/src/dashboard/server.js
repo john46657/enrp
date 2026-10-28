@@ -14,7 +14,7 @@ const SESSION_DAYS = 7;
 const MAX_VALUE_BYTES = 60_000;
 
 // Top-Level-Bereiche, die das Dashboard ändern darf (applications bleibt in der config.json).
-const EDITABLE = ['timezone', 'channels', 'roles', 'welcome', 'tickets', 'leveling', 'fivem', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions', 'tiktok'];
+const EDITABLE = ['timezone', 'channels', 'roles', 'welcome', 'tickets', 'leveling', 'fivem', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions'];
 
 // Module können Aktionen (Buttons) und Live-Daten fürs Dashboard anmelden.
 const actions = new Map(); // name → async (guild, body, member) => Ergebnis

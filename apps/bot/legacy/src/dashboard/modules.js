@@ -1,8 +1,5 @@
 // Verbindet die Bot-Module mit dem Dashboard: was nach dem Speichern passiert, Buttons und Live-Daten.
-const crypto = require('node:crypto');
-const { registerAction, registerLive, onSave, registerRoute } = require('./server');
-const tiktok = require('../lib/tiktok/service');
-const { PROVIDERS } = require('../lib/tiktok/providers');
+const { registerAction, registerLive, onSave } = require('./server');
 const { bucket } = require('../lib/db');
 const tickets = require('../lib/tickets');
 const stats = require('../lib/stats');
@@ -56,42 +53,6 @@ registerAction('absence-end', async (guild, { userId }) => {
   const member = await guild.members.fetch(String(userId)).catch(() => null);
   if (!member) throw new Error('Mitglied nicht gefunden.');
   await team.setAbsence(member, null);
-});
-
-// ---------- TikTok LIVE ----------
-
-registerLive('tiktok', (guild) => {
-  const data = tiktok.dataOf(guild.id);
-  return { provider: tiktok.providerStatus(guild.id), creators: Object.values(data.creators), sessions: data.sessions.slice(0, 50), events: data.events.slice(0, 50) };
-});
-registerAction('tiktok-add', (guild, { username }, member) => tiktok.addCreator(guild.id, username, member.id));
-registerAction('tiktok-remove', (guild, { username }) => tiktok.removeCreator(guild.id, username));
-registerAction('tiktok-toggle', (guild, { username, enabled }) => tiktok.setCreatorEnabled(guild.id, username, enabled));
-registerAction('tiktok-test', (guild, body, member) => tiktok.sendTest(guild, `${member.user.tag} (Dashboard)`));
-
-// Webhook für einen autorisierten externen Live-Status-Dienst (Provider "webhook").
-// POST /hooks/tiktok  Authorization: Bearer <TIKTOK_WEBHOOK_SECRET>  { "username": "name", "status": "live" | "offline", "url"?: "https://www.tiktok.com/@name/live" }
-registerRoute((app, { rateLimited }) => {
-  app.post('/hooks/tiktok', (req, res) => {
-    const secret = process.env.TIKTOK_WEBHOOK_SECRET;
-    if (!secret) return res.status(503).json({ error: 'Webhook nicht eingerichtet' });
-    if (rateLimited(`hook:${req.ip}`, 120)) return res.status(429).json({ error: 'Zu viele Anfragen' });
-    const given = Buffer.from(req.get('Authorization') ?? '');
-    const expected = Buffer.from(`Bearer ${secret}`);
-    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return res.status(401).json({ error: 'Nicht autorisiert' });
-    const { username, status, url, title } = req.body ?? {};
-    let name;
-    let link = null;
-    try {
-      name = tiktok.normalizeUsername(username);
-      if (url) link = tiktok.parseLiveUrl(url).url;
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
-    }
-    if (!['live', 'offline'].includes(status)) return res.status(400).json({ error: 'status muss "live" oder "offline" sein' });
-    PROVIDERS.webhook.report({ username: name, status, url: link, title: typeof title === 'string' ? title.slice(0, 200) : undefined });
-    res.json({ ok: true });
-  });
 });
 
 // ---------- Giveaways ----------
