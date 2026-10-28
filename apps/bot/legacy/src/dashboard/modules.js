@@ -1,5 +1,5 @@
 // Verbindet die Bot-Module mit dem Dashboard: was nach dem Speichern passiert, Buttons und Live-Daten.
-const { registerAction, registerLive, onSave } = require('./server');
+const { registerAction, registerLive, onSave, registerCheck } = require('./server');
 const { bucket } = require('../lib/db');
 const tickets = require('../lib/tickets');
 const stats = require('../lib/stats');
@@ -14,6 +14,7 @@ const meetings = require('../lib/meetings');
 const scamImages = require('../lib/scamImages');
 const settingsLib = require('../lib/settings');
 const appMessages = require('../lib/applications/messages');
+const appDashboard = require('../lib/applications/dashboard');
 
 const touched = (paths, prefix) => paths.some((p) => p === prefix || p.startsWith(`${prefix}.`) || prefix.startsWith(`${p}.`));
 
@@ -21,7 +22,7 @@ onSave(async (guild, paths) => {
   if (touched(paths, 'tickets')) await tickets.refreshPanels(guild);
   if (touched(paths, 'stats')) await stats.updateStats(guild);
   if (touched(paths, 'team')) await team.updateLists(guild);
-  if (touched(paths, 'channels') || touched(paths, 'roles')) await appMessages.refreshPanels(guild);
+  if (touched(paths, 'channels') || touched(paths, 'roles') || touched(paths, 'applications')) await appMessages.refreshPanels(guild);
 });
 
 registerAction('verify-post', (guild) => security.postVerifyMessage(guild));
@@ -55,6 +56,21 @@ registerAction('absence-end', async (guild, { userId }) => {
   if (!member) throw new Error('Mitglied nicht gefunden.');
   await team.setAbsence(member, null);
 });
+
+// ---------- Bewerbungen ----------
+
+registerCheck(appDashboard.checkConfig);
+registerLive('applications', (guild) => appDashboard.list(guild));
+registerLive('app-progress', (guild) => appDashboard.progress(guild));
+registerLive('app-bans', (guild) => appDashboard.bans(guild));
+registerLive('app-stats', (guild) => appDashboard.stats(guild));
+registerAction('app-decide', (guild, body, member) => appDashboard.decide(guild, body, member));
+registerAction('app-status', (guild, body, member) => appDashboard.changeStatus(guild, body, member));
+registerAction('app-note', (guild, body, member) => appDashboard.addNote(guild, body, member));
+registerAction('app-delete', (guild, body, member) => appDashboard.remove(guild, body, member));
+registerAction('app-ban-add', (guild, body, member) => appDashboard.addBan(guild, body, member));
+registerAction('app-ban-lift', (guild, body, member) => appDashboard.liftBan(guild, body, member));
+registerAction('app-panel-post', (guild, body) => appDashboard.postPanel(guild, body));
 
 // ---------- Zählen ----------
 
