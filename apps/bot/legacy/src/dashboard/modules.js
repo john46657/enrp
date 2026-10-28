@@ -6,6 +6,7 @@ const stats = require('../lib/stats');
 const team = require('../lib/team');
 const automod = require('../lib/automod');
 const security = require('../lib/security');
+const lockdown = require('../lib/lockdown');
 const giveaways = require('../lib/giveaways');
 const suggestions = require('../lib/suggestions');
 const counting = require('../lib/counting');
@@ -25,6 +26,30 @@ onSave(async (guild, paths) => {
 });
 
 registerAction('verify-post', (guild) => security.postVerifyMessage(guild));
+
+// ---------- Lockdown ----------
+
+registerLive('lockdown', (guild) => {
+  const st = lockdown.status(guild.id);
+  return st.active ? { ...st, by: guild.members.cache.get(st.by)?.user.username ?? st.by } : st;
+});
+const lockdownReason = (reason) => {
+  const text = String(reason ?? '').trim();
+  if (text.length < 3 || text.length > 200) throw new Error('Bitte einen Grund angeben (3–200 Zeichen).');
+  return text;
+};
+registerAction('lockdown-on', async (guild, { reason }, member) => {
+  const text = lockdownReason(reason);
+  const result = await lockdown.lock(guild, member.id, text);
+  await lockdown.announce(guild, `${member} hat den Server über das Dashboard gesperrt (${result.locked} Kanäle). Grund: ${text}`);
+  return result;
+});
+registerAction('lockdown-off', async (guild, { reason }, member) => {
+  const text = lockdownReason(reason);
+  const result = await lockdown.unlock(guild, text);
+  await lockdown.announce(guild, `${member} hat den Lockdown über das Dashboard aufgehoben (${result.restored} Kanäle). Grund: ${text}`);
+  return result;
+});
 registerAction('honeypot-notice', (guild) => automod.postHoneypotNotice(guild));
 registerAction('ticket-panels-refresh', (guild) => tickets.refreshPanels(guild));
 registerAction('stats-update', (guild) => stats.updateStats(guild));

@@ -14,6 +14,10 @@ local function isoNow(): string
 end
 
 function EventQueue.push(eventType: string, data: { [string]: any })
+	-- Testspieler im lokalen Studio-Server haben negative IDs; das Backend kennt nur echte Konten.
+	if typeof(data.userId) == "number" and data.userId <= 0 then
+		return
+	end
 	if #queue >= Config.MaxQueuedEvents then
 		-- Älteste Ereignisse verwerfen, damit der Server nicht unbegrenzt Speicher belegt.
 		table.remove(queue, 1)
@@ -32,7 +36,7 @@ function EventQueue.flush(): boolean
 	for i = 1, math.min(#queue, Config.MaxEventsPerBatch) do
 		batch[i] = queue[i]
 	end
-	local response = Api.request("POST", "/api/v1/game/events", { jobId = game.JobId, events = batch })
+	local response = Api.request("POST", "/api/v1/game/events", { jobId = Api.jobId(), events = batch })
 	if response.ok then
 		rejectedInARow = 0
 		for _ = 1, #batch do

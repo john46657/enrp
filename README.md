@@ -54,7 +54,7 @@ Prüfen: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test` (Integr
 | Sicherheit | [docs/security.md](docs/security.md) |
 | Betrieb, Backups, Notfallplan | [docs/operations.md](docs/operations.md) |
 | Deployment (Docker, CI/CD, Staging/Produktion) | [docs/deployment.md](docs/deployment.md) |
-| Roblox-Integration | [roblox/README.md](roblox/README.md) |
+| Roblox-Integration | [roblox/README.md](roblox/README.md) · Test auf dem eigenen PC: [docs/roblox-test.md](docs/roblox-test.md) |
 
 ## Stand der Umsetzung
 

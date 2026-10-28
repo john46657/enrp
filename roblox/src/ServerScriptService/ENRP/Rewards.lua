@@ -40,7 +40,7 @@ function Rewards.redeem(player: Player, code: string): (boolean, string)
 
 	-- Ein Idempotenzschlüssel pro Versuch: Netzwerk-Wiederholungen führen nicht zu doppelten Einlösungen.
 	local key = Api.newId()
-	local response = Api.request("POST", "/api/v1/game/redeem", { jobId = game.JobId, userId = player.UserId, code = code }, key)
+	local response = Api.request("POST", "/api/v1/game/redeem", { jobId = Api.jobId(), userId = player.UserId, code = code }, key)
 	if not response.ok then
 		return false, "Der Code konnte gerade nicht geprüft werden. Bitte später erneut versuchen."
 	end

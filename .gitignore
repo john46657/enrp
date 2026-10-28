@@ -8,5 +8,6 @@ coverage/
 *.tsbuildinfo
 .turbo/
 backups/
+!apps/dashboard/app/(console)/ops/backups/
 apps/bot/legacy/data/
 next-env.d.ts

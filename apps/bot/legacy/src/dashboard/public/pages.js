@@ -1397,8 +1397,35 @@ page({
   requires: 'security',
   enabledPath: 'security.enabled',
   offText: 'Keine der folgenden Maßnahmen greift, solange das Modul deaktiviert ist.',
-  desc: 'Verify-System, Scam-Bilder-Schutz, Mindest-Account-Alter und Anti-Raid-Meldungen.',
+  desc: 'Verify-System, Scam-Bilder-Schutz, Mindest-Account-Alter, Anti-Raid-Meldungen, Schutz vor Massenlöschung und Notfall-Lockdown.',
   sections: [
+    {
+      title: 'Notfall-Lockdown',
+      desc: 'Sperrt das Schreiben für @everyone in allen Text-, Ankündigungs- und Forenkanälen. Beim Aufheben werden die vorherigen Kanalrechte genau wiederhergestellt. Funktioniert auch, wenn das Modul ausgeschaltet ist. In Discord: /sicherheit lockdown bzw. /sicherheit entsperren.',
+      render: () =>
+        liveBlock('lockdown', (d) => {
+          const reason = h('input', { type: 'text', maxlength: 200, placeholder: 'Grund (Pflicht)' });
+          const run = (name, question, done) => {
+            if (reason.value.trim().length < 3) return toast('Bitte einen Grund angeben.', true);
+            if (confirm(question)) runAction(name, { reason: reason.value }, done).then(render);
+          };
+          return h(
+            'div',
+            {},
+            d.active
+              ? h('div', {}, h('b', {}, '🔒 Lockdown aktiv'), ` seit ${fmtTime(d.at)} · ${d.channels} Kanäle · von ${d.by} · Grund: ${d.reason}`)
+              : h('div', {}, '🔓 Kein Lockdown aktiv.'),
+            h(
+              'div',
+              { style: 'padding-top:12px;display:flex;gap:8px;flex-wrap:wrap' },
+              reason,
+              d.active
+                ? h('button', { class: 'btn small', onclick: () => run('lockdown-off', 'Lockdown aufheben und Kanalrechte wiederherstellen?', 'Lockdown aufgehoben') }, 'Lockdown aufheben')
+                : h('button', { class: 'btn small danger', onclick: () => run('lockdown-on', 'Wirklich alle Kanäle für @everyone sperren?', 'Server gesperrt') }, 'Server sperren'),
+            ),
+          );
+        }),
+    },
     {
       title: 'Verify-System',
       desc: 'Neue Mitglieder bekommen nach einem Klick die Verify-Rolle. Die eigentliche Kanal-Sperre richtest du über Discords Berechtigungen ein; der Bot vergibt nur die Rolle.',
