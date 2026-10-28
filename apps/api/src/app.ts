@@ -1,20 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
+import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { ReadinessCheck } from '@emden/shared';
+import { cookieSettings, type CookieSettings } from './auth/cookies.js';
+import { createDiscordOAuth, type DiscordOAuth } from './auth/discord.js';
 import type { AppConfig } from './config.js';
 import type { DatabaseHandle } from './db/database.js';
 import { databaseReadiness } from './db/readiness.js';
 import { registerErrorHandling } from './errors.js';
+import { authRoutes } from './routes/auth.js';
 import { healthRoutes } from './routes/health.js';
+import { registerOriginCheck } from './security/origin-check.js';
 import { version } from './version.js';
 
 export interface BuildAppOptions {
   /** Datenbank; ohne sie laufen nur die Health-Endpunkte (z. B. in reinen HTTP-Tests). */
   db?: DatabaseHandle;
   readinessChecks?: () => Promise<ReadinessCheck[]>;
+  /** Discord-Anbindung; Standard: aus der Konfiguration. Tests setzen hier eine Attrappe ein. */
+  discord?: DiscordOAuth | null;
+  /** Uhr; Tests können die Zeit damit steuern. */
+  clock?: () => Date;
 }
 
 const withoutDatabase = async (): Promise<ReadinessCheck[]> => [
@@ -65,12 +74,22 @@ export async function buildApp(config: AppConfig, options: BuildAppOptions = {})
     timeWindow: config.rateLimit.windowMs,
   });
 
+  await app.register(cookie);
+
   registerErrorHandling(app);
+  registerOriginCheck(app, [config.dashboardOrigin, ...config.corsOrigins]);
+
+  app.decorate('appConfig', config);
+  app.decorate('clock', options.clock ?? (() => new Date()));
+  app.decorate('cookieSettings', cookieSettings(config.dashboardOrigin));
 
   const { db } = options;
   if (db) {
-    // Die Verbindung gehört dem Aufrufer (server.ts schließt sie); hier nur der Readiness-Check.
+    // Die Verbindung gehört dem Aufrufer (server.ts schließt sie).
     app.decorate('db', db);
+    const discord =
+      options.discord !== undefined ? options.discord : config.discord && createDiscordOAuth(config.discord);
+    await app.register(authRoutes, { discord });
   }
 
   await app.register(healthRoutes, {
@@ -90,5 +109,8 @@ export async function buildApp(config: AppConfig, options: BuildAppOptions = {})
 declare module 'fastify' {
   interface FastifyInstance {
     db: DatabaseHandle;
+    appConfig: AppConfig;
+    clock: () => Date;
+    cookieSettings: CookieSettings;
   }
 }

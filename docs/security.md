@@ -1,6 +1,6 @@
 # Sicherheit
 
-## Stand Phase 1
+## Grundschutz (seit Phase 1)
 
 | Maßnahme                                | Umsetzung                                                                                                                           |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -18,17 +18,35 @@
 | Installationsskripte von Abhängigkeiten | npm 11: nur ausdrücklich freigegebene Skripte laufen (`allowScripts` in `package.json`); `esbuild` und `fsevents` bewusst abgelehnt |
 | Entwicklungsserver                      | Backend und Dashboard lauschen lokal nur auf `127.0.0.1`, nicht im WLAN                                                             |
 
+## Anmeldung, Sitzungen und Rechte (Phase 2)
+
+| Maßnahme                      | Umsetzung                                                                                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keine Passwörter              | Anmeldung ausschließlich über Discord (OAuth2 Authorization Code Grant), nur Scope `identify`, keine E-Mail-Adresse                                                                       |
+| Zugang nur nach Freischaltung | Unbekannte Discord-Konten werden abgelehnt und im Audit-Log festgehalten (nur die Discord-ID des Versuchs)                                                                                |
+| Schutz des Anmeldeablaufs     | `state` (256 Bit, Vergleich in konstanter Zeit, gilt einmal für 10 Minuten), PKCE mit S256 und Prüfung des Ausstellers `iss` (RFC 9207)                                                   |
+| Discord-Token                 | Wird nach dem Lesen des Profils sofort widerrufen und nie gespeichert                                                                                                                     |
+| Sitzungs-Cookie               | Zufällig (256 Bit), `HttpOnly`, `SameSite=Lax`, `Path=/`, über HTTPS zusätzlich `Secure` und Präfix `__Host-`                                                                             |
+| Sitzungen in der Datenbank    | Nur SHA-256-Hash des Tokens. Ende nach 4 Stunden ohne Aktivität oder spätestens nach 24 Stunden (einstellbar), sofort bei Sperrung                                                        |
+| Rollen und Rechte             | Bei jeder Anfrage frisch aus der Datenbank, Prüfung immer auf dem Server (`requirePermission`). Der Owner hat alle Rechte                                                                 |
+| Gesicherte Ersteinrichtung    | Kein Standardkonto und kein Standardpasswort. Der erste Owner kommt aus `OWNER_DISCORD_USER_ID`, das nur der Server-Betreiber setzen kann, und das nur, solange es noch keinen Owner gibt |
+| CSRF                          | Verändernde Anfragen mit fremdem `Origin` oder `Sec-Fetch-Site: cross-site/same-site` werden abgelehnt (`CSRF_REJECTED`), zusätzlich `SameSite=Lax`                                       |
+| Open Redirect                 | Nach der Anmeldung geht es nur zu Pfaden innerhalb des Dashboards (`safeReturnPath`)                                                                                                      |
+| Rate Limit                    | Anmelde-Endpunkte: 20 Anfragen pro Minute und IP                                                                                                                                          |
+| Audit-Log                     | Anmeldung, abgelehnte Anmeldung, Abmeldung und Ersteinrichtung. Die Datenbank verhindert nachträgliche Änderungen. Aufbewahrung 365 Tage (einstellbar), danach automatische Löschung      |
+| Aufräumen                     | Abgelaufene Sitzungen und alte Audit-Einträge werden beim Start und dann stündlich gelöscht                                                                                               |
+
 ## Bekannte Einschränkungen
 
-- **Keine Anmeldung bis Phase 2.** Das Dashboard darf bis dahin nicht öffentlich erreichbar sein.
+- Hinter dem Dashboard-Proxy sieht das Backend alle Anfragen von der Adresse des Dashboard-Servers. Das
+  Rate Limit für Anmeldungen gilt dann gemeinsam. Die korrekte Weitergabe der Besucher-IP (`TRUST_PROXY`)
+  wird mit dem Hosting in Phase 7 eingerichtet.
+- Ist Discord gestört, kann sich niemand anmelden. Bestehende Sitzungen laufen weiter.
 - Das Rate Limit gilt pro API-Prozess. Bei mehreren Instanzen ist ein gemeinsamer Speicher (z. B. Redis) nötig.
 - Die Dashboard-CSP enthält noch keine Skript-Einschränkung (Next.js benötigt dafür Nonces); geplant für Phase 7.
 
 ## Geplant
 
-- Phase 2: sichere Anmeldung, Sitzungen mit `HttpOnly`/`Secure`/`SameSite`-Cookies, CSRF-Schutz,
-  serverseitige Rollen- und Berechtigungsprüfung, Audit-Log, sichere Owner-Ersteinrichtung ohne
-  Standardpasswort.
 - Phase 3: signierte Roblox-Heartbeats mit Zeitstempel und Replay-Schutz, Geheimnis-Rotation.
 - Phase 5: Dokumentation, was der Discord-Sicherheitsbot **nicht** zuverlässig erkennen kann.
 

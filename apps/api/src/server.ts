@@ -1,8 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app.js';
+import { ensureBootstrapOwner } from './auth/bootstrap.js';
 import { ConfigError, loadConfig } from './config.js';
 import { DatabaseLockedError, openDatabase } from './db/database.js';
 import { MigrationError, getMigrationStatus, migrate } from './db/migrate.js';
+import { runMaintenance } from './maintenance.js';
+
+const MAINTENANCE_INTERVAL_MS = 60 * 60_000;
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -38,6 +42,38 @@ async function main(): Promise<void> {
       log.error({ err }, 'Migrationsstand konnte beim Start nicht geprüft werden');
     }
   }
+
+  if (config.ownerDiscordUserId) {
+    try {
+      const result = await ensureBootstrapOwner(db.db, config.ownerDiscordUserId);
+      log.info(
+        result === 'owner_exists'
+          ? 'Ersteinrichtung: Es gibt bereits einen Owner – OWNER_DISCORD_USER_ID wird ignoriert.'
+          : `Ersteinrichtung: Owner angelegt (${result}). Er kann sich jetzt mit Discord anmelden.`,
+      );
+    } catch (err) {
+      log.error({ err }, 'Ersteinrichtung des Owners fehlgeschlagen');
+    }
+  }
+  if (!config.discord) {
+    log.warn('Discord-Anmeldung ist nicht eingerichtet (DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET fehlen).');
+  }
+
+  // Aufräumen nach Aufbewahrungsregeln: beim Start und danach stündlich.
+  const maintain = () =>
+    runMaintenance(db.db, new Date(), {
+      session: config.session,
+      auditRetentionDays: config.auditRetentionDays,
+    }).then(
+      (removed) => {
+        if (removed.sessions + removed.auditEntries > 0) log.info({ removed }, 'Aufräumen abgeschlossen');
+      },
+      (err: unknown) => log.error({ err }, 'Aufräumen fehlgeschlagen'),
+    );
+  void maintain();
+  const timer = setInterval(() => void maintain(), MAINTENANCE_INTERVAL_MS);
+  timer.unref();
+  app.addHook('onClose', async () => clearInterval(timer));
 
   // Sauberes Herunterfahren, damit laufende Anfragen beim Deployment nicht abbrechen.
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

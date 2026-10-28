@@ -10,6 +10,14 @@ const booleanFromEnv = z
   .optional()
   .transform((value) => value === 'true' || value === '1');
 
+// Leere Werte aus der .env (z. B. "DISCORD_CLIENT_ID=") zählen als "nicht gesetzt".
+const optionalText = z
+  .string()
+  .optional()
+  .transform((value) => value?.trim() || undefined);
+
+const SNOWFLAKE = /^[0-9]{17,20}$/;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // Railway & Co. setzen PORT; API_PORT hat Vorrang, falls beide gesetzt sind.
@@ -26,6 +34,18 @@ const envSchema = z.object({
   // Verbindungs-URL zu PostgreSQL. Leer = lokale Entwicklungsdatenbank (PGlite), in Produktion Pflicht.
   DATABASE_URL: z.string().optional(),
   PGLITE_DATA_DIR: z.string().min(1).optional(),
+  // Öffentliche Adresse des Control Centers im Browser – Grundlage für Discord-Weiterleitung und Cookies.
+  DASHBOARD_PUBLIC_URL: optionalText,
+  // Discord-Anmeldung (Developer Portal → OAuth2). Beide leer = Anmeldung noch nicht eingerichtet.
+  DISCORD_CLIENT_ID: optionalText,
+  DISCORD_CLIENT_SECRET: optionalText,
+  // Nur für automatische Tests mit einer Discord-Attrappe; in Produktion nicht erlaubt.
+  DISCORD_OAUTH_BASE_URL: optionalText,
+  // Ersteinrichtung: Diese Discord-ID wird Owner, solange es noch keinen Owner gibt.
+  OWNER_DISCORD_USER_ID: optionalText,
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(15).max(1440).default(240),
+  SESSION_MAX_HOURS: z.coerce.number().int().min(1).max(720).default(24),
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().min(30).max(3650).default(365),
 });
 
 export interface AppConfig {
@@ -37,6 +57,13 @@ export interface AppConfig {
   rateLimit: { max: number; windowMs: number };
   trustProxy: boolean;
   database: DatabaseConfig;
+  /** Ursprung des Dashboards, z. B. "http://127.0.0.1:3000" – ohne Pfad. */
+  dashboardOrigin: string;
+  /** null = Discord-Anmeldung nicht eingerichtet. */
+  discord: { clientId: string; clientSecret: string; baseUrl: string } | null;
+  ownerDiscordUserId: string | null;
+  session: { idleMinutes: number; maxHours: number };
+  auditRetentionDays: number;
 }
 
 export class ConfigError extends Error {
@@ -86,7 +113,91 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     corsOrigins,
     rateLimit: { max: e.RATE_LIMIT_MAX, windowMs: e.RATE_LIMIT_WINDOW_MS },
     trustProxy: e.TRUST_PROXY,
+    dashboardOrigin: dashboardOrigin(e.NODE_ENV, e.DASHBOARD_PUBLIC_URL),
+    discord: discordConfig(
+      e.NODE_ENV,
+      e.DISCORD_CLIENT_ID,
+      e.DISCORD_CLIENT_SECRET,
+      e.DISCORD_OAUTH_BASE_URL,
+    ),
+    ownerDiscordUserId: ownerId(e.OWNER_DISCORD_USER_ID),
+    session: { idleMinutes: e.SESSION_IDLE_MINUTES, maxHours: e.SESSION_MAX_HOURS },
+    auditRetentionDays: e.AUDIT_RETENTION_DAYS,
   };
+}
+
+function pureOrigin(variable: string, value: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigError(`${variable}: keine gültige URL (Beispiel: http://127.0.0.1:3000)`);
+  }
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.origin !== value.replace(/\/$/, '')) {
+    throw new ConfigError(
+      `${variable}: nur Protokoll, Host und Port angeben, ohne Pfad (Beispiel: https://example.org)`,
+    );
+  }
+  return url;
+}
+
+function dashboardOrigin(env: AppConfig['env'], value: string | undefined): string {
+  if (!value) {
+    if (env === 'production') {
+      throw new ConfigError(
+        'DASHBOARD_PUBLIC_URL: in Produktion erforderlich (öffentliche HTTPS-Adresse des Dashboards)',
+      );
+    }
+    return 'http://127.0.0.1:3000';
+  }
+  const url = pureOrigin('DASHBOARD_PUBLIC_URL', value);
+  if (env === 'production' && url.protocol !== 'https:') {
+    throw new ConfigError('DASHBOARD_PUBLIC_URL: muss in Produktion HTTPS verwenden');
+  }
+  return url.origin;
+}
+
+function discordConfig(
+  env: AppConfig['env'],
+  clientId: string | undefined,
+  clientSecret: string | undefined,
+  baseUrl: string | undefined,
+): AppConfig['discord'] {
+  if (baseUrl && env === 'production') {
+    throw new ConfigError(
+      'DISCORD_OAUTH_BASE_URL: ist nur für Tests gedacht und in Produktion nicht erlaubt',
+    );
+  }
+  if (!clientId && !clientSecret) return null;
+  if (!clientId || !clientSecret) {
+    throw new ConfigError(
+      'DISCORD_CLIENT_ID und DISCORD_CLIENT_SECRET: bitte beide setzen (oder beide leer lassen)',
+    );
+  }
+  if (!SNOWFLAKE.test(clientId)) {
+    throw new ConfigError(
+      'DISCORD_CLIENT_ID: muss die Zahl aus dem Discord Developer Portal sein (17–20 Ziffern)',
+    );
+  }
+  // Bewusst ohne den Wert in der Meldung.
+  if (clientSecret.length < 16 || /\s/.test(clientSecret)) {
+    throw new ConfigError(
+      'DISCORD_CLIENT_SECRET: sieht nicht wie ein Client Secret aus (bitte neu kopieren)',
+    );
+  }
+  return {
+    clientId,
+    clientSecret,
+    baseUrl: baseUrl ? pureOrigin('DISCORD_OAUTH_BASE_URL', baseUrl).origin : 'https://discord.com',
+  };
+}
+
+function ownerId(value: string | undefined): string | null {
+  if (!value) return null;
+  if (!SNOWFLAKE.test(value)) {
+    throw new ConfigError('OWNER_DISCORD_USER_ID: muss eine Discord-Benutzer-ID sein (17–20 Ziffern)');
+  }
+  return value;
 }
 
 function databaseConfig(

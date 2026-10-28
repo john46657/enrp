@@ -34,7 +34,11 @@ describe('loadConfig', () => {
   });
 
   it('verlangt HTTPS-Ursprünge in Produktion', () => {
-    const prod = { NODE_ENV: 'production', DATABASE_URL: 'postgres://app@db.internal:5432/emden' };
+    const prod = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://app@db.internal:5432/emden',
+      DASHBOARD_PUBLIC_URL: 'https://cc.example.org',
+    };
     expect(() => loadConfig({ ...prod, CORS_ORIGINS: 'http://example.org' })).toThrow(/HTTPS/);
     expect(loadConfig({ ...prod, CORS_ORIGINS: 'https://example.org' }).corsOrigins).toEqual([
       'https://example.org',
@@ -93,6 +97,77 @@ describe('loadConfig', () => {
           expect((err as Error).message).not.toContain('passwort');
         }
       }
+    });
+  });
+
+  describe('Anmeldung und Sitzungen', () => {
+    const ID = '222222222222222222';
+    const SECRET = 'einGeheimesSecret-1234567890';
+
+    it('hat sichere Standardwerte', () => {
+      const config = loadConfig({});
+      expect(config).toMatchObject({
+        dashboardOrigin: 'http://127.0.0.1:3000',
+        discord: null,
+        ownerDiscordUserId: null,
+        session: { idleMinutes: 240, maxHours: 24 },
+        auditRetentionDays: 365,
+      });
+    });
+
+    it('behandelt leere Werte aus der .env wie "nicht gesetzt"', () => {
+      expect(
+        loadConfig({ DISCORD_CLIENT_ID: '', DISCORD_CLIENT_SECRET: ' ', OWNER_DISCORD_USER_ID: '' }),
+      ).toMatchObject({
+        discord: null,
+        ownerDiscordUserId: null,
+      });
+    });
+
+    it('übernimmt eine vollständige Discord-Konfiguration', () => {
+      expect(loadConfig({ DISCORD_CLIENT_ID: ID, DISCORD_CLIENT_SECRET: SECRET }).discord).toEqual({
+        clientId: ID,
+        clientSecret: SECRET,
+        baseUrl: 'https://discord.com',
+      });
+    });
+
+    it.each([
+      [{ DISCORD_CLIENT_ID: ID }, /beide setzen/],
+      [{ DISCORD_CLIENT_SECRET: SECRET }, /beide setzen/],
+      [{ DISCORD_CLIENT_ID: 'meine-app', DISCORD_CLIENT_SECRET: SECRET }, /17–20 Ziffern/],
+      [{ DISCORD_CLIENT_ID: ID, DISCORD_CLIENT_SECRET: 'zu kurz' }, /Client Secret/],
+      [{ OWNER_DISCORD_USER_ID: '@john' }, /OWNER_DISCORD_USER_ID/],
+      [{ DASHBOARD_PUBLIC_URL: 'http://127.0.0.1:3000/pfad' }, /ohne Pfad/],
+      [{ SESSION_IDLE_MINUTES: '1' }, /SESSION_IDLE_MINUTES/],
+    ])('lehnt ungültige Werte ab: %o', (env, message) => {
+      expect(() => loadConfig(env)).toThrow(message);
+    });
+
+    it('zeigt ein falsches Client Secret niemals in der Fehlermeldung', () => {
+      const leaked = 'geheim mit leerzeichen 123456';
+      expect(() => loadConfig({ DISCORD_CLIENT_ID: ID, DISCORD_CLIENT_SECRET: leaked })).toThrow(ConfigError);
+      try {
+        loadConfig({ DISCORD_CLIENT_ID: ID, DISCORD_CLIENT_SECRET: leaked });
+      } catch (err) {
+        expect((err as Error).message).not.toContain('geheim');
+      }
+    });
+
+    it('stellt in Produktion strenge Anforderungen', () => {
+      const prod = { NODE_ENV: 'production', DATABASE_URL: 'postgres://app@db/emden' };
+      expect(() => loadConfig(prod)).toThrow(/DASHBOARD_PUBLIC_URL: in Produktion erforderlich/);
+      expect(() => loadConfig({ ...prod, DASHBOARD_PUBLIC_URL: 'http://cc.example.org' })).toThrow(/HTTPS/);
+      expect(() =>
+        loadConfig({
+          ...prod,
+          DASHBOARD_PUBLIC_URL: 'https://cc.example.org',
+          DISCORD_OAUTH_BASE_URL: 'http://fake',
+        }),
+      ).toThrow(/nur für Tests/);
+      expect(loadConfig({ ...prod, DASHBOARD_PUBLIC_URL: 'https://cc.example.org/' }).dashboardOrigin).toBe(
+        'https://cc.example.org',
+      );
     });
   });
 });
