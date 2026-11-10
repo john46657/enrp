@@ -16,6 +16,7 @@ import { type WorkerEnv } from './env';
 import { pruneBackups, runBackup, runRestore, type BackupConfig } from './jobs/backup';
 import { announcementMessage, giveawayMessage, pollMessage, suggestionMessage } from './jobs/messages';
 import { boloMessage, dispatchMessage, modCallMessage } from './jobs/dispatch-messages';
+import { gameLogMessage, updateLivePanel } from './jobs/gamelogs';
 import { runWatchdog } from './jobs/watchdog';
 
 type Data = Record<string, unknown>;
@@ -49,6 +50,12 @@ export function createProcessors(
         const { incident, message } = await dispatchMessage(ctx, str(d.incidentId));
         if (incident.discordChannelId && incident.discordMessageId)
           await ctx.discord.editMessage(incident.discordChannelId, incident.discordMessageId, message);
+      },
+      'gamelog.post': async (d) => {
+        const entries = Array.isArray(d.entries) ? (d.entries as Parameters<typeof gameLogMessage>[1]) : [];
+        if (!entries.length) return;
+        const server = (d.server ?? null) as Parameters<typeof gameLogMessage>[0];
+        await ctx.discord.sendMessage(str(d.channelId), gameLogMessage(server, entries));
       },
       'bolo.post': async (d) => {
         const settings = await getSetting(ctx.db, 'dispatch');
@@ -151,6 +158,7 @@ export function createProcessors(
         staleServers: await game.markStaleServers(ctx, 180),
         moderation: await moderation.expireModerationActions(ctx),
         watchdog: await runWatchdog(ctx),
+        livePanel: await updateLivePanel(ctx).catch((err: Error) => ({ status: 'failed', error: err.message })),
       }),
       'retention.apply': async () => ({
         retention: await retention.applyRetention(ctx),

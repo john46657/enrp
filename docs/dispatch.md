@@ -52,6 +52,26 @@ Team setzen, private Nachricht, Töten, Kicken. Die Plattform sucht den Server, 
 schickt den Befehl dorthin; das Spiel führt ihn innerhalb weniger Sekunden aus und meldet „Ausgeführt“ oder den
 Fehler zurück (Roblox-Server → Befehle). Jede Aktion braucht einen Grund und steht im Audit-Log.
 
+## Fahndungsalarm im Spiel
+
+Bei einem Treffer bekommen alle Spieler der Polizei-Teams (`policeTeams`, Standard „Polizei“) auf demselben Server
+ein Banner mit Fahndungsnummer, Kennzeichen bzw. Person, Fahrzeug/Team und Grund (höchstens 30 Empfänger, wie der
+Discord-Alarm höchstens alle 10 Minuten). Abschaltbar mit `boloIngameAlert`.
+
+## Spiel-Logs nach Discord (Einstellung `game_logs`)
+
+Jede Kategorie kann einen eigenen Kanal bekommen (leer = aus): Kills (Täter, Opfer, Waffe), Teamwechsel,
+Fahrzeuge (gespawnt/entfernt mit Kennzeichen), Join/Leave, Dienstbeginn/-ende und Aktionen des Teams an Spielern
+(wer, was, Grund). Pro Ereignis-Charge des Servers (alle 5 s) kommt höchstens eine Sammelnachricht je Kanal mit bis zu
+15 Zeilen; wiederholt gesendete Ereignisse erscheinen nicht doppelt. Spielertexte werden entschärft (keine
+Erwähnungen, Links oder Formatierung).
+
+## Live-Panel (Einstellung `live_panel`)
+
+Eine Nachricht im eingestellten Kanal, die der Worker jede Minute aktualisiert: laufende Server (öffentlich/privat),
+Spielerzahl, Teams, Fraktionen im Dienst, Einheiten, offene Einsätze, aktive Fahndungen – optional mit Spielernamen
+(`showPlayers`). Wird die Nachricht gelöscht oder der Kanal geändert, legt der Bot eine neue an.
+
 ## Einstellungen (Dashboard → Bot → Einstellungen → `dispatch`)
 
 | Feld | Bedeutung |
@@ -61,6 +81,7 @@ Fehler zurück (Roblox-Server → Befehle). Jede Aktion braucht einen Grund und 
 | `modCallChannelId` | Discord-Kanal für Mod-Calls |
 | `departments` | Bereiche (Standard: Polizei, Rettungsdienst, Feuerwehr) – müssen zu `Config.CallCommands` im Spiel passen |
 | `notifyCaller` | Anrufer im Spiel benachrichtigen, wenn sein Notruf übernommen wird |
+| `boloIngameAlert`, `policeTeams` | Fahndungsalarm im Spiel an diese Teams |
 
 ## Rechte
 

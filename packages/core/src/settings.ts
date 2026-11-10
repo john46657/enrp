@@ -5,6 +5,11 @@ import { type Actor, actorId, requirePermission } from './actor';
 import { writeAudit } from './audit';
 import { type CoreContext } from './context';
 
+const SNOW = z
+  .string()
+  .regex(/^\d{15,22}$/)
+  .nullable();
+
 /** Bekannte Einstellungen mit Schema und Standardwert. */
 export const SETTING_DEFINITIONS = {
   welcome: {
@@ -154,6 +159,10 @@ export const SETTING_DEFINITIONS = {
       departments: z.array(z.string().trim().min(1).max(40)).min(1).max(15),
       /** Anrufer im Spiel benachrichtigen, sobald eine Einheit den Notruf übernimmt. */
       notifyCaller: z.boolean(),
+      /** Bei Fahndungstreffern Spieler der Polizei-Teams auf demselben Server im Spiel warnen. */
+      boloIngameAlert: z.boolean(),
+      /** Teams im Spiel, die Fahndungsalarme bekommen. */
+      policeTeams: z.array(z.string().trim().min(1).max(40)).max(10),
     }),
     default: {
       channelId: null,
@@ -161,7 +170,46 @@ export const SETTING_DEFINITIONS = {
       modCallChannelId: null,
       departments: ['Polizei', 'Rettungsdienst', 'Feuerwehr'] as string[],
       notifyCaller: true,
+      boloIngameAlert: true,
+      policeTeams: ['Polizei'] as string[],
     },
+  },
+  game_logs: {
+    label: 'Spiel-Logs nach Discord (leer = aus)',
+    critical: false,
+    schema: z.object({
+      /** Kills mit Täter und Waffe. */
+      killChannelId: SNOW,
+      /** Teamwechsel. */
+      teamChannelId: SNOW,
+      /** Fahrzeuge gespawnt/entfernt. */
+      vehicleChannelId: SNOW,
+      /** Betreten/Verlassen der Server. */
+      joinChannelId: SNOW,
+      /** Dienstbeginn/-ende. */
+      dutyChannelId: SNOW,
+      /** Aktionen des Teams an Spielern (Gefängnis, Kick, …). */
+      actionChannelId: SNOW,
+    }),
+    default: {
+      killChannelId: null,
+      teamChannelId: null,
+      vehicleChannelId: null,
+      joinChannelId: null,
+      dutyChannelId: null,
+      actionChannelId: null,
+    } as Record<string, string | null>,
+  },
+  live_panel: {
+    label: 'Live-Panel in Discord (aktualisiert sich jede Minute)',
+    critical: false,
+    schema: z.object({
+      /** Kanal für die Statusnachricht; leer = aus. */
+      channelId: SNOW,
+      /** Namen der Spieler im Panel zeigen (sonst nur Zahlen). */
+      showPlayers: z.boolean(),
+    }),
+    default: { channelId: null as string | null, showPlayers: false },
   },
 } as const;
 

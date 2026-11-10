@@ -6,7 +6,8 @@
   "exports": {
     "./backup": "./src/jobs/backup.ts",
     "./messages": "./src/jobs/messages.ts",
-    "./watchdog": "./src/jobs/watchdog.ts"
+    "./watchdog": "./src/jobs/watchdog.ts",
+    "./gamelogs": "./src/jobs/gamelogs.ts"
   },
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",

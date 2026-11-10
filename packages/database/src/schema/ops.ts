@@ -380,3 +380,14 @@ export const requestNonces = pgTable(
   },
   (t) => [index('request_nonces_received_idx').on(t.receivedAt)],
 );
+
+/**
+ * Vom Bot gepflegte Discord-Nachrichten, die immer wieder bearbeitet werden (z. B. Live-Panel).
+ * Schlüssel z. B. „live“; wird der Kanal geändert oder die Nachricht gelöscht, wird eine neue angelegt.
+ */
+export const discordPanels = pgTable('discord_panels', {
+  key: text('key').primaryKey(),
+  channelId: text('channel_id').notNull(),
+  messageId: text('message_id').notNull(),
+  updatedAt: updatedAt(),
+});
