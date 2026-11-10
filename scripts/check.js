@@ -107,6 +107,115 @@ if (reset.tickets.types[0].capacity !== before.cap || reset.channels.ticketLog !
 }
 console.log('✅ Einstellungen je Server setzen/zurücksetzen');
 
-if (failed) process.exit(1);
-console.log('✅ Alles in Ordnung');
-process.exit(0);
+// Roblox: Dauer, Bereiche der Discord-Server und die Anfragen an Roblox (mit gestelltem fetch, es geht nichts raus)
+async function checkRoblox() {
+  Object.assign(process.env, { ROBLOX_UNIVERSE_ID: '999', ROBLOX_API_KEY: 'test-key', ROBLOX_MAIN_GUILD_IDS: '100, 101' });
+  const cloud = require('../src/lib/roblox/openCloud');
+  const links = require('../src/lib/roblox/links');
+  const expectError = async (label, fn) => {
+    try {
+      await fn();
+    } catch {
+      return;
+    }
+    fail(label);
+  };
+
+  for (const [input, expected] of [['30m', 1800], ['12h', 43_200], ['7d', 604_800], ['2w', 1_209_600], ['perm', null], ['Dauerhaft', null]]) {
+    if (cloud.parseDuration(input) !== expected) fail(`Dauer „${input}“ sollte ${expected} Sekunden sein`);
+  }
+  for (const bad of ['', 'abc', '0m', '5x']) await expectError(`Dauer „${bad}“ sollte ungültig sein`, () => cloud.parseDuration(bad));
+  if (cloud.formatDuration(604_800) !== '1 Woche(n)' || cloud.formatDuration(null) !== 'dauerhaft') fail('formatDuration falsch');
+
+  // Bereiche: Haupt-Discord aus der .env, Privatserver-Discords per Verknüpfung, sonst nichts
+  if (links.scopeOf('100').type !== 'main' || links.scopeOf('101').type !== 'main') fail('Haupt-Discords aus ROBLOX_MAIN_GUILD_IDS werden nicht erkannt');
+  if (links.scopeOf('200').type !== 'none') fail('Unverknüpfter Discord darf keine Rechte im Spiel haben');
+  links.linkPrivateServer('200', { ownerId: '5', ownerName: 'Besitzer', name: 'Nord', linkedBy: '1' });
+  const scope = links.scopeOf('200');
+  if (scope.type !== 'private' || scope.ownerId !== '5') fail('Privatserver-Verknüpfung wird nicht übernommen');
+  await expectError('Ein Besitzer darf nur mit einem Discord verknüpft sein', () =>
+    links.linkPrivateServer('201', { ownerId: '5', ownerName: 'Besitzer', name: 'Doppelt', linkedBy: '1' }),
+  );
+  await expectError('Ein Haupt-Discord darf nicht auf einen Privatserver beschränkt werden', () =>
+    links.linkPrivateServer('100', { ownerId: '6', ownerName: 'X', name: 'X', linkedBy: '1' }),
+  );
+  links.unlinkPrivateServer('200');
+  if (links.scopeOf('200').type !== 'none') fail('Privatserver-Verknüpfung lässt sich nicht entfernen');
+
+  links.setAccount('u1', { id: '77', name: 'Spieler' });
+  links.setAccount('u2', { id: '77', name: 'Spieler' });
+  if (links.getAccount('u1') || links.discordIdForRoblox('77') !== 'u2') fail('Ein Roblox-Konto darf nur zu einem Discord-Nutzer gehören');
+  links.removeAccount('u2');
+
+  // Gestelltes Roblox
+  const calls = [];
+  const store = {};
+  const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
+  const realFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    const method = options.method ?? 'GET';
+    calls.push({ url: String(url), method, headers: options.headers ?? {}, body: options.body ? JSON.parse(options.body) : null });
+    const entry = new URL(url).pathname.match(/data-stores\/([^/]+)\/entries\/([^/]+)$/);
+    if (entry && method === 'GET') return store[entry[2]] === undefined ? json({ code: 'NOT_FOUND' }, 404) : json({ value: store[entry[2]] });
+    if (entry && method === 'PATCH') {
+      store[entry[2]] = JSON.parse(options.body).value;
+      return json({});
+    }
+    return new Response('', { status: 200 });
+  };
+
+  try {
+    await cloud.publish('kick', cloud.privateTarget('5'), { userId: '77', reason: 'Test' });
+    let call = calls.at(-1);
+    if (call.url !== 'https://apis.roblox.com/cloud/v2/universes/999:publishMessage' || call.method !== 'POST' || call.headers['x-api-key'] !== 'test-key') {
+      fail(`publishMessage-Anfrage falsch: ${call.method} ${call.url}`);
+    }
+    const message = JSON.parse(call.body.message);
+    if (call.body.topic !== cloud.TOPIC || message.v !== 1 || message.action !== 'kick' || message.target !== 'owner:5' || message.userId !== '77') {
+      fail(`Nachricht ans Spiel falsch: ${call.body.message}`);
+    }
+    await expectError('Zu lange Nachrichten ans Spiel müssen abgelehnt werden', () => cloud.publish('announce', 'all', { text: 'x'.repeat(2000) }));
+
+    await cloud.banUser('77', { seconds: 3600, displayReason: 'Grund', privateReason: 'Notiz' });
+    call = calls.at(-1);
+    const restriction = call.body?.gameJoinRestriction;
+    if (call.method !== 'PATCH' || !call.url.endsWith('/universes/999/user-restrictions/77') || restriction?.active !== true || restriction.duration !== '3600s') {
+      fail(`Bann-Anfrage falsch: ${call.method} ${call.url} ${JSON.stringify(call.body)}`);
+    }
+    await cloud.banUser('77', { seconds: null, displayReason: 'Grund', privateReason: '' });
+    if ('duration' in calls.at(-1).body.gameJoinRestriction) fail('Ein dauerhafter Bann darf keine Dauer mitschicken');
+    await cloud.unbanUser('77');
+    if (calls.at(-1).body.gameJoinRestriction.active !== false) fail('Unban-Anfrage falsch');
+
+    const now = Math.floor(Date.now() / 1000);
+    store['5'] = { 1: { name: 'abgelaufen', expires: now - 10 }, 2: { name: 'dauerhaft', expires: 0 } };
+    await cloud.updatePrivateBans('5', (bans) => {
+      bans['77'] = { name: 'Neu', reason: 'r', expires: now + 60 };
+    });
+    if ('1' in store['5'] || !('2' in store['5']) || !('77' in store['5'])) fail(`Privatserver-Banns falsch gespeichert: ${JSON.stringify(store['5'])}`);
+    if (!calls.some((c) => c.method === 'PATCH' && c.url.endsWith(`/data-stores/${cloud.PRIVATE_BANS_STORE}/entries/5?allowMissing=true`))) {
+      fail('Privatserver-Banns werden nicht in den richtigen Datastore geschrieben');
+    }
+    if (Object.keys(await cloud.getPrivateBans('404')).length) fail('Unbekannter Besitzer sollte keine Banns haben');
+  } finally {
+    global.fetch = realFetch;
+  }
+
+  // Das Spiel-Skript muss dieselben Namen benutzen wie der Bot
+  const lua = fs.readFileSync(path.join(__dirname, '..', 'roblox', 'ENRPBridge.server.lua'), 'utf8');
+  if (!lua.includes(`local TOPIC = "${cloud.TOPIC}"`) || !lua.includes(`local PRIVATE_BANS_STORE = "${cloud.PRIVATE_BANS_STORE}"`)) {
+    fail('roblox/ENRPBridge.server.lua passt nicht zu src/lib/roblox/openCloud.js (TOPIC / PRIVATE_BANS_STORE)');
+  }
+  for (const action of ['announce', 'kick', 'ban', 'refresh', 'shutdown']) {
+    if (!lua.includes(`function handlers.${action}(`)) fail(`Spiel-Skript kennt die Aktion „${action}“ nicht`);
+  }
+  console.log('✅ Roblox-Anbindung');
+}
+
+checkRoblox()
+  .catch((err) => fail(`Roblox: ${err.stack}`))
+  .then(() => {
+    if (failed) process.exit(1);
+    console.log('✅ Alles in Ordnung');
+    process.exit(0);
+  });

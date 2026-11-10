@@ -3,6 +3,7 @@ const settings = require('../../lib/settings');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
+const robloxLinks = require('../../lib/roblox/links');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -14,6 +15,7 @@ const ROLES = {
   autoRole: 'Auto-Rolle',
   support: 'Support',
   staff: 'Staff',
+  verified: 'Verifiziert (Roblox)',
 };
 const DAY_ORDER = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'];
 
@@ -112,6 +114,13 @@ function overview(guild) {
               .join('\n'),
           1024,
         ),
+      },
+      {
+        name: 'Roblox-Spiel',
+        value: [
+          `Bereich: ${{ main: 'Haupt-Discord (ganzes Spiel)', private: 'Privatserver', none: 'nicht verknüpft' }[robloxLinks.scopeOf(guild.id).type]}`,
+          `Verifiziert-Rolle: ${role(config.roles.verified)} · Roblox-Name als Nickname: ${onOff(config.roblox.setNickname)}`,
+        ].join('\n'),
       },
       { name: 'Willkommensnachricht', value: truncate(config.welcome.message, 1024) },
     );
@@ -286,6 +295,12 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('roblox')
+      .setDescription('Verifizierung mit Roblox (Rolle über /einstellungen rolle).')
+      .addBooleanOption((o) => o.setName('nickname_setzen').setDescription('Roblox-Namen als Nickname setzen?')),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('zuruecksetzen')
       .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
       .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
@@ -411,6 +426,8 @@ function changesFor(interaction, sub) {
         ['adresse', 'fivem.address', 'getString', (v) => clearable(v).replace(/^https?:\/\//, '')],
         ['verbinden_url', 'fivem.connectUrl', 'getString', clearable],
       ]);
+    case 'roblox':
+      return collect(interaction, [['nickname_setzen', 'roblox.setNickname', 'getBoolean']]);
     default:
       return [];
   }

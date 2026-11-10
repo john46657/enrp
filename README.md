@@ -1,6 +1,6 @@
 # ENRP Discord-Bot
 
-Ein Discord-Bot für Roleplay-Server mit Bewerbungssystem, Moderation, Ticket-System und Community-Funktionen.
+Ein Discord-Bot für Roleplay-Server mit Anbindung an euer eigenes Roblox-Spiel, Bewerbungssystem, Moderation, Ticket-System und Community-Funktionen.
 Er ist in JavaScript mit [discord.js](https://discord.js.org) geschrieben, braucht keine externe Datenbank
 und läuft auf jedem Bot-Hoster mit Node.js 18 oder neuer. Ein Bot kann auf **beliebig vielen Servern** gleichzeitig laufen –
 jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnungen und Level.
@@ -10,11 +10,12 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | Bereich | Befehle / Features |
 |---|---|
 | 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
+| 🎮 **Roblox-Spiel** | `/spiel status\|ansage\|kick\|ban\|unban\|bann-pruefen\|banns\|neustart` direkt aus Discord · Banns über die offizielle Roblox-Ban-API · **Privatserver-Discords** moderieren nur ihre eigenen Privatserver · `/verifizieren`: Discord ↔ Roblox-Konto mit Rolle und Nickname auf allen Servern · Bot-Status zeigt Spieler im Spiel – **ausführlich in [docs/roblox.md](docs/roblox.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
-| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
+| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level, Roblox-Verifizierung und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
 | 📖 | `/hilfe` zeigt alle Befehle |
 
 ## 1. Bot bei Discord anlegen
@@ -38,6 +39,9 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 ```env
 DISCORD_TOKEN=dein-bot-token
 ```
+
+Für das eigene Roblox-Spiel kommen noch `ROBLOX_UNIVERSE_ID`, `ROBLOX_API_KEY` und `ROBLOX_MAIN_GUILD_IDS` dazu –
+Schritt für Schritt in [docs/roblox.md](docs/roblox.md#1-einrichtung-einmalig-ca-10-minuten).
 
 `GUILD_ID` brauchst du nicht mehr. Nur wenn der Bot schon vor dem Mehr-Server-Update lief und inzwischen auf
 mehreren Servern ist, trägst du dort die ID des alten Servers ein, damit dessen `/einstellungen`-Änderungen
@@ -65,7 +69,9 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 | `channels.levelUp` | Level-Up-Nachrichten (leer = im selben Kanal) |
 | `roles.autoRole` | Bekommt jedes neue Mitglied |
 | `roles.support` | Standard-Team für Tickets |
-| `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben usw. |
+| `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben, `/spiel` benutzen usw. |
+| `roles.verified` | Bekommt, wer sein Roblox-Konto mit `/verifizieren` verknüpft hat |
+| `roblox.setNickname` | Roblox-Namen nach der Verifizierung als Nickname setzen |
 | `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [docs/applications.md](docs/applications.md) |
 | `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
 | `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
@@ -103,7 +109,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | Unterbefehl | Was du einstellst |
 |---|---|
 | `anzeigen` | Übersicht aller aktuellen Werte |
-| `kanal` / `rolle` | Log- und Willkommenskanäle bzw. Support-, Staff- und Auto-Rolle (ohne Auswahl = entfernen) |
+| `kanal` / `rolle` | Log- und Willkommenskanäle bzw. Support-, Staff-, Auto- und Verifiziert-Rolle (ohne Auswahl = entfernen) |
 | `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
 | `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
 | `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
@@ -111,6 +117,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
+| `roblox` | Roblox-Namen nach `/verifizieren` als Nickname setzen |
 | `fivem` | Server-Adresse und Verbinden-Link |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
@@ -131,7 +138,7 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 21 Slash-Commands auf „…“ registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 23 Slash-Commands auf „…“ registriert` stehen.
 
 Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.
@@ -144,6 +151,8 @@ Auf **jedem** Server, auf dem der Bot läuft:
 2. `/ticket panel` im Support-Kanal ausführen.
 3. `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
 4. Optional `/rollenpanel` für selbst wählbare Rollen.
+5. Roblox-Spiel: einmalig nach [docs/roblox.md](docs/roblox.md) einrichten. Privatserver-Discords verknüpft der
+   Haupt-Discord mit `/spiel privatserver verknuepfen`.
 
 ## Projektstruktur
 
@@ -153,5 +162,7 @@ config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
 src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
+src/lib/roblox/…      Roblox Open Cloud, Discord-Bereiche (Haupt/Privatserver), Verifizierung
+roblox/…              Skript für euer Roblox-Spiel (kommt in den ServerScriptService)
 scripts/check.js      Offline-Prüfung: npm run check
 ```

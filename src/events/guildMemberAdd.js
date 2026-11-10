@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const { forGuild } = require('../lib/settings');
 const { embed, sendTo, fill } = require('../lib/util');
+const { applyVerification } = require('../lib/roblox/verify');
 
 module.exports = {
   name: Events.GuildMemberAdd,
@@ -9,6 +10,9 @@ module.exports = {
     if (config.roles.autoRole) {
       await member.roles.add(config.roles.autoRole, 'Auto-Rolle').catch((err) => console.error('[autoRole]', err.message));
     }
+
+    // Schon auf einem anderen unserer Server verifiziert → Rolle und Roblox-Name sofort
+    await applyVerification(member).catch((err) => console.error('[verifizierung]', err.message));
 
     const text = fill(config.welcome.message, {
       user: member.toString(),

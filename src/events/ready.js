@@ -1,6 +1,7 @@
 const { Events, ActivityType } = require('discord.js');
 const settings = require('../lib/settings');
 const { fetchFivemStatus } = require('../lib/fivem');
+const robloxCloud = require('../lib/roblox/openCloud');
 const { startTicketWatcher } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
@@ -30,8 +31,13 @@ module.exports = {
     startTicketWatcher(client);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
-    // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.
+    // Bot-Status: Spieler im eigenen Roblox-Spiel, sonst die Spieleranzahl des ersten FiveM-Servers, sonst der Name aus config.json.
     const updatePresence = async () => {
+      if (robloxCloud.universeId()) {
+        const stats = await robloxCloud.gameStats().catch((err) => console.error('[roblox] Status:', err.message));
+        client.user.setActivity(stats ? `${stats.playing} Spieler in ${stats.name}` : settings.base.serverName, { type: ActivityType.Watching });
+        return;
+      }
       const address = client.guilds.cache.map((g) => settings.forGuild(g.id).fivem.address).find(Boolean);
       if (!address) {
         client.user.setActivity(settings.base.serverName, { type: ActivityType.Watching });

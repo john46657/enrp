@@ -15,7 +15,11 @@
   "roles": {
     "autoRole": "",
     "support": "",
-    "staff": ""
+    "staff": "",
+    "verified": ""
+  },
+  "roblox": {
+    "setNickname": true
   },
   "welcome": {
     "message": "Willkommen {user} auf **{server}**! Du bist unser {count}. Mitglied. 🎉"

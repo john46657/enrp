@@ -24,6 +24,12 @@ async function findRobloxUser(username) {
   return { id: String(user.id), name: user.name, displayName: user.displayName, avatarUrl };
 }
 
+// Profilbeschreibung (für /verifizieren), wirft bei Netzwerkfehlern.
+async function fetchRobloxDescription(id) {
+  const user = await request(`https://users.roblox.com/v1/users/${id}`);
+  return user.description ?? '';
+}
+
 const profileUrl = (id) => `https://www.roblox.com/users/${id}/profile`;
 
-module.exports = { findRobloxUser, profileUrl };
+module.exports = { findRobloxUser, fetchRobloxDescription, profileUrl };
