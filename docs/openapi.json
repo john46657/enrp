@@ -5993,6 +5993,98 @@
         }
       }
     },
+    "/api/v1/game/staff-commands": {
+      "post": {
+        "summary": "Team-Befehl aus dem Spiel-Chat (:jail, :kick …) – Rechte über das verknüpfte Discord-Konto",
+        "tags": [
+          "Roblox-Spielserver"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "issuerId": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  },
+                  "targetId": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  },
+                  "targetName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "jail",
+                      "unjail",
+                      "heal",
+                      "kill",
+                      "respawn",
+                      "wanted",
+                      "team",
+                      "pm",
+                      "kick"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "minutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 120
+                  },
+                  "level": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "team": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "jobId",
+                  "issuerId",
+                  "targetId",
+                  "targetName",
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/roblox/servers/{id}": {
       "get": {
         "summary": "Server-Details mit Spielerliste und Befehlen",

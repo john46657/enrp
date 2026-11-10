@@ -52,7 +52,7 @@ export async function loadSubject(
 export async function buildUserActor(
   db: DbExecutor,
   config: Pick<CoreConfig, 'ownerDiscordIds'>,
-  input: { discordUserId: string; roleIds: string[]; via: 'dashboard' | 'bot'; sessionId?: string },
+  input: { discordUserId: string; roleIds: string[]; via: 'dashboard' | 'bot' | 'game'; sessionId?: string },
 ): Promise<UserActor> {
   const subject = await loadSubject(db, config, input.discordUserId, input.roleIds);
   return {

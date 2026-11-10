@@ -52,6 +52,14 @@ Team setzen, private Nachricht, Töten, Kicken. Die Plattform sucht den Server, 
 schickt den Befehl dorthin; das Spiel führt ihn innerhalb weniger Sekunden aus und meldet „Ausgeführt“ oder den
 Fehler zurück (Roblox-Server → Befehle). Jede Aktion braucht einen Grund und steht im Audit-Log.
 
+### Team-Befehle direkt im Spiel-Chat
+
+Dieselben Aktionen gehen auch im Chat: `:jail Name 5 Grund`, `:unjail Name`, `:wanted Name 3`, `:heal Name`,
+`:kill Name`, `:respawn Name`, `:team Name Polizei`, `:pm Name Text`, `:kick Name Grund`, `:cmds` (Hilfe).
+Das Spiel prüft nichts selbst: Die Plattform ordnet das Roblox-Konto über die Discord-Verknüpfung (/verify) einer
+Person zu und prüft deren Rechte (Rollen auf der Plattform und Discord-Rollen) – wie im Dashboard, mit Audit-Log
+und Eintrag im Aktions-Log. Ohne Grund wird „Team-Befehl im Spiel (…)“ eingetragen.
+
 ## Fahndungsalarm im Spiel
 
 Bei einem Treffer bekommen alle Spieler der Polizei-Teams (`policeTeams`, Standard „Polizei“) auf demselben Server
