@@ -52,7 +52,7 @@ export type AutomationAction = (typeof AUTOMATION_ACTIONS)[number];
 export const ACTOR_TYPES = ['user', 'service', 'system', 'roblox_server'] as const;
 export type ActorType = (typeof ACTOR_TYPES)[number];
 export const SECURITY_SEVERITY = ['info', 'warning', 'critical'] as const;
-export const RECORD_TYPES = ['ticket', 'report', 'case', 'incident', 'appeal', 'dispatch'] as const;
+export const RECORD_TYPES = ['ticket', 'report', 'case', 'incident', 'appeal', 'dispatch', 'bolo'] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 export const ENVIRONMENT_KEYS = ['development', 'staging', 'production'] as const;
 export const SERVICE_NAMES = ['api', 'bot', 'worker'] as const;
@@ -84,3 +84,12 @@ export const UNIT_STATUS = ['available', 'en_route', 'on_scene', 'busy', 'off_du
 export type UnitStatus = (typeof UNIT_STATUS)[number];
 export const MOD_CALL_STATUS = ['open', 'claimed', 'closed'] as const;
 export type ModCallStatus = (typeof MOD_CALL_STATUS)[number];
+
+/** Fahndungen (BOLO): gesuchtes Fahrzeug (Kennzeichen) oder gesuchte Person (Roblox-ID). */
+export const BOLO_KIND = ['vehicle', 'person'] as const;
+export type BoloKind = (typeof BOLO_KIND)[number];
+export const BOLO_STATUS = ['active', 'cleared'] as const;
+
+/** Aktionen an einzelnen Spielern im Spiel (Server-Befehl player_action). */
+export const PLAYER_ACTIONS = ['jail', 'unjail', 'heal', 'kill', 'respawn', 'wanted', 'team', 'pm', 'kick'] as const;
+export type PlayerAction = (typeof PLAYER_ACTIONS)[number];

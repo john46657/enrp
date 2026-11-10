@@ -88,4 +88,46 @@ describe('API: Leitstelle', () => {
     );
     await app.close();
   });
+  it('Fahndungen und Spieler-Aktionen über die API', async () => {
+    const { app } = await createTestApp();
+    const owner = botHeaders(OWNER_ID);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dispatch/bolos',
+      headers: { ...owner, 'idempotency-key': 'bolo-key-create-0001' },
+      payload: { kind: 'vehicle', plate: 'EN-AB 12', reason: 'Gestohlen gemeldet' },
+    });
+    expect(created.statusCode).toBe(200);
+    expect(created.json()).toMatchObject({ number: 1, plate: 'ENAB12', status: 'active' });
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dispatch/bolos',
+      headers: owner,
+      payload: { kind: 'person', reason: 'ohne ID' },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect((await app.inject({ url: '/api/v1/dispatch/bolos', headers: botHeaders(USER) })).statusCode).toBe(403);
+    const list = await app.inject({ url: '/api/v1/dispatch/bolos?status=active', headers: owner });
+    expect(list.json().items).toHaveLength(1);
+    const detail = await app.inject({ url: '/api/v1/dispatch/bolos/1', headers: owner });
+    expect(detail.json().events).toHaveLength(1);
+    const cleared = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dispatch/bolos/1/clear',
+      headers: owner,
+      payload: { note: 'Gefunden' },
+    });
+    expect(cleared.json().status).toBe('cleared');
+
+    // Spieler-Aktion: Validierung, Rechte, Spieler offline
+    const action = (headers: Record<string, string>, payload: object) =>
+      app.inject({ method: 'POST', url: '/api/v1/roblox/players/4001/actions', headers, payload });
+    expect((await action(owner, { action: 'jail', reason: 'ohne Minuten' })).statusCode).toBe(400);
+    expect((await action(botHeaders(USER), { action: 'heal', reason: 'Test' })).statusCode).toBe(403);
+    const offline = await action(owner, { action: 'heal', reason: 'Test' });
+    expect(offline.statusCode).toBe(400);
+    expect(offline.json().error.message).toContain('auf keinem Server');
+    expect((await app.inject({ url: '/api/v1/roblox/live/teams', headers: owner })).json()).toEqual({ items: [] });
+    await app.close();
+  });
 });

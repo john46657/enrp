@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { DISPATCH_SOURCE, DISPATCH_STATUS, MOD_CALL_STATUS, UNIT_STATUS } from '@enrp/shared';
+import { BOLO_KIND, BOLO_STATUS, DISPATCH_SOURCE, DISPATCH_STATUS, MOD_CALL_STATUS, UNIT_STATUS } from '@enrp/shared';
 import { createdAt, id, robloxId, ts, updatedAt } from './_helpers';
 import { gameServers } from './game';
 
@@ -8,6 +8,8 @@ export const dispatchStatus = pgEnum('dispatch_status', DISPATCH_STATUS);
 export const dispatchSource = pgEnum('dispatch_source', DISPATCH_SOURCE);
 export const unitStatus = pgEnum('unit_status', UNIT_STATUS);
 export const modCallStatus = pgEnum('mod_call_status', MOD_CALL_STATUS);
+export const boloKind = pgEnum('bolo_kind', BOLO_KIND);
+export const boloStatus = pgEnum('bolo_status', BOLO_STATUS);
 
 /**
  * Einsätze der Leitstelle. Quelle „ingame“ = echter Notruf aus dem Spiel (Ereignis emergency_call),
@@ -111,4 +113,32 @@ export const modCalls = pgTable(
       .on(t.sourceEventId)
       .where(sql`${t.sourceEventId} is not null`),
   ],
+);
+
+/**
+ * Fahndungen (BOLO). Bei jedem Heartbeat wird die Live-Lage gegen aktive Fahndungen geprüft;
+ * ein Treffer löst einen Alarm aus (höchstens alle 10 Minuten je Fahndung und Server).
+ */
+export const bolos = pgTable(
+  'bolos',
+  {
+    id: id(),
+    number: integer('number').generatedAlwaysAsIdentity().notNull().unique(),
+    kind: boloKind('kind').notNull(),
+    /** Normalisiertes Kennzeichen (Großbuchstaben, ohne Trennzeichen) bei Fahrzeugen. */
+    plate: text('plate'),
+    robloxUserId: robloxId('roblox_user_id'),
+    description: text('description').notNull().default(''),
+    reason: text('reason').notNull(),
+    status: boloStatus('status').notNull().default('active'),
+    createdBy: text('created_by').notNull(),
+    createdAt: createdAt(),
+    clearedBy: text('cleared_by'),
+    clearedAt: ts('cleared_at'),
+    hitCount: integer('hit_count').notNull().default(0),
+    lastHitAt: ts('last_hit_at'),
+    lastHitServerId: uuid('last_hit_server_id').references(() => gameServers.id, { onDelete: 'set null' }),
+    lastHit: jsonb('last_hit'),
+  },
+  (t) => [index('bolos_status_idx').on(t.status, t.kind)],
 );

@@ -347,7 +347,7 @@ function Dispatch.init(announceEvent)
 	end
 
 	-- Schnittstelle für eigene Skripte
-	local api = Instance.new("Folder")
+	local api = ServerStorage:FindFirstChild("ENRP") or Instance.new("Folder")
 	api.Name = "ENRP"
 	local function bindable(name, callback)
 		local event = Instance.new("BindableEvent")

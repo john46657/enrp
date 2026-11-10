@@ -228,6 +228,24 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `PUT` | `/api/v1/dispatch/units/me` | Eigenen Einheitenstatus und Rufnamen setzen |
 | `GET` | `/api/v1/dispatch/stats` | Statistik der Leitstelle |
 
+## Fahndungen
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/dispatch/bolos` | Fahndungen (aktive zuerst) |
+| `POST` | `/api/v1/dispatch/bolos` | Fahndung nach Kennzeichen oder Spieler anlegen (prüft sofort die Live-Lage) |
+| `GET` | `/api/v1/dispatch/bolos/{id}` | Fahndung mit Treffern und Verlauf |
+| `POST` | `/api/v1/dispatch/bolos/{id}/clear` | Fahndung aufheben |
+
+## Live-Lage
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `POST` | `/api/v1/roblox/players/{robloxUserId}/actions` | Aktion an einem Spieler im Spiel (Gefängnis, Fahndungsstufe, Heilen, Töten, Respawn, Team, Nachricht, Kick) |
+| `GET` | `/api/v1/roblox/live/teams` | Teams auf laufenden Servern |
+| `GET` | `/api/v1/roblox/live/players` | Spieler auf laufenden Servern (Team, Fahndung, Gefängnis, Rufname) |
+| `GET` | `/api/v1/roblox/live/vehicles` | Gespawnte Fahrzeuge (Kennzeichensuche) |
+
 ## Mod-Calls
 
 | Methode | Pfad | Zweck |
@@ -235,13 +253,6 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `GET` | `/api/v1/mod-calls` | Mod-Calls aus dem Spiel (offene zuerst) |
 | `POST` | `/api/v1/mod-calls/{id}/claim` | Mod-Call übernehmen (Spieler wird benachrichtigt) |
 | `POST` | `/api/v1/mod-calls/{id}/close` | Mod-Call schließen |
-
-## Live-Lage
-
-| Methode | Pfad | Zweck |
-|---|---|---|
-| `GET` | `/api/v1/roblox/live/players` | Spieler auf laufenden Servern (Team, Fahndung, Gefängnis, Rufname) |
-| `GET` | `/api/v1/roblox/live/vehicles` | Gespawnte Fahrzeuge (Kennzeichensuche) |
 
 ## Berechtigungen
 

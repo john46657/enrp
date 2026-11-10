@@ -37,6 +37,8 @@ sichtbar.
 | `/backup` | `status`, `run` |
 | `/cad` | `list`, `info`, `create`, `assign`, `status`, `note`, `close`, `unit`, `units` (+ Buttons Übernehmen/Anfahrt/Vor Ort/Abschließen an jeder Einsatzmeldung) |
 | `/live` | `players`, `vehicles`, `plate` |
+| `/bolo` | `list`, `vehicle`, `person`, `clear` (+ Button „Fahndung aufheben“ an Alarmen) |
+| `/ingame` | `jail`, `unjail`, `wanted`, `heal`, `respawn`, `team`, `pm`, `kill`, `kick` (Spieler per Name oder Roblox-ID, muss online sein) |
 | `/status`, `/hilfe` | – |
 
 Discord-Moderation beachtet die Rollenhierarchie (niemand sanktioniert gleich- oder höhergestellte Personen,

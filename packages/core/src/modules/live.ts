@@ -69,7 +69,7 @@ export async function findOnlinePlayer(db: DbExecutor, now: Date, robloxUserId: 
   return null;
 }
 
-function canViewLive(actor: Actor) {
+export function canViewLive(actor: Actor) {
   if (!hasPermission(actor, 'roblox_servers:view') && !hasPermission(actor, 'dispatch:view'))
     requirePermission(actor, 'roblox_servers:view');
 }

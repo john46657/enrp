@@ -281,6 +281,11 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
     return server!;
   });
   ctx.realtime.publish('servers', 'server.heartbeat', { jobId: input.jobId, playerCount: input.players.length });
+  // Fahndungen gegen die neue Live-Lage prüfen (Fehler dürfen den Heartbeat nicht scheitern lassen)
+  const { checkBolos } = await import('./bolo');
+  await checkBolos(ctx, result.id, live).catch((err: Error) =>
+    ctx.logger.warn({ jobId: input.jobId, err: err.message }, 'Fahndungsprüfung fehlgeschlagen'),
+  );
   const since = input.announcementsSince ? new Date(input.announcementsSince) : new Date(now.getTime() - 5 * 60_000);
   const maintenance = await currentMaintenance(ctx.db, now);
   return {
@@ -519,7 +524,13 @@ export async function takeServerCommands(ctx: CoreContext, serverId: string) {
     .returning();
   return open
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .map((c) => ({ id: c.id, type: c.type, robloxUserId: c.robloxUserId, message: c.message }));
+    .map((c) => ({
+      id: c.id,
+      type: c.type,
+      robloxUserId: c.robloxUserId,
+      message: c.message,
+      ...(c.type === 'player_action' ? { action: c.action, payload: c.payload ?? {} } : {}),
+    }));
 }
 
 /**

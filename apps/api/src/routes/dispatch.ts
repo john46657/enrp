@@ -1,7 +1,7 @@
 import { type FastifyInstance } from 'fastify';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { dispatch, live } from '@enrp/core';
+import { actions, bolo, dispatch, live } from '@enrp/core';
 import { DISPATCH_SOURCE } from '@enrp/shared';
 import { csvList, idParam, paginationQuery, snowflake } from './schemas';
 
@@ -109,6 +109,72 @@ export async function dispatchRoutes(fastify: FastifyInstance) {
       },
     },
     async (request) => dispatch.stats(core.db, request.actor, core.now(), request.query.days),
+  );
+
+  // Fahndungen (BOLO)
+  app.get(
+    '/dispatch/bolos',
+    {
+      schema: {
+        tags: ['Fahndungen'],
+        summary: 'Fahndungen (aktive zuerst)',
+        querystring: paginationQuery.extend({ status: csvList }),
+      },
+    },
+    async (request) => bolo.listBolos(core.db, request.actor, request.query),
+  );
+  app.post(
+    '/dispatch/bolos',
+    {
+      schema: {
+        tags: ['Fahndungen'],
+        summary: 'Fahndung nach Kennzeichen oder Spieler anlegen (prüft sofort die Live-Lage)',
+        body: bolo.createBoloSchema,
+      },
+      config: { idempotent: true },
+    },
+    async (request) => bolo.createBolo(core, request.actor, request.body),
+  );
+  app.get(
+    '/dispatch/bolos/:id',
+    { schema: { tags: ['Fahndungen'], summary: 'Fahndung mit Treffern und Verlauf', params: idParam } },
+    async (request) => bolo.getBoloDetail(core, request.actor, request.params.id),
+  );
+  app.post(
+    '/dispatch/bolos/:id/clear',
+    {
+      schema: {
+        tags: ['Fahndungen'],
+        summary: 'Fahndung aufheben',
+        params: idParam,
+        body: z.object({ note: z.string().max(1000).optional() }),
+      },
+    },
+    async (request) => bolo.clearBolo(core, request.actor, request.params.id, request.body.note),
+  );
+
+  // Aktionen an Spielern im Spiel
+  app.post(
+    '/roblox/players/:robloxUserId/actions',
+    {
+      schema: {
+        tags: ['Live-Lage'],
+        summary:
+          'Aktion an einem Spieler im Spiel (Gefängnis, Fahndungsstufe, Heilen, Töten, Respawn, Team, Nachricht, Kick)',
+        params: z.object({ robloxUserId: z.coerce.number().int().positive() }),
+        body: actions.playerActionSchema,
+      },
+      config: { idempotent: true },
+    },
+    async (request) => actions.createPlayerAction(core, request.actor, request.params.robloxUserId, request.body),
+  );
+  app.get(
+    '/roblox/live/teams',
+    { schema: { tags: ['Live-Lage'], summary: 'Teams auf laufenden Servern' } },
+    async (request) => {
+      live.canViewLive(request.actor);
+      return { items: await live.liveTeams(core.db, core.now()) };
+    },
   );
 
   // Mod-Calls

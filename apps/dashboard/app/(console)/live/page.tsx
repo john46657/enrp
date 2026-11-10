@@ -12,6 +12,7 @@ import {
   Skeleton,
   StatusBadge,
 } from '@/components/ui/primitives';
+import { PlayerActionButton } from '@/components/data/player-action';
 import { get } from '@/lib/api';
 
 interface ServerRef {
@@ -57,6 +58,10 @@ export default function LivePage() {
     queryKey: ['live-players', q],
     queryFn: () => get<{ items: Player[] }>('/roblox/live/players', { q: q || undefined }),
   });
+  const teams = useQuery({
+    queryKey: ['live-players', 'teams'],
+    queryFn: () => get<{ items: string[] }>('/roblox/live/teams'),
+  });
   const vehicles = useQuery({
     queryKey: ['live-vehicles', plate],
     queryFn: () => get<{ items: Vehicle[] }>('/roblox/live/vehicles', { plate: plate || undefined }),
@@ -86,6 +91,7 @@ export default function LivePage() {
                   <th>Team</th>
                   <th>Status</th>
                   <th>Server</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -106,6 +112,9 @@ export default function LivePage() {
                     </td>
                     <td>
                       <ServerTag server={p.server} />
+                    </td>
+                    <td className="text-right">
+                      <PlayerActionButton userId={p.userId} username={p.username} teams={teams.data?.items ?? []} />
                     </td>
                   </tr>
                 ))}

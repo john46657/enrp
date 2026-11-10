@@ -11,7 +11,13 @@ const TOPIC_QUERIES: Record<string, string[][]> = {
   jobs: [['queues']],
   incidents: [['list', '/incidents'], ['overview']],
   approvals: [['list', '/approvals'], ['overview']],
-  dispatch: [['list', '/dispatch/incidents'], ['dispatch-incident'], ['dispatch-units'], ['dispatch-stats']],
+  dispatch: [
+    ['list', '/dispatch/incidents'],
+    ['dispatch-incident'],
+    ['dispatch-units'],
+    ['dispatch-stats'],
+    ['list', '/dispatch/bolos'],
+  ],
   mod_calls: [['list', '/mod-calls']],
 };
 

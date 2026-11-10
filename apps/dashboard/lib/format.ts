@@ -31,6 +31,7 @@ export const FACTION_COLORS: Record<string, string> = {
 export const STATUS_LABELS: Record<string, string> = {
   open: 'Offen',
   claimed: 'In Bearbeitung',
+  cleared: 'Aufgehoben',
   waiting: 'Wartet',
   closed: 'Geschlossen',
   in_review: 'In Prüfung',

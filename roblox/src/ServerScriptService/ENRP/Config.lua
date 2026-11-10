@@ -3,7 +3,7 @@
 -- Der API-Schlüssel liegt ausschließlich im Roblox Secrets Store (Creator Hub → Spiel → Secrets).
 local Config = {
 	-- Öffentliche HTTPS-Adresse der API (ohne abschließenden Schrägstrich).
-	ApiBaseUrl = "https://dashboard.example.de",
+	ApiBaseUrl = "https://2pgwy073wo.apps.bot-hosting.cloud",
 	-- Name des Secrets im Secrets Store. Wert: der im Dashboard erzeugte Schlüssel (enrp_rbx_…).
 	-- Für den Domain-Filter des Secrets die Domain der API eintragen.
 	SecretName = "ENRP_API_KEY",
@@ -39,6 +39,9 @@ local Config = {
 	-- CollectionService-Tag für Orts-Parts (Attribut „Name“), der nächste Ort wird beim Notruf mitgeschickt.
 	LocationTag = "ENRPOrt",
 	LocationMaxDistance = 300,
+	-- Aktionen aus Dashboard/Discord: Parts für Gefängnis und Entlassung (CollectionService-Tags).
+	JailTag = "ENRPGefaengnis",
+	ReleaseTag = "ENRPEntlassung",
 }
 
 return Config
