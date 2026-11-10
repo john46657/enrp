@@ -98,11 +98,17 @@ await maintenance.upsertJobScheduler(
   { pattern: '30 3 * * *', tz: 'UTC' },
   { name: 'retention.apply', data: {}, opts: { attempts: 3 } },
 );
-await backupsQueue.upsertJobScheduler(
-  'backup-scheduled',
-  { pattern: env.BACKUP_CRON, tz: 'UTC' },
-  { name: 'backup.run', data: { kind: 'scheduled', triggeredBy: 'system:scheduler' }, opts: { attempts: 1 } },
-);
+if (env.BACKUP_CRON === 'off') {
+  // Z. B. bei bot-hosting.net: kein pg_dump verfügbar, der Hoster sichert die Datenbank selbst.
+  await backupsQueue.removeJobScheduler('backup-scheduled');
+  logger.info('Geplante Backups deaktiviert (BACKUP_CRON=off)');
+} else {
+  await backupsQueue.upsertJobScheduler(
+    'backup-scheduled',
+    { pattern: env.BACKUP_CRON, tz: 'UTC' },
+    { name: 'backup.run', data: { kind: 'scheduled', triggeredBy: 'system:scheduler' }, opts: { attempts: 1 } },
+  );
+}
 
 const instanceId = `${process.env.HOSTNAME ?? 'local'}-${randomUUID().slice(0, 8)}`;
 const startedAt = new Date();

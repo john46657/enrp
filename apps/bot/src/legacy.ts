@@ -11,6 +11,8 @@ import { type Logger } from '@enrp/config';
  */
 const LEGACY_DIR = process.env.LEGACY_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'legacy');
 const require = createRequire(path.join(LEGACY_DIR, 'index.js'));
+// Altmodule laufen hier als Brücke: das alte Express-Dashboard darf keinen Port belegen.
+process.env.ENRP_LEGACY_BRIDGE = '1';
 
 export const LEGACY_COMMAND_FILES = [
   'applications/apply.js',
