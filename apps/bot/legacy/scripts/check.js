@@ -169,6 +169,12 @@ if (parseUntil('7', ref) !== ref + 7 * 86_400_000) fail('parseUntil (Tage) falsc
 console.log('✅ Zeitzonen');
 console.log('✅ Giveaways: Dauer, Ziehung, Wochentag');
 
+// Roblox-Spiel: Link oder Place-ID
+const { parsePlaceId } = require('../src/lib/robloxGame');
+const places = [['920587237', '920587237'], ['https://www.roblox.com/games/920587237/Adopt-Me', '920587237'], ['roblox.com/de/games/123/x', '123'], ['https://cfx.re/join/abc', null], ['', null]];
+for (const [text, id] of places) if (parsePlaceId(text) !== id) fail(`parsePlaceId(${text}) = ${parsePlaceId(text)}`);
+console.log('✅ Roblox-Spiel-Link');
+
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');
 process.exit(0);

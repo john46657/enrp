@@ -186,4 +186,4 @@ async function handleMemberLeave(member) {
   }
 }
 
-module.exports = { decide, askReason, changeStatus, withdraw, showHistory, openTicket, handleMemberLeave, updateTeamMessage };
+module.exports = { decide, askReason, changeStatus, withdraw, showHistory, openTicket, handleMemberLeave, updateTeamMessage, afterDecision };
