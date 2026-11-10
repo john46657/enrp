@@ -5,6 +5,7 @@ import { type Actor, actorId, requirePermission } from '../actor';
 import { writeAudit } from '../audit';
 import { type CoreContext } from '../context';
 import { getSetting } from '../settings';
+import { queuePlayerMessage } from './game';
 import { type LiveState, normalizePlate, onlineServers } from './live';
 import { addRecordEvent, listRecordEvents } from './support';
 
@@ -179,6 +180,28 @@ export async function getBoloDetail(ctx: CoreContext, actor: Actor, idOrNumber: 
   };
 }
 
+/** Spieler der Polizei-Teams auf demselben Server im Spiel warnen (abschaltbar, höchstens 30 Nachrichten). */
+async function alertPolice(ctx: CoreContext, serverId: string, live: LiveState, bolo: Bolo, summary: string) {
+  const settings = await getSetting(ctx.db, 'dispatch');
+  if (!settings.boloIngameAlert) return;
+  const teams = new Set(settings.policeTeams.map((t) => t.toLowerCase()));
+  const officers = live.players.filter((p) => p.team && teams.has(p.team.toLowerCase())).slice(0, 30);
+  const what = bolo.kind === 'vehicle' ? `Kennzeichen ${bolo.plate}` : 'Gesuchte Person';
+  for (const officer of officers) {
+    await queuePlayerMessage(
+      ctx.db,
+      {
+        serverId,
+        robloxUserId: officer.userId,
+        message: `🚨 Fahndung #${bolo.number}: ${what} auf diesem Server gesichtet – ${summary}. Grund: ${bolo.reason}`,
+        reason: `Fahndungsalarm #${bolo.number}`,
+        createdBy: 'system:bolo',
+      },
+      ctx.now(),
+    );
+  }
+}
+
 /** Was im Live-Zustand eines Servers auf die Fahndung passt (oder null). */
 function matchBolo(bolo: Bolo, live: LiveState) {
   if (bolo.kind === 'vehicle' && bolo.plate) {
@@ -247,6 +270,7 @@ export async function checkBolos(ctx: CoreContext, serverId: string, live: LiveS
     });
     publish(ctx, 'bolo.hit', row, { hit });
     await postDiscord(ctx, 'bolo.hit', row.id);
+    await alertPolice(ctx, serverId, live, row, summary);
     hits.push(row);
   }
   return hits;

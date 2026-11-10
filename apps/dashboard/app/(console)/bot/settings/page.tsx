@@ -34,6 +34,15 @@ const FIELD_LABELS: Record<string, string> = {
   modCallChannelId: 'Kanal für Mod-Calls aus dem Spiel',
   departments: 'Bereiche (Polizei, Rettungsdienst …)',
   notifyCaller: 'Anrufer im Spiel benachrichtigen',
+  boloIngameAlert: 'Fahndungsalarm im Spiel an Polizei-Teams',
+  policeTeams: 'Polizei-Teams im Spiel',
+  killChannelId: 'Kill-Log',
+  teamChannelId: 'Teamwechsel-Log',
+  vehicleChannelId: 'Fahrzeug-Log',
+  joinChannelId: 'Join/Leave-Log',
+  dutyChannelId: 'Dienst-Log',
+  actionChannelId: 'Log für Aktionen an Spielern',
+  showPlayers: 'Spielernamen anzeigen',
 };
 
 /** Einstellungsformulare werden aus den aktuellen Werten erzeugt; die API validiert jede Änderung. */

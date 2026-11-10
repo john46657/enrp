@@ -752,6 +752,14 @@ export async function processGameEvents(
       results.push({ id: event.id, status: 'rejected', error: 'Verarbeitung fehlgeschlagen' });
     }
   }
+  // Spiel-Logs nach Discord (nur neu verarbeitete Ereignisse, gesammelt pro Kanal)
+  const processed = batch.events.filter((_, index) => results[index]?.status === 'processed');
+  if (processed.length) {
+    const { queueGameLogs } = await import('./gamelogs');
+    await queueGameLogs(ctx, { jobId: server.jobId, serverType: server.serverType }, processed).catch((err: Error) =>
+      ctx.logger.warn({ jobId: server.jobId, err: err.message }, 'Spiel-Logs fehlgeschlagen'),
+    );
+  }
   return results;
 }
 

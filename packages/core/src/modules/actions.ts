@@ -5,6 +5,7 @@ import { type Actor, actorId, requirePermission } from '../actor';
 import { writeAudit } from '../audit';
 import { type CoreContext } from '../context';
 import { SERVER_COMMAND_TTL_SECONDS } from './game';
+import { queueActionLog } from './gamelogs';
 import { findOnlinePlayer, onlineServers } from './live';
 
 /**
@@ -100,6 +101,12 @@ export async function createPlayerAction(
     return row!;
   });
   ctx.realtime.publish('servers', 'server.command', { count: 1, type: 'player_action' });
+  await queueActionLog(
+    ctx,
+    actor,
+    { action: input.action, robloxUserId, username: online.player.username, reason: input.reason, details: payload },
+    { jobId: online.server.jobId, serverType: online.server.serverType },
+  );
   return {
     id: command.id,
     action: input.action,
