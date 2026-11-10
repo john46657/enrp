@@ -13,7 +13,8 @@
 	  - holt alle 3 s Befehle aus Discord ab und bestätigt sie: Ansage, PM, Kick, Jail, Unjail, Heal, Kill, Respawn,
 	    Wanted, Team, Neustart, Spielrechte
 	  - prüft jeden Spieler beim Beitreten gegen die Bannliste des Bots (ganzes Spiel + Privatserver)
-	  - setzt in Privatservern die Spielrechte (z. B. nur angenommene Bewerber ins Polizei-Team)
+	  - setzt in Privatservern die Spielrechte; wer will, schaltet dort die Teamsperre ein (Extra-Funktion,
+	    z. B. nur angenommene Bewerber ins Polizei-Team). Im Hauptspiel darf immer jeder in jedes Team.
 
 	Sicherheit: Jede Anfrage ist mit HMAC-SHA256 signiert (Zeitstempel + Einmal-Nonce gegen Replay). Der Bridge-Schlüssel
 	steht nur hier im Server-Skript – Server-Skripte werden nie an Spieler geschickt. Niemals in ein LocalScript oder
@@ -63,8 +64,10 @@ local LOCATION_TAG = "ENRPOrt"
 -- Wanted-Sterne über dem Kopf anzeigen
 local SHOW_WANTED_OVERHEAD = true
 
--- Spielrechte (nur Privatserver): Teams, die ein Recht brauchen. Die Rechte vergibt der Privatserver-Discord mit
--- /einstellungen spielrecht. Rechte-Namen wie in der config.json des Bots: polizei, sek, flugstaffel, ausbilder …
+-- Teamsperre (Extra-Funktion, nur Privatserver): Teams, die ein Recht brauchen. Sie greift NUR in Privatservern,
+-- deren Discord sie mit /einstellungen teamsperre aktiv:true eingeschaltet hat – sonst darf jeder in jedes Team, wie
+-- im Hauptspiel. Die Rechte vergibt der Privatserver-Discord mit /einstellungen spielrecht.
+-- Rechte-Namen wie in der config.json des Bots: polizei, sek, flugstaffel, ausbilder …
 local TEAM_RIGHTS = {
 	-- ["Polizei"] = "polizei",
 	-- ["SEK"] = "sek",
@@ -455,6 +458,7 @@ end
 
 local playerRights = {}
 local rightsLoaded = {}
+local teamLock = false -- vom Bot: hat der Privatserver-Discord die Teamsperre eingeschaltet?
 
 local function hasRight(player, right)
 	if OWNER_HAS_ALL_RIGHTS and player.UserId == ownerId then
@@ -487,7 +491,7 @@ local function setRights(player, list)
 end
 
 local function enforceTeam(player)
-	if not isPrivateServer or not rightsLoaded[player] or player.Parent == nil then
+	if not isPrivateServer or not teamLock or not rightsLoaded[player] or player.Parent == nil then
 		return
 	end
 	local team = player.Team
@@ -504,6 +508,21 @@ local function enforceTeam(player)
 			player:LoadCharacter()
 		end
 	end)
+end
+
+-- Teamsperre an/aus (kommt bei jedem Abruf vom Bot); beim Einschalten sofort alle prüfen
+local function setTeamLock(enabled)
+	enabled = isPrivateServer and enabled == true
+	if enabled == teamLock then
+		return
+	end
+	teamLock = enabled
+	log("Teamsperre " .. (enabled and "eingeschaltet" or "ausgeschaltet"))
+	if enabled then
+		for _, player in ipairs(Players:GetPlayers()) do
+			enforceTeam(player)
+		end
+	end
 end
 
 -- ===================== Banns =====================
@@ -723,6 +742,9 @@ local function sync()
 		liveInterval = math.clamp(tonumber(data.config.live) or liveInterval, 10, 60)
 		syncInterval = math.clamp(tonumber(data.config.sync) or syncInterval, 2, 30)
 	end
+	if data.teamLock ~= nil then
+		setTeamLock(data.teamLock)
+	end
 	if data.bansVersion ~= nil and data.bansVersion ~= bansVersion then
 		task.spawn(refreshBans)
 	end
@@ -821,6 +843,9 @@ local function loadPlayer(player)
 		end
 		if isPrivateServer then
 			setRights(player, data.rights)
+			if data.teamLock ~= nil then
+				setTeamLock(data.teamLock)
+			end
 		end
 	else
 		checkBan(player) -- Bot nicht erreichbar: zuletzt bekannte Bannliste

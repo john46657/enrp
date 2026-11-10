@@ -103,6 +103,8 @@ const routes = {
         ...outbox.pull({ job, ownerId: ownerParam(query.get('owner')), cursor: Number(query.get('cursor')), boot: query.get('boot') ?? '' }),
         // Intervalle sind per /spiel-admin intervall einstellbar; das Spiel übernimmt sie beim nächsten Abruf
         config: { live: config.liveSeconds ?? 15, sync: config.syncSeconds ?? 3 },
+        // Teamsperre (Extra-Funktion je Privatserver, Standard aus) – das Spiel übernimmt Änderungen sofort
+        teamLock: rights.teamLockFor(ownerParam(query.get('owner'))),
         time: Math.floor(Date.now() / 1000),
       },
     ];
@@ -113,7 +115,7 @@ const routes = {
     if (!id) return [400, { error: 'id fehlt' }];
     const ownerId = ownerParam(query.get('owner'));
     const ban = bans.forServer(ownerId)[id] ?? null;
-    return [200, { ban, rights: ownerId ? rights.getRights(ownerId, id) : [] }];
+    return [200, { ban, rights: ownerId ? rights.getRights(ownerId, id) : [], teamLock: rights.teamLockFor(ownerId) }];
   },
 };
 

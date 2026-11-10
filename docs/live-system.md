@@ -74,7 +74,8 @@ ungültig.
 3. Inhalt von [`roblox/ENRPBridge.server.lua`](../roblox/ENRPBridge.server.lua) hineinkopieren.
 4. Oben eintragen: `BRIDGE_URL` (eure Domain) und `BRIDGE_SECRET`.
 5. Optional anpassen: Staff (Gruppe/Ränge oder Nutzer), `VEHICLE_TAG`, Gefängnis-Teil `ENRPJail`, Notruf-Befehle,
-   Orte (`ENRPOrt`-Tag), `TEAM_RIGHTS` für Privatserver.
+   Orte (`ENRPOrt`-Tag), `TEAM_RIGHTS` für Privatserver. `TEAM_RIGHTS` greift nur in Privatservern, deren Discord
+   die Teamsperre eingeschaltet hat (`/einstellungen teamsperre`). Sonst darf jeder in jedes Team, wie im Hauptspiel.
 6. Veröffentlichen. Nach ein paar Sekunden zeigt `/spiel status` „🟢 Spiel verbunden“.
 
 **Fahrzeuge:** Euer Fahrzeug-Spawner gibt dem Modell den CollectionService-Tag `ENRPFahrzeug` und die Attribute
@@ -105,9 +106,9 @@ ungültig.
 | `GET /health` | Monitor → Bot | – | `{ ok, service: "enrp-bridge" }` | keine (verrät nichts) |
 | `POST /bridge/v1/live` | Spiel → Bot | Snapshot (siehe 4.1) | `{ ok }` / 400 ungültig | HMAC |
 | `POST /bridge/v1/events` | Spiel → Bot | `{ events: [≤100 Ereignisse] }` (siehe 4.2) | `{ accepted, duplicates, rejected }` | HMAC |
-| `GET /bridge/v1/sync?job&owner&cursor&boot` | Spiel ← Bot | – | `{ boot, cursor, commands[], bansVersion, config{live,sync}, time }` | HMAC |
+| `GET /bridge/v1/sync?job&owner&cursor&boot` | Spiel ← Bot | – | `{ boot, cursor, commands[], bansVersion, config{live,sync}, teamLock, time }` | HMAC |
 | `GET /bridge/v1/bans?owner` | Spiel ← Bot | – | `{ version, bans: { userId: { r, e, s } } }` | HMAC |
-| `GET /bridge/v1/player?id&owner` | Spiel ← Bot | – | `{ ban: {r,e,s}\|null, rights: [] }` | HMAC |
+| `GET /bridge/v1/player?id&owner` | Spiel ← Bot | – | `{ ban: {r,e,s}\|null, rights: [], teamLock }` | HMAC |
 | `POST /bridge/v1/bye` | Spiel → Bot | `{ job }` | `{ ok }` | HMAC |
 
 **Signatur:** Header `X-ENRP-Timestamp` (Unix-Sekunden), `X-ENRP-Nonce` (16–64 Zeichen, einmalig),

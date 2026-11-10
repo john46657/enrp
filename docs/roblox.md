@@ -28,11 +28,12 @@ bannen, töten oder jailen und sich nicht selbst verknüpfen, das kann nur der H
 zusätzlich im Mod-Log des Haupt-Discords. Beim Entfernen der Verknüpfung (`/spiel-admin privatserver entfernen`)
 verlieren alle Spieler die Spielrechte, die dieser Discord vergeben hat.
 
-## 3. Spielrechte (nur Privatserver)
+## 3. Spielrechte und Teamsperre (nur Privatserver)
 
-Ein Privatserver-Discord bestimmt, wer in **seinen** Privatservern z. B. ins Polizei-Team darf. Typisch sind alle,
-deren Polizei-Bewerbung dort angenommen wurde. Öffentliche Server sind nicht betroffen, und der Haupt-Discord vergibt
-keine Spielrechte.
+**Standard: Jeder darf in jedes Team** – im Hauptspiel immer, in Privatservern auch. Die **Teamsperre** ist eine
+Extra-Funktion, die jeder Privatserver-Discord für **seine** Privatserver selbst einschaltet:
+`/einstellungen teamsperre aktiv:true`. Dann dürfen dort nur Spieler mit Spielrecht in gesperrte Teams, z. B. alle,
+deren Polizei-Bewerbung angenommen wurde. Ausschalten mit `aktiv:false`. Der Haupt-Discord vergibt keine Spielrechte.
 
 ```
 Bewerbung angenommen → Discord-Rolle @Polizei → Recht „polizei“ → im Privatserver: Team „Polizei“ erlaubt
@@ -40,6 +41,7 @@ Rolle weg (degradiert, Discord verlassen) → Recht weg → Spieler wird aus dem
 ```
 
 **Einrichten**
+- Im Privatserver-Discord: `/einstellungen teamsperre aktiv:true`.
 - Im Spiel-Skript bei `TEAM_RIGHTS` eintragen, welches Team welches Recht braucht, z. B. `["Polizei"] = "polizei"`, und
   bei `FALLBACK_TEAM` das Ausweich-Team.
 - Im Privatserver-Discord: `/einstellungen spielrecht recht:Polizei rolle:@Polizei` und dieselbe Rolle als Annahme-Rolle

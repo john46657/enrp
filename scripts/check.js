@@ -322,6 +322,14 @@ async function checkGame() {
     const pushed = outbox.pull({ job: 'job-private-5', ownerId: '5', cursor: before.cursor, boot: before.boot }).commands.find((c) => c.action === 'rights');
     if (!pushed || pushed.userId !== '99') fail('Spielrecht geht nicht live an den Privatserver');
     if ((await call('GET', '/bridge/v1/player?id=99&owner=5')).json.rights?.[0] !== 'polizei') fail('Spielrechte beim Beitreten fehlen');
+    // Teamsperre: Extra-Funktion je Privatserver, Standard aus (wie im Hauptspiel darf jeder in jedes Team)
+    if ((await call('GET', '/bridge/v1/player?id=99&owner=5')).json.teamLock !== false) fail('Teamsperre muss standardmäßig aus sein');
+    settings.set('300', 'roblox.teamLock', true);
+    const lockedSync = (await call('GET', '/bridge/v1/sync?job=job-private-5&owner=5&cursor=-1&boot=')).json;
+    const publicSync = (await call('GET', '/bridge/v1/sync?job=job-public-1&owner=0&cursor=-1&boot=')).json;
+    if (lockedSync.teamLock !== true || (await call('GET', '/bridge/v1/player?id=99&owner=5')).json.teamLock !== true) fail('Eingeschaltete Teamsperre kommt nicht beim Privatserver an');
+    if (publicSync.teamLock !== false) fail('Im Hauptspiel darf es keine Teamsperre geben');
+    settings.set('300', 'roblox.teamLock', false);
     memberRoles.clear();
     await rights.syncMember(privateGuild, 'd1');
     if (rights.getRights('5', '99').length) fail('Spielrecht bleibt nach Rollenverlust');
@@ -363,6 +371,9 @@ async function checkGame() {
   for (const action of actions) if (!lua.includes(`function handlers.${action}(`)) fail(`Spiel-Skript kennt den Befehl „${action}“ nicht`);
   if (!lua.includes('timestamp .. "\\n" .. nonce .. "\\n" .. method .. "\\n" .. path .. "\\n" .. body')) fail('Signatur-Kanon im Spiel-Skript passt nicht zu web/auth.js');
   if (!lua.includes(`local PROTOCOL = ${protocol.VERSION}`)) fail('Protokoll-Version im Spiel-Skript passt nicht');
+  if (!lua.includes('if not isPrivateServer or not teamLock or not rightsLoaded[player]') || !lua.includes('setTeamLock(data.teamLock)')) {
+    fail('Spiel-Skript: Teamsperre muss vom Bot gesteuert werden (Standard aus, nur Privatserver)');
+  }
   for (const type of Object.keys(protocol.EVENT_TYPES)) if (!lua.includes(`"${type}"`)) fail(`Spiel-Skript sendet kein „${type}“-Ereignis`);
   console.log('✅ Spiel-Anbindung (Bridge, Signatur, Banns, Rechte, Befehle, CAD, BOLO)');
 }

@@ -125,7 +125,7 @@ function overview(guild) {
             Object.entries(robloxRights.rightRoles(guild.id))
               .map(([right, id]) => `${right} → ${role(id)}`)
               .join(', ') || 'keine'
-          }`,
+          } · Teamsperre: ${onOff(config.roblox.teamLock)}`,
         ].join('\n'),
       },
       { name: 'Willkommensnachricht', value: truncate(config.welcome.message, 1024) },
@@ -320,6 +320,12 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('teamsperre')
+      .setDescription('Nur Privatserver (Extra): Teams wie Polizei nur mit Spielrecht. Aus = jeder darf rein.')
+      .addBooleanOption((o) => o.setName('aktiv').setDescription('Teamsperre einschalten?').setRequired(true)),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('zuruecksetzen')
       .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
       .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
@@ -449,6 +455,8 @@ function changesFor(interaction, sub) {
       return collect(interaction, [['nickname_setzen', 'roblox.setNickname', 'getBoolean']]);
     case 'spielrecht':
       return [[`roblox.rightRoles.${o.getString('recht')}`, o.getRole('rolle')?.id]];
+    case 'teamsperre':
+      return [['roblox.teamLock', o.getBoolean('aktiv')]];
     default:
       return [];
   }
@@ -485,6 +493,18 @@ module.exports = {
     });
     if (sub.startsWith('ticket') || sub === 'oeffnungszeiten') await refreshPanels(interaction.guild);
     if (sub === 'bewerbung') await appMessages.refreshPanels(interaction.guild);
+    if (sub === 'teamsperre') {
+      const isPrivate = robloxLinks.scopeOf(interaction.guildId).type === 'private';
+      const on = interaction.options.getBoolean('aktiv');
+      await replyPrivate(
+        interaction,
+        !isPrivate
+          ? 'ℹ️ Gespeichert. Die Teamsperre gibt es nur für Privatserver-Discords – im Hauptspiel darf immer jeder in jedes Team.'
+          : on
+            ? '🔒 Teamsperre an: In euren Privatservern dürfen nur noch Spieler mit Spielrecht in gesperrte Teams (z. B. Polizei). Gilt in wenigen Sekunden. Welche Rolle welches Recht gibt: `/einstellungen spielrecht`.'
+            : '🔓 Teamsperre aus: In euren Privatservern darf wieder jeder in jedes Team – wie im Hauptspiel.',
+      );
+    }
     if (sub === 'spielrecht') {
       if (robloxLinks.scopeOf(interaction.guildId).type !== 'private') {
         await replyPrivate(

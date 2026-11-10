@@ -26,7 +26,8 @@
       { "id": "flugstaffel", "name": "Flugstaffel" },
       { "id": "ausbilder", "name": "Ausbilder" }
     ],
-    "rightRoles": {}
+    "rightRoles": {},
+    "teamLock": false
   },
   "game": {
     "brand": "EN | POLIZEI",

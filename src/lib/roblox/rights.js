@@ -1,7 +1,11 @@
 // Spielrechte – nur für Privatserver.
 // Ein Privatserver-Discord legt fest, welche Discord-Rolle welches Recht im Spiel gibt (/einstellungen spielrecht),
 // z. B. Rolle @Polizei (wird bei angenommener Polizei-Bewerbung vergeben) → Recht „polizei“.
-// Das Spiel-Skript lässt dann in den Privatservern dieses Besitzers nur noch Spieler mit dem Recht ins Polizei-Team.
+//
+// Standard wie im Hauptspiel: Jeder darf in jedes Team. Die Teamsperre ist eine Extra-Funktion, die jeder
+// Privatserver-Discord selbst einschaltet (/einstellungen teamsperre). Erst dann lässt das Spiel-Skript in den
+// Privatservern dieses Besitzers nur noch Spieler mit dem Recht ins Polizei-Team. Die Rechte selbst werden immer
+// übertragen (Attribute ENRP_<recht> für eigene Skripte).
 //
 // Die Discord-Rollen sind die Quelle: Rolle bekommen → Recht im Spiel, Rolle weg (degradiert, Discord verlassen)
 // → Recht weg. Das Roblox-Konto kommt aus /verifizieren, sonst aus der zuletzt angenommenen Bewerbung.
@@ -180,6 +184,13 @@ async function clearGuild(guildId, ownerId) {
   return keys.length;
 }
 
+// Teamsperre der Privatserver eines Besitzers (Einstellung des verknüpften Privatserver-Discords, Standard: aus)
+function teamLockFor(ownerId) {
+  if (!ownerId) return false;
+  const link = links.listPrivateServers().find((l) => l.ownerId === String(ownerId));
+  return Boolean(link && forGuild(link.guildId).roblox.teamLock === true);
+}
+
 // "Polizei" → "polizei"
 const RIGHT_NAME = /^[a-z0-9_]{1,30}$/;
 
@@ -187,6 +198,7 @@ module.exports = {
   RIGHT_NAME,
   availableRights,
   rightRoles,
+  teamLockFor,
   accountFor,
   getRights,
   syncMember,
