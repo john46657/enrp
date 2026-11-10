@@ -1,7 +1,7 @@
 --[[
 	ENRPBridge – Verbindung zwischen dem ENRP-Discord-Bot und diesem Spiel.
 
-	Einbauen (Anleitung mit Bildern-Beschreibung: docs/roblox.md):
+	Einbauen (ausführliche Anleitung: docs/roblox.md):
 	  1. Roblox Studio → ServerScriptService → Rechtsklick → Insert Object → Script (kein LocalScript)
 	  2. Script "ENRPBridge" nennen und diesen ganzen Text hineinkopieren.
 	  3. Spiel veröffentlichen. Fertig – laufende Server bekommen das Skript nach einem Neustart.
@@ -10,7 +10,14 @@
 	  - Ansagen aus Discord (/spiel ansage) als Banner anzeigen
 	  - Kicks und Server-Neustarts aus Discord ausführen
 	  - Banns von Privatserver-Discords durchsetzen (gelten nur in den Privatservern dieses Besitzers)
+	  - Spielrechte in Privatservern: z. B. nur wer im Privatserver-Discord die Polizei-Rolle hat
+	    (angenommene Bewerbung), darf ins Polizei-Team. Öffentliche Server sind davon nicht betroffen.
 	Banns für das ganze Spiel macht Roblox selbst über die Ban-API, dafür braucht es hier nichts.
+
+	Für eigene Skripte: Jeder Spieler bekommt in Privatservern für jedes Recht ein Attribut, z. B.
+	  player:GetAttribute("ENRP_polizei") == true
+	und eine Liste aller Rechte in player:GetAttribute("ENRP_Rechte") (z. B. "polizei,sek").
+	Damit kannst du z. B. Polizeifahrzeuge, Ausrüstung oder Spawns sperren. Prüfe Rechte immer im Server-Skript.
 
 	Der Bot schickt Nachrichten über MessagingService. Nur Server dieses Spiels und der Bot mit dem
 	API-Key können auf das Thema senden – Spieler können keine Befehle vortäuschen.
@@ -21,16 +28,38 @@ local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local TextService = game:GetService("TextService")
+local Teams = game:GetService("Teams")
 
--- Muss zu src/lib/roblox/openCloud.js passen
+-- ===================== EINSTELLUNGEN =====================
+
+-- Teams, die in Privatservern ein Recht brauchen: ["Teamname im Spiel"] = "recht"
+-- Die Rechte heißen wie in der config.json des Bots (roblox.rights): polizei, sek, flugstaffel, ausbilder …
+-- Der Privatserver-Discord legt mit /einstellungen spielrecht fest, welche Discord-Rolle welches Recht gibt.
+local TEAM_RIGHTS = {
+	-- ["Polizei"] = "polizei",
+	-- ["SEK"] = "sek",
+	-- ["Flugstaffel"] = "flugstaffel",
+}
+
+-- In dieses Team kommt, wer ein gesperrtes Team ohne Recht wählt (nil = kein Team / neutral)
+local FALLBACK_TEAM = nil -- z. B. "Zivilisten"
+
+-- Darf der Besitzer des Privatservers in seinem Server jedes Team wählen?
+local OWNER_HAS_ALL_RIGHTS = true
+
+-- =========================================================
+
+-- Muss zu src/lib/roblox/openCloud.js und src/lib/roblox/rights.js passen
 local TOPIC = "ENRPBot"
 local PRIVATE_BANS_STORE = "ENRPPrivatServerBans"
+local RIGHTS_STORE = "ENRPRechte"
 local BANNER_SECONDS = 15
 
 -- Privatserver (VIP-Server) haben einen Besitzer. Reservierte Server haben zwar eine PrivateServerId, aber keinen Besitzer.
 local ownerId = game.PrivateServerOwnerId
 local isPrivateServer = game.PrivateServerId ~= "" and ownerId ~= 0
 local privateBans = DataStoreService:GetDataStore(PRIVATE_BANS_STORE)
+local rightsStore = DataStoreService:GetDataStore(RIGHTS_STORE)
 local shuttingDown = false
 
 local function isForThisServer(target)
@@ -185,6 +214,90 @@ local function kickPlayer(msg, prefix)
 	player:Kick(prefix .. " Grund: " .. reason)
 end
 
+-- ===================== Spielrechte (nur Privatserver) =====================
+
+local playerRights = {} -- [player] = { [recht] = true }
+local rightsLoaded = {} -- [player] = true, sobald die Rechte geladen sind
+
+local function hasRight(player, right)
+	if OWNER_HAS_ALL_RIGHTS and player.UserId == ownerId then
+		return true
+	end
+	local rights = playerRights[player]
+	return rights ~= nil and rights[right] == true
+end
+
+-- Setzt die Rechte eines Spielers und die Attribute ENRP_<recht> und ENRP_Rechte. Gibt die Namen sortiert zurück.
+local function setRights(player, list)
+	local rights, names = {}, {}
+	for _, right in ipairs(type(list) == "table" and list or {}) do
+		if type(right) == "string" and right:match("^[%l%d_]+$") and not rights[right] then
+			rights[right] = true
+			table.insert(names, right)
+		end
+	end
+	table.sort(names)
+	for right in pairs(playerRights[player] or {}) do
+		if not rights[right] then
+			player:SetAttribute("ENRP_" .. right, nil)
+		end
+	end
+	for _, right in ipairs(names) do
+		player:SetAttribute("ENRP_" .. right, true)
+	end
+	player:SetAttribute("ENRP_Rechte", table.concat(names, ","))
+	playerRights[player] = rights
+	return names
+end
+
+-- Wer ohne Recht in einem gesperrten Team ist, kommt ins Ausweich-Team und wird neu gespawnt.
+local function enforceTeam(player)
+	if not isPrivateServer or not rightsLoaded[player] or player.Parent == nil then
+		return
+	end
+	local team = player.Team
+	local needed = team and TEAM_RIGHTS[team.Name]
+	if not needed or hasRight(player, needed) then
+		return
+	end
+	local fallback = FALLBACK_TEAM and Teams:FindFirstChild(FALLBACK_TEAM) or nil
+	player.Team = fallback
+	player.Neutral = fallback == nil
+	showBanner(player, "🔒 " .. team.Name, "Für dieses Team brauchst du eine angenommene Bewerbung im Discord dieses Privatservers.")
+	task.defer(function()
+		if player.Parent then
+			player:LoadCharacter()
+		end
+	end)
+end
+
+local function loadRights(player)
+	if not isPrivateServer then
+		return
+	end
+	local key = "owner-" .. tostring(ownerId) .. "-user-" .. tostring(player.UserId)
+	local value
+	for attempt = 1, 3 do
+		local ok, result = pcall(function()
+			return rightsStore:GetAsync(key)
+		end)
+		if ok then
+			value = result
+			break
+		end
+		warn(("[ENRPBridge] Rechte von %s nicht geladen (%d/3): %s"):format(player.Name, attempt, tostring(result)))
+		task.wait(2 * attempt)
+	end
+	if player.Parent == nil then
+		return
+	end
+	setRights(player, type(value) == "table" and value.rights or {})
+	rightsLoaded[player] = true
+	enforceTeam(player)
+end
+
+-- ===================== Nachrichten aus Discord =====================
+
 local handlers = {}
 
 function handlers.announce(msg)
@@ -208,6 +321,21 @@ end
 
 function handlers.refresh()
 	banCache.loaded = false
+end
+
+-- Spielrechte haben sich im Privatserver-Discord geändert (Rolle bekommen oder verloren)
+function handlers.rights(msg)
+	if not isPrivateServer then
+		return
+	end
+	local player = Players:GetPlayerByUserId(tonumber(msg.userId) or 0)
+	if not player then
+		return
+	end
+	local names = setRights(player, msg.rights)
+	rightsLoaded[player] = true
+	showBanner(player, "🔑 Rechte aktualisiert", #names > 0 and ("Du darfst jetzt: " .. table.concat(names, ", ")) or "Du hast keine besonderen Rechte mehr.")
+	enforceTeam(player)
 end
 
 function handlers.shutdown(msg)
@@ -234,16 +362,28 @@ local function onMessage(message)
 	end
 end
 
-Players.PlayerAdded:Connect(function(player)
+local function onPlayerAdded(player)
 	if shuttingDown then
 		player:Kick("Der Server startet gerade neu. Bitte tritt erneut bei.")
 		return
 	end
 	checkPrivateBan(player)
-end)
-for _, player in ipairs(Players:GetPlayers()) do
-	task.spawn(checkPrivateBan, player)
+	if isPrivateServer and player.Parent then
+		player:GetPropertyChangedSignal("Team"):Connect(function()
+			enforceTeam(player)
+		end)
+		loadRights(player)
+	end
 end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, player)
+end
+Players.PlayerRemoving:Connect(function(player)
+	playerRights[player] = nil
+	rightsLoaded[player] = nil
+end)
 
 task.spawn(function()
 	for attempt = 1, 5 do

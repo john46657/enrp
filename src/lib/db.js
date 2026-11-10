@@ -2,8 +2,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DIR = path.join(__dirname, '..', '..', 'data');
-const FILE = path.join(DIR, 'db.json');
+// ENRP_DB_FILE nur für Tests (npm run check), damit die echte Datenbank unangetastet bleibt.
+const FILE = process.env.ENRP_DB_FILE ? path.resolve(process.env.ENRP_DB_FILE) : path.join(__dirname, '..', '..', 'data', 'db.json');
+const DIR = path.dirname(FILE);
 const DEFAULTS = { warnings: {}, levels: {}, tickets: {}, applications: {}, counters: {} };
 
 function load() {

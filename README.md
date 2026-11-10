@@ -10,7 +10,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | Bereich | Befehle / Features |
 |---|---|
 | 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
-| 🎮 **Roblox-Spiel** | `/spiel status\|ansage\|kick\|ban\|unban\|bann-pruefen\|banns\|neustart` direkt aus Discord · Banns über die offizielle Roblox-Ban-API · **Privatserver-Discords** moderieren nur ihre eigenen Privatserver · `/verifizieren`: Discord ↔ Roblox-Konto mit Rolle und Nickname auf allen Servern · Bot-Status zeigt Spieler im Spiel – **ausführlich in [docs/roblox.md](docs/roblox.md)** |
+| 🎮 **Roblox-Spiel** | `/spiel status\|ansage\|kick\|ban\|unban\|bann-pruefen\|banns\|neustart` direkt aus Discord · Banns über die offizielle Roblox-Ban-API · **Privatserver-Discords** moderieren nur ihre eigenen Privatserver · **Spielrechte nur für Privatserver**: angenommene Bewerbung → Discord-Rolle → z. B. Polizei-Team im Privatserver, Rolle weg → Recht weg · `/verifizieren`: Discord ↔ Roblox-Konto mit Rolle und Nickname auf allen Servern · Bot-Status zeigt Spieler im Spiel – **ausführlich in [docs/roblox.md](docs/roblox.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
@@ -72,6 +72,8 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 | `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben, `/spiel` benutzen usw. |
 | `roles.verified` | Bekommt, wer sein Roblox-Konto mit `/verifizieren` verknüpft hat |
 | `roblox.setNickname` | Roblox-Namen nach der Verifizierung als Nickname setzen |
+| `roblox.rights` | Rechte im Spiel, die Privatserver-Discords vergeben können (`id` wie im Spiel-Skript, `name` für Discord) |
+| `roblox.rightRoles` | Welche Discord-Rolle welches Recht gibt – besser je Server mit `/einstellungen spielrecht` |
 | `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [docs/applications.md](docs/applications.md) |
 | `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
 | `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
@@ -118,6 +120,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
 | `roblox` | Roblox-Namen nach `/verifizieren` als Nickname setzen |
+| `spielrecht` | Nur Privatserver-Discords: welche Rolle welches Recht im Spiel gibt (z. B. @Polizei → Polizei-Team) |
 | `fivem` | Server-Adresse und Verbinden-Link |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
@@ -162,7 +165,7 @@ config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
 src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
-src/lib/roblox/…      Roblox Open Cloud, Discord-Bereiche (Haupt/Privatserver), Verifizierung
+src/lib/roblox/…      Roblox Open Cloud, Discord-Bereiche (Haupt/Privatserver), Verifizierung, Spielrechte
 roblox/…              Skript für euer Roblox-Spiel (kommt in den ServerScriptService)
 scripts/check.js      Offline-Prüfung: npm run check
 ```

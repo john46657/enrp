@@ -151,6 +151,8 @@ module.exports = {
   banUser,
   unbanUser,
   getBan,
+  getEntry,
+  setEntry,
   getPrivateBans,
   updatePrivateBans,
   gameStats,

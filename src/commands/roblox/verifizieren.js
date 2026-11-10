@@ -6,6 +6,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Messa
 const { findRobloxUser, fetchRobloxDescription, profileUrl } = require('../../lib/applications/roblox');
 const links = require('../../lib/roblox/links');
 const { applyVerification } = require('../../lib/roblox/verify');
+const rights = require('../../lib/roblox/rights');
 const { embed, replyPrivate, isStaff } = require('../../lib/util');
 
 // Wörter statt Zahlen: Roblox zensiert Zahlenfolgen in Profilen gern als ####.
@@ -28,6 +29,7 @@ async function syncEverywhere(client, userId, currentGuildId) {
     const member = await guild.members.fetch(userId).catch(() => null);
     if (!member) continue;
     const result = await applyVerification(member);
+    rights.scheduleSync(guild, userId); // Spielrechte in Privatservern hängen am Roblox-Konto
     if (guild.id === currentGuildId) problems = result;
   }
   return problems;

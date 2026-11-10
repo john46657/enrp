@@ -1,6 +1,12 @@
 // Prüft Konfiguration und Befehle ohne Discord-Login: npm run check
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+
+// Eigene Test-Datenbank: Die Prüfung darf data/db.json (z. B. auf dem Bot-Hoster) nie verändern.
+const TEST_DB = path.join(os.tmpdir(), `enrp-check-${process.pid}.json`);
+process.env.ENRP_DB_FILE = TEST_DB;
+process.on('exit', () => fs.rmSync(TEST_DB, { force: true }));
 const { InteractionContextType } = require('discord.js');
 
 let failed = false;
@@ -112,6 +118,7 @@ async function checkRoblox() {
   Object.assign(process.env, { ROBLOX_UNIVERSE_ID: '999', ROBLOX_API_KEY: 'test-key', ROBLOX_MAIN_GUILD_IDS: '100, 101' });
   const cloud = require('../src/lib/roblox/openCloud');
   const links = require('../src/lib/roblox/links');
+  const rights = require('../src/lib/roblox/rights');
   const expectError = async (label, fn) => {
     try {
       await fn();
@@ -197,6 +204,73 @@ async function checkRoblox() {
       fail('Privatserver-Banns werden nicht in den richtigen Datastore geschrieben');
     }
     if (Object.keys(await cloud.getPrivateBans('404')).length) fail('Unbekannter Besitzer sollte keine Banns haben');
+
+    // Spielrechte (nur Privatserver): Discord-Rolle → Recht im Datastore + live ans Spiel; Rolle weg → Recht weg
+    const ids = config.roblox.rights.map((r) => r.id);
+    for (const r of config.roblox.rights) if (!rights.RIGHT_NAME.test(r.id) || !r.name) fail(`Spielrecht ungültig: ${JSON.stringify(r)}`);
+    if (new Set(ids).size !== ids.length) fail('Doppelte Spielrechte in roblox.rights');
+
+    links.linkPrivateServer('300', { ownerId: '5', ownerName: 'Besitzer', name: 'Nord', linkedBy: '1' });
+    settings.set('300', 'roblox.rightRoles.polizei', 'rolePol');
+    settings.set('300', 'roblox.rightRoles.sek', 'roleSek');
+    const memberRoles = new Set(['rolePol']);
+    let memberPresent = true;
+    const fakeMember = { id: 'd1', roles: { cache: { has: (id) => memberRoles.has(id), some: (fn) => [...memberRoles].some((id) => fn({ id })) } } };
+    const privateGuild = {
+      id: '300',
+      name: 'Nord',
+      members: {
+        fetch: async (id) => {
+          if (!id) return new Map(memberPresent ? [['d1', fakeMember]] : []);
+          if (!memberPresent) throw new Error('Unknown Member');
+          return fakeMember;
+        },
+      },
+    };
+    const rightsOf = (robloxId) => JSON.stringify(store[rights.rightsKey('5', robloxId)]?.rights);
+    const expectRights = (robloxId, expected, label) => {
+      if (rightsOf(robloxId) !== JSON.stringify(expected)) fail(`Spielrechte ${label}: ${rightsOf(robloxId)} statt ${JSON.stringify(expected)}`);
+    };
+
+    links.setAccount('d1', { id: '77', name: 'Spieler' });
+    await rights.syncMember(privateGuild, 'd1');
+    expectRights('77', ['polizei'], 'nach Rolle');
+    const live = JSON.parse(calls.at(-1).body.message);
+    if (live.action !== 'rights' || live.target !== 'owner:5' || live.userId !== '77' || JSON.stringify(live.rights) !== '["polizei"]') {
+      fail(`Live-Nachricht Spielrechte falsch: ${calls.at(-1).body.message}`);
+    }
+    const callCount = calls.length;
+    await rights.syncMember(privateGuild, 'd1');
+    if (calls.length !== callCount) fail('Unveränderte Spielrechte dürfen nicht erneut an Roblox gehen');
+
+    memberRoles.add('roleSek');
+    await rights.syncMember(privateGuild, 'd1');
+    expectRights('77', ['polizei', 'sek'], 'nach zweiter Rolle');
+
+    links.setAccount('d1', { id: '78', name: 'NeuesKonto' }); // neu verifiziert → altes Konto verliert die Rechte
+    await rights.syncMember(privateGuild, 'd1');
+    expectRights('77', [], 'altes Konto nach neuer Verifizierung');
+    expectRights('78', ['polizei', 'sek'], 'neues Konto nach neuer Verifizierung');
+
+    memberPresent = false; // Discord verlassen
+    await rights.syncMember(privateGuild, 'd1');
+    expectRights('78', [], 'nach Verlassen des Discords');
+
+    links.removeAccount('d1'); // nicht verifiziert → Konto aus der angenommenen Bewerbung
+    Object.assign(bucket('apps', '300'), {
+      'APP-0001': { number: 'APP-0001', type: 'polizei', userId: 'd1', status: 'ACCEPTED', createdAt: 1, decidedAt: 2, roblox: { id: '79', name: 'Bewerber' } },
+    });
+    if (rights.accountFor('300', 'd1')?.id !== '79') fail('Roblox-Konto aus der angenommenen Bewerbung wird nicht genutzt');
+    memberPresent = true;
+    await rights.syncMember(privateGuild, 'd1');
+    expectRights('79', ['polizei', 'sek'], 'mit Konto aus der Bewerbung');
+
+    if ((await rights.syncMember({ ...privateGuild, id: '100' }, 'd1')) !== null) fail('Der Haupt-Discord darf keine Spielrechte vergeben (nur Privatserver)');
+    if ((await rights.syncMember({ ...privateGuild, id: '200' }, 'd1')) !== null) fail('Ein unverknüpfter Discord darf keine Spielrechte vergeben');
+
+    await rights.clearGuild('300', '5'); // vom Privatserver getrennt → vergebene Rechte entfernen
+    expectRights('79', [], 'nach dem Trennen des Discords');
+    links.unlinkPrivateServer('300');
   } finally {
     global.fetch = realFetch;
   }
@@ -206,7 +280,11 @@ async function checkRoblox() {
   if (!lua.includes(`local TOPIC = "${cloud.TOPIC}"`) || !lua.includes(`local PRIVATE_BANS_STORE = "${cloud.PRIVATE_BANS_STORE}"`)) {
     fail('roblox/ENRPBridge.server.lua passt nicht zu src/lib/roblox/openCloud.js (TOPIC / PRIVATE_BANS_STORE)');
   }
-  for (const action of ['announce', 'kick', 'ban', 'refresh', 'shutdown']) {
+  if (!lua.includes(`local RIGHTS_STORE = "${rights.RIGHTS_STORE}"`)) fail('roblox/ENRPBridge.server.lua: RIGHTS_STORE passt nicht zu src/lib/roblox/rights.js');
+  if (rights.rightsKey('5', '77') !== 'owner-5-user-77' || !lua.includes('"owner-" .. tostring(ownerId) .. "-user-" .. tostring(player.UserId)')) {
+    fail('Schlüssel der Spielrechte passt nicht zum Spiel-Skript');
+  }
+  for (const action of ['announce', 'kick', 'ban', 'refresh', 'shutdown', 'rights']) {
     if (!lua.includes(`function handlers.${action}(`)) fail(`Spiel-Skript kennt die Aktion „${action}“ nicht`);
   }
   console.log('✅ Roblox-Anbindung');

@@ -113,6 +113,9 @@ abgesichert: Wer als Zweiter klickt, sieht „bereits entschieden von …“.
 - **Team-Nachricht:** Sie wird aktualisiert (Farbe, Status, wer, Grund), die Entscheidungs-Buttons verschwinden. Bei
   aktivem Team-Thread kommt dort ein Hinweis.
 - **Archiv:** Ist `channels.accepted` bzw. `channels.rejected` gesetzt, wird die Bewerbung zusätzlich dorthin gepostet.
+- **Spielrechte (nur Privatserver-Discords):** Gibt die Annahme-Rolle per `/einstellungen spielrecht` ein Recht im
+  Spiel, darf die Person danach in den Privatservern z. B. ins Polizei-Team – mit dem Roblox-Konto aus der Bewerbung.
+  Siehe [docs/roblox.md](roblox.md#3-spielrechte-nur-privatserver).
 
 ### Zurückziehen
 - **Bewerber:** Button in der Abschluss-DM.

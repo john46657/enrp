@@ -7,6 +7,7 @@ const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
+const rights = require('../lib/roblox/rights');
 
 module.exports = {
   name: Events.ClientReady,
@@ -28,6 +29,10 @@ module.exports = {
     for (const problem of appStore.baseTypes().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
 
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
+    // Spielrechte der Privatserver-Discords nachziehen (Rollenänderungen, während der Bot aus war)
+    for (const guild of client.guilds.cache.values()) {
+      rights.syncGuild(guild).catch((err) => console.error(`[spielrechte] ${guild.name}:`, err.message));
+    }
     startTicketWatcher(client);
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 

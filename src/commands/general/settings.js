@@ -4,6 +4,7 @@ const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
 const robloxLinks = require('../../lib/roblox/links');
+const robloxRights = require('../../lib/roblox/rights');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -120,6 +121,11 @@ function overview(guild) {
         value: [
           `Bereich: ${{ main: 'Haupt-Discord (ganzes Spiel)', private: 'Privatserver', none: 'nicht verknüpft' }[robloxLinks.scopeOf(guild.id).type]}`,
           `Verifiziert-Rolle: ${role(config.roles.verified)} · Roblox-Name als Nickname: ${onOff(config.roblox.setNickname)}`,
+          `Spielrechte (nur Privatserver): ${
+            Object.entries(robloxRights.rightRoles(guild.id))
+              .map(([right, id]) => `${right} → ${role(id)}`)
+              .join(', ') || 'keine'
+          }`,
         ].join('\n'),
       },
       { name: 'Willkommensnachricht', value: truncate(config.welcome.message, 1024) },
@@ -301,6 +307,19 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('spielrecht')
+      .setDescription('Nur Privatserver: Welche Rolle gibt welches Recht im Spiel? (ohne Rolle = entfernen)')
+      .addStringOption((o) =>
+        o
+          .setName('recht')
+          .setDescription('Recht im Spiel')
+          .setRequired(true)
+          .addChoices(...settings.base.roblox.rights.slice(0, 25).map((r) => ({ name: r.name, value: r.id }))),
+      )
+      .addRoleOption((o) => o.setName('rolle').setDescription('Wer diese Rolle hat, bekommt das Recht in euren Privatservern')),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('zuruecksetzen')
       .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
       .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
@@ -428,6 +447,8 @@ function changesFor(interaction, sub) {
       ]);
     case 'roblox':
       return collect(interaction, [['nickname_setzen', 'roblox.setNickname', 'getBoolean']]);
+    case 'spielrecht':
+      return [[`roblox.rightRoles.${o.getString('recht')}`, o.getRole('rolle')?.id]];
     default:
       return [];
   }
@@ -464,5 +485,15 @@ module.exports = {
     });
     if (sub.startsWith('ticket') || sub === 'oeffnungszeiten') await refreshPanels(interaction.guild);
     if (sub === 'bewerbung') await appMessages.refreshPanels(interaction.guild);
+    if (sub === 'spielrecht') {
+      if (robloxLinks.scopeOf(interaction.guildId).type !== 'private') {
+        await replyPrivate(
+          interaction,
+          'ℹ️ Gespeichert. Spielrechte wirken aber nur, wenn dieser Discord vom Haupt-Discord mit einem Privatserver verknüpft ist (`/spiel privatserver verknuepfen`).',
+        );
+      } else {
+        robloxRights.syncGuild(interaction.guild, { log: true }).catch((err) => console.error('[spielrechte]', err.message));
+      }
+    }
   },
 };

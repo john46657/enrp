@@ -2,11 +2,13 @@ const { Events } = require('discord.js');
 const { forGuild } = require('../lib/settings');
 const { openTickets, closeTicket } = require('../lib/tickets');
 const { handleMemberLeave } = require('../lib/applications/decide');
+const rights = require('../lib/roblox/rights');
 
 module.exports = {
   name: Events.GuildMemberRemove,
   async execute(member) {
     await handleMemberLeave(member); // Bewerbungen: je nach onLeave ablehnen oder zurückziehen
+    rights.scheduleSync(member.guild, member.id); // Wer den Privatserver-Discord verlässt, verliert die Spielrechte
 
     if (forGuild(member.guild.id).tickets.onCreatorLeave !== 'close') return;
     const tickets = openTickets(member.guild);

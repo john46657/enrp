@@ -19,7 +19,14 @@
     "verified": ""
   },
   "roblox": {
-    "setNickname": true
+    "setNickname": true,
+    "rights": [
+      { "id": "polizei", "name": "Polizei" },
+      { "id": "sek", "name": "SEK" },
+      { "id": "flugstaffel", "name": "Flugstaffel" },
+      { "id": "ausbilder", "name": "Ausbilder" }
+    ],
+    "rightRoles": {}
   },
   "welcome": {
     "message": "Willkommen {user} auf **{server}**! Du bist unser {count}. Mitglied. 🎉"

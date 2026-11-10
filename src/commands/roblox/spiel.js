@@ -6,6 +6,7 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js'
 const cloud = require('../../lib/roblox/openCloud');
 const links = require('../../lib/roblox/links');
 const { statusMessage } = require('../../lib/roblox/status');
+const rights = require('../../lib/roblox/rights');
 const { findRobloxUser, profileUrl } = require('../../lib/applications/roblox');
 const { embed, replyPrivate, sendTo, isStaff, truncate } = require('../../lib/util');
 
@@ -49,6 +50,13 @@ const builder = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (verifiziert)').setRequired(true)),
   )
   .addSubcommand((s) => s.setName('banns').setDescription('Listet die Banns eurer Privatserver (Team).'))
+  .addSubcommand((s) =>
+    s
+      .setName('rechte')
+      .setDescription('Zeigt Spielrechte in euren Privatservern (z. B. Polizei).')
+      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (nur Team; leer = du selbst)')),
+  )
+  .addSubcommand((s) => s.setName('rechte-abgleichen').setDescription('Gleicht die Spielrechte aller Mitglieder mit ihren Rollen ab (Team).'))
   .addSubcommand((s) =>
     s
       .setName('neustart')
@@ -247,6 +255,36 @@ const handlers = {
     });
   },
 
+  async rechte(interaction, scope) {
+    if (scope.type !== 'private') {
+      return respond(interaction, 'Spielrechte gibt es nur für Privatserver. Jeder Privatserver-Discord stellt sie mit `/einstellungen spielrecht` ein.');
+    }
+    const input = interaction.options.getString('spieler');
+    const player = input ? await resolvePlayer(input) : rights.accountFor(interaction.guildId, interaction.user.id);
+    if (!player) throw new cloud.RobloxError('Du hast noch kein Roblox-Konto verknüpft. Nutze `/verifizieren start`.');
+
+    const current = await rights.getRights(scope.ownerId, player.id);
+    const names = Object.fromEntries(rights.availableRights(interaction.guildId).map((r) => [r.id, r.name]));
+    const howTo = Object.entries(rights.rightRoles(interaction.guildId)).map(([right, roleId]) => `${names[right] ?? right}: <@&${roleId}>`);
+    await respond(interaction, {
+      embeds: [
+        embed(current.length ? 'success' : 'primary')
+          .setTitle(`🔑 Spielrechte – ${player.name}`)
+          .setURL(profileUrl(player.id))
+          .setDescription(
+            `In den Privatservern **${scope.name}**:\n` + (current.length ? current.map((r) => `✅ ${names[r] ?? r}`).join('\n') : 'Keine besonderen Rechte.'),
+          )
+          .addFields({ name: 'Welche Rolle gibt welches Recht?', value: howTo.join('\n') || 'Noch nicht eingestellt (`/einstellungen spielrecht`).' }),
+      ],
+    });
+  },
+
+  async 'rechte-abgleichen'(interaction, scope) {
+    if (scope.type !== 'private') return respond(interaction, 'Spielrechte gibt es nur für Privatserver-Discords.');
+    const count = await rights.syncGuild(interaction.guild, { log: true });
+    await respond(interaction, `🔄 ${count} Person(en) abgeglichen. Änderungen stehen im Mod-Log.`);
+  },
+
   async neustart(interaction, scope) {
     if (!interaction.options.getBoolean('bestaetigen')) return respond(interaction, 'Abgebrochen.');
     const reason = interaction.options.getString('grund') ?? 'Neustart';
@@ -263,11 +301,14 @@ const privateServerHandlers = {
     if (!guild) return respond(interaction, '❌ Der Bot ist nicht auf diesem Discord-Server. Lade ihn zuerst dort ein und prüfe die ID.');
     const owner = await resolvePlayer(interaction.options.getString('besitzer'));
     const name = interaction.options.getString('name').trim();
+    const previous = links.scopeOf(guildId);
     try {
       links.linkPrivateServer(guildId, { ownerId: owner.id, ownerName: owner.name, name, linkedBy: interaction.user.id });
     } catch (err) {
       throw new cloud.RobloxError(err.message);
     }
+    if (previous.type === 'private' && previous.ownerId !== owner.id) await rights.clearGuild(guildId, previous.ownerId);
+    rights.syncGuild(guild).catch((err) => console.error('[spielrechte]', err.message));
 
     await respond(interaction, `✅ **${guild.name}** darf jetzt die Privatserver von **${owner.name}** verwalten („${name}“).`);
     await sendTo(guild, 'modLog', {
@@ -289,7 +330,10 @@ const privateServerHandlers = {
 
   async entfernen(interaction) {
     const guildId = interaction.options.getString('discord_server_id').trim();
+    const previous = links.scopeOf(guildId);
     if (!links.unlinkPrivateServer(guildId)) return respond(interaction, 'Dieser Discord-Server ist mit keinem Privatserver verknüpft.');
+    // Spielrechte, die dieser Discord vergeben hat, gelten nicht mehr
+    if (previous.type === 'private') await rights.clearGuild(guildId, previous.ownerId);
     await respond(interaction, `✅ Verknüpfung von \`${guildId}\` entfernt.`);
     const guild = interaction.client.guilds.cache.get(guildId);
     if (guild) await sendTo(guild, 'modLog', { embeds: [embed('danger').setTitle('🎮 Verknüpfung mit dem Spiel entfernt')] });
@@ -318,7 +362,8 @@ module.exports = {
       return interaction.editReply(await statusMessage(interaction.guildId));
     }
 
-    if (!isStaff(interaction.member)) return replyPrivate(interaction, 'Das darf nur das Team (Staff-Rolle oder „Server verwalten“).');
+    const ownRights = sub === 'rechte' && !interaction.options.getString('spieler'); // eigene Rechte darf jeder sehen
+    if (!ownRights && !isStaff(interaction.member)) return replyPrivate(interaction, 'Das darf nur das Team (Staff-Rolle oder „Server verwalten“).');
     if (!cloud.isConfigured()) {
       return replyPrivate(interaction, 'Das Spiel ist noch nicht verbunden: In der `.env` fehlen `ROBLOX_UNIVERSE_ID` und `ROBLOX_API_KEY` (siehe docs/roblox.md).');
     }
