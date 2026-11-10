@@ -213,6 +213,36 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/roblox/keys/{id}/revoke` | API-Schlüssel widerrufen |
 | `GET` | `/api/v1/roblox/events` | Letzte Spielereignisse |
 
+## Leitstelle
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/dispatch/incidents` | Einsätze (offene zuerst, nach Priorität) |
+| `POST` | `/api/v1/dispatch/incidents` | Eigenen Einsatz anlegen |
+| `GET` | `/api/v1/dispatch/incidents/{id}` | Einsatz mit Einheiten, Anrufer und Verlauf |
+| `POST` | `/api/v1/dispatch/incidents/{id}/assign` | Einheit zuweisen (ohne unitId: sich selbst) |
+| `POST` | `/api/v1/dispatch/incidents/{id}/status` | Status ändern |
+| `POST` | `/api/v1/dispatch/incidents/{id}/notes` | Notiz hinzufügen |
+| `POST` | `/api/v1/dispatch/incidents/{id}/close` | Einsatz abschließen (mit Bericht) |
+| `GET` | `/api/v1/dispatch/units` | Einheiten mit Status, Einsatz und Spielstatus |
+| `PUT` | `/api/v1/dispatch/units/me` | Eigenen Einheitenstatus und Rufnamen setzen |
+| `GET` | `/api/v1/dispatch/stats` | Statistik der Leitstelle |
+
+## Mod-Calls
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/mod-calls` | Mod-Calls aus dem Spiel (offene zuerst) |
+| `POST` | `/api/v1/mod-calls/{id}/claim` | Mod-Call übernehmen (Spieler wird benachrichtigt) |
+| `POST` | `/api/v1/mod-calls/{id}/close` | Mod-Call schließen |
+
+## Live-Lage
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/roblox/live/players` | Spieler auf laufenden Servern (Team, Fahndung, Gefängnis, Rufname) |
+| `GET` | `/api/v1/roblox/live/vehicles` | Gespawnte Fahrzeuge (Kennzeichensuche) |
+
 ## Berechtigungen
 
 | Methode | Pfad | Zweck |

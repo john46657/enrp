@@ -52,7 +52,7 @@ export type AutomationAction = (typeof AUTOMATION_ACTIONS)[number];
 export const ACTOR_TYPES = ['user', 'service', 'system', 'roblox_server'] as const;
 export type ActorType = (typeof ACTOR_TYPES)[number];
 export const SECURITY_SEVERITY = ['info', 'warning', 'critical'] as const;
-export const RECORD_TYPES = ['ticket', 'report', 'case', 'incident', 'appeal'] as const;
+export const RECORD_TYPES = ['ticket', 'report', 'case', 'incident', 'appeal', 'dispatch'] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 export const ENVIRONMENT_KEYS = ['development', 'staging', 'production'] as const;
 export const SERVICE_NAMES = ['api', 'bot', 'worker'] as const;
@@ -72,3 +72,15 @@ export const KNOWN_FEATURE_FLAGS = {
   automations: 'Automatisierungsregeln',
 } as const;
 export type KnownFeatureFlag = keyof typeof KNOWN_FEATURE_FLAGS;
+
+/** Leitstelle (CAD/Dispatch): Einsätze aus Ingame-Notrufen und eigene Einsätze. */
+export const DISPATCH_STATUS = ['open', 'assigned', 'en_route', 'on_scene', 'closed'] as const;
+export type DispatchStatus = (typeof DISPATCH_STATUS)[number];
+export const DISPATCH_OPEN_STATUS = ['open', 'assigned', 'en_route', 'on_scene'] as const;
+export const DISPATCH_SOURCE = ['ingame', 'discord', 'dashboard'] as const;
+export type DispatchSource = (typeof DISPATCH_SOURCE)[number];
+/** Einheitenstatus, angelehnt an den Funkmeldestatus (2 einsatzbereit … 6 außer Dienst). */
+export const UNIT_STATUS = ['available', 'en_route', 'on_scene', 'busy', 'off_duty'] as const;
+export type UnitStatus = (typeof UNIT_STATUS)[number];
+export const MOD_CALL_STATUS = ['open', 'claimed', 'closed'] as const;
+export type ModCallStatus = (typeof MOD_CALL_STATUS)[number];

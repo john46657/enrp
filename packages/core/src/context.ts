@@ -16,7 +16,17 @@ export interface JobQueue {
   enqueue(queue: QueueName, name: string, data: Record<string, unknown>, options?: EnqueueOptions): Promise<void>;
 }
 
-export const REALTIME_TOPICS = ['servers', 'tickets', 'reports', 'alerts', 'jobs', 'incidents', 'approvals'] as const;
+export const REALTIME_TOPICS = [
+  'servers',
+  'tickets',
+  'reports',
+  'alerts',
+  'jobs',
+  'incidents',
+  'approvals',
+  'dispatch',
+  'mod_calls',
+] as const;
 export type RealtimeTopic = (typeof REALTIME_TOPICS)[number];
 
 /** Live-Ereignisse für das Dashboard (SSE). */
@@ -64,6 +74,8 @@ export interface DiscordMessageInput {
   content?: string;
   embed?: DiscordEmbedInput;
   buttons?: DiscordButtonInput[];
+  /** Nur diese Rollen dürfen erwähnt werden (z. B. Leitstelle bei Notrufen). Sonst sind alle Erwähnungen aus. */
+  allowRoleMentions?: string[];
 }
 
 /**

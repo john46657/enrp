@@ -5022,12 +5022,68 @@
                         "displayName": {
                           "type": "string",
                           "maxLength": 60
+                        },
+                        "team": {
+                          "type": "string",
+                          "maxLength": 40
+                        },
+                        "wanted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 5
+                        },
+                        "jailed": {
+                          "type": "boolean"
+                        },
+                        "callsign": {
+                          "type": "string",
+                          "maxLength": 20
                         }
                       },
                       "required": [
                         "userId",
                         "username"
                       ]
+                    }
+                  },
+                  "vehicles": {
+                    "maxItems": 300,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "ownerId": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "maximum": 9007199254740991
+                        },
+                        "plate": {
+                          "type": "string",
+                          "maxLength": 16
+                        },
+                        "color": {
+                          "type": "string",
+                          "maxLength": 30
+                        }
+                      },
+                      "required": [
+                        "model"
+                      ]
+                    }
+                  },
+                  "teams": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
                     }
                   },
                   "announcementsSince": {
@@ -5302,6 +5358,358 @@
                               "required": [
                                 "userId",
                                 "redemptionId"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "data"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[\\w{}-]{8,64}$"
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "emergency_call"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "department": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "location": {
+                                  "type": "string",
+                                  "maxLength": 100
+                                },
+                                "position": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "z": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "x",
+                                    "z"
+                                  ]
+                                },
+                                "callNumber": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "userId",
+                                "text"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "data"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[\\w{}-]{8,64}$"
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "mod_call"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "text": {
+                                  "default": "",
+                                  "type": "string",
+                                  "maxLength": 300
+                                }
+                              },
+                              "required": [
+                                "userId"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "data"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[\\w{}-]{8,64}$"
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "player_killed"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "killerId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "killerName": {
+                                  "type": "string",
+                                  "maxLength": 40
+                                },
+                                "weapon": {
+                                  "type": "string",
+                                  "maxLength": 60
+                                }
+                              },
+                              "required": [
+                                "userId"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "data"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[\\w{}-]{8,64}$"
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "team_changed"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "from": {
+                                  "type": "string",
+                                  "maxLength": 40
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "maxLength": 40
+                                }
+                              },
+                              "required": [
+                                "userId"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "data"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[\\w{}-]{8,64}$"
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "vehicle_spawned"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "model": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 60
+                                },
+                                "plate": {
+                                  "type": "string",
+                                  "maxLength": 16
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "maxLength": 30
+                                }
+                              },
+                              "required": [
+                                "model"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "data"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[\\w{}-]{8,64}$"
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "vehicle_despawned"
+                              ]
+                            },
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "userId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 9007199254740991
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "model": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 60
+                                },
+                                "plate": {
+                                  "type": "string",
+                                  "maxLength": 16
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "maxLength": 30
+                                }
+                              },
+                              "required": [
+                                "model"
                               ]
                             }
                           },
@@ -5892,6 +6300,660 @@
             },
             "in": "query",
             "name": "limit",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/incidents": {
+      "get": {
+        "summary": "Einsätze (offene zuerst, nach Priorität)",
+        "tags": [
+          "Leitstelle"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ingame",
+                "discord",
+                "dashboard"
+              ]
+            },
+            "in": "query",
+            "name": "source",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "department",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "summary": "Eigenen Einsatz anlegen",
+        "tags": [
+          "Leitstelle"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "priority": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3
+                  },
+                  "department": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "required": [
+                  "title",
+                  "location"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/incidents/{id}": {
+      "get": {
+        "summary": "Einsatz mit Einheiten, Anrufer und Verlauf",
+        "tags": [
+          "Leitstelle"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/incidents/{id}/assign": {
+      "post": {
+        "summary": "Einheit zuweisen (ohne unitId: sich selbst)",
+        "tags": [
+          "Leitstelle"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "unitId": {
+                    "type": "string",
+                    "pattern": "^\\d{15,22}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/incidents/{id}/status": {
+      "post": {
+        "summary": "Status ändern",
+        "tags": [
+          "Leitstelle"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "assigned",
+                      "en_route",
+                      "on_scene"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/incidents/{id}/notes": {
+      "post": {
+        "summary": "Notiz hinzufügen",
+        "tags": [
+          "Leitstelle"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/incidents/{id}/close": {
+      "post": {
+        "summary": "Einsatz abschließen (mit Bericht)",
+        "tags": [
+          "Leitstelle"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "report": {
+                    "type": "string",
+                    "maxLength": 3000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/units": {
+      "get": {
+        "summary": "Einheiten mit Status, Einsatz und Spielstatus",
+        "tags": [
+          "Leitstelle"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "all",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/units/me": {
+      "put": {
+        "summary": "Eigenen Einheitenstatus und Rufnamen setzen",
+        "tags": [
+          "Leitstelle"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "en_route",
+                      "on_scene",
+                      "busy",
+                      "off_duty"
+                    ]
+                  },
+                  "callsign": {
+                    "type": "string",
+                    "maxLength": 20
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/dispatch/stats": {
+      "get": {
+        "summary": "Statistik der Leitstelle",
+        "tags": [
+          "Leitstelle"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": 7,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/mod-calls": {
+      "get": {
+        "summary": "Mod-Calls aus dem Spiel (offene zuerst)",
+        "tags": [
+          "Mod-Calls"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "in": "query",
+            "name": "page",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "pageSize",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/mod-calls/{id}/claim": {
+      "post": {
+        "summary": "Mod-Call übernehmen (Spieler wird benachrichtigt)",
+        "tags": [
+          "Mod-Calls"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/mod-calls/{id}/close": {
+      "post": {
+        "summary": "Mod-Call schließen",
+        "tags": [
+          "Mod-Calls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/roblox/live/players": {
+      "get": {
+        "summary": "Spieler auf laufenden Servern (Team, Fahndung, Gefängnis, Rufname)",
+        "tags": [
+          "Live-Lage"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "team",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/roblox/live/vehicles": {
+      "get": {
+        "summary": "Gespawnte Fahrzeuge (Kennzeichensuche)",
+        "tags": [
+          "Live-Lage"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "in": "query",
+            "name": "plate",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "ownerId",
             "required": false
           }
         ],

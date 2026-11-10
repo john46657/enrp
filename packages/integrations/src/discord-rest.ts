@@ -67,8 +67,11 @@ function toMessageBody(payload: DiscordMessageInput) {
     content: payload.content?.slice(0, 2000),
     embeds: payload.embed ? [toDiscordEmbed(payload.embed)] : [],
     components: rows,
-    // Keine @everyone-/Rollen-Erwähnungen aus Inhalten zulassen.
-    allowed_mentions: { parse: [] },
+    // Keine @everyone-/Rollen-Erwähnungen aus Inhalten zulassen – außer ausdrücklich freigegebenen Rollen.
+    allowed_mentions: {
+      parse: [],
+      ...(payload.allowRoleMentions?.length ? { roles: payload.allowRoleMentions.slice(0, 5) } : {}),
+    },
   };
 }
 

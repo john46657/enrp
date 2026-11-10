@@ -9,6 +9,7 @@ local MessagingService = game:GetService("MessagingService")
 
 local Api = require(script.Parent.Api)
 local Config = require(script.Parent.Config)
+local Dispatch = require(script.Parent.Dispatch)
 local Duty = require(script.Parent.Duty)
 local EventQueue = require(script.Parent.EventQueue)
 local Rewards = require(script.Parent.Rewards)
@@ -184,7 +185,8 @@ local function heartbeat()
 	local players = {}
 	for _, p in Players:GetPlayers() do
 		if p.UserId > 0 then
-			table.insert(players, { userId = p.UserId, username = p.Name, displayName = p.DisplayName })
+			-- Mit Team, Fahndung, Gefängnis und Rufname für die Live-Lage im Dashboard
+			table.insert(players, Dispatch.playerInfo(p))
 		end
 	end
 	local response = Api.request("POST", "/api/v1/game/heartbeat", {
@@ -196,6 +198,8 @@ local function heartbeat()
 		privateServerId = game.PrivateServerId,
 		privateServerOwnerId = game.PrivateServerOwnerId,
 		players = players,
+		vehicles = Dispatch.vehicles(),
+		teams = Dispatch.teams(),
 		announcementsSince = state.announcementsSince,
 	})
 	state.connected = response.ok
@@ -225,6 +229,9 @@ local function heartbeat()
 		task.spawn(applyCommand, command)
 	end
 end
+
+-- Notrufe, Mod-Calls und Protokoll-Ereignisse (Chat-Befehle siehe Config.CallCommands)
+Dispatch.init(announce)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()

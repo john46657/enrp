@@ -5,3 +5,4 @@ export * from './support';
 export * from './moderation';
 export * from './community';
 export * from './ops';
+export * from './dispatch';

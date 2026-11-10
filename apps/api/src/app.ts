@@ -19,6 +19,7 @@ import { authRoutes } from './routes/auth';
 import { botRoutes } from './routes/bot';
 import { communityRoutes } from './routes/community';
 import { gameRoutes } from './routes/game';
+import { dispatchRoutes } from './routes/dispatch';
 import { opsRoutes } from './routes/ops';
 import { realtimeRoutes } from './routes/realtime';
 import { supportRoutes } from './routes/support';
@@ -158,6 +159,7 @@ export async function buildApp(deps: ApiDeps, options: { logger?: boolean } = {}
       await v1.register(supportRoutes);
       await v1.register(communityRoutes);
       await v1.register(gameRoutes);
+      await v1.register(dispatchRoutes);
       await v1.register(adminRoutes);
       await v1.register(opsRoutes);
       await v1.register(realtimeRoutes);

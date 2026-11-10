@@ -19,8 +19,10 @@ import {
   LifeBuoy,
   ListChecks,
   Lock,
+  MapPin,
   Megaphone,
   MessageSquare,
+  Radio,
   Rocket,
   ScrollText,
   Server,
@@ -64,6 +66,14 @@ export const NAV: NavGroup[] = [
       { href: '/tickets', label: 'Tickets', icon: Ticket },
       { href: '/reports', label: 'Reports', icon: Flag, permission: 'reports:view' },
       { href: '/cases', label: 'Fallberichte', icon: FileSearch, permission: 'cases:view' },
+    ],
+  },
+  {
+    label: 'Leitstelle',
+    items: [
+      { href: '/dispatch', label: 'Einsätze & Einheiten', icon: Radio, permission: 'dispatch:view' },
+      { href: '/live', label: 'Live-Lage', icon: MapPin, permission: ['dispatch:view', 'roblox_servers:view'] },
+      { href: '/mod-calls', label: 'Mod-Calls', icon: LifeBuoy, permission: 'mod_calls:view' },
     ],
   },
   {

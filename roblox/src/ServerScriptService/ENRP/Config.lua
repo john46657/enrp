@@ -28,6 +28,17 @@ local Config = {
 	-- Zugang verweigern, wenn das Backend beim Betreten nicht erreichbar ist?
 	-- false = Spieler dürfen spielen; Bann-Prüfung wird beim nächsten Heartbeat nachgeholt.
 	DenyJoinWhenBackendDown = false,
+
+	-- Leitstelle: Chat-Befehle für Notrufe (Befehl → Bereich, muss im Dashboard unter Leitstelle existieren).
+	CallCommands = { ["/notruf"] = "Polizei", ["/110"] = "Polizei", ["/112"] = "Rettungsdienst", ["/feuerwehr"] = "Feuerwehr" },
+	ModCallCommand = "/modcall",
+	CallCooldownSeconds = 60,
+	ModCallCooldownSeconds = 120,
+	-- CollectionService-Tag für Fahrzeug-Modelle (Live-Lage, Kennzeichen-Suche, Fahrzeug-Protokoll).
+	VehicleTag = "ENRPFahrzeug",
+	-- CollectionService-Tag für Orts-Parts (Attribut „Name“), der nächste Ort wird beim Notruf mitgeschickt.
+	LocationTag = "ENRPOrt",
+	LocationMaxDistance = 300,
 }
 
 return Config

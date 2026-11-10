@@ -13,6 +13,8 @@ const TOPIC_PERMISSION: Record<RealtimeTopic, string> = {
   jobs: 'jobs:view',
   incidents: 'incidents:view',
   approvals: 'approvals:view',
+  dispatch: 'dispatch:view',
+  mod_calls: 'mod_calls:view',
 };
 const MAX_PER_USER = 3;
 const MAX_TOTAL = 200;
