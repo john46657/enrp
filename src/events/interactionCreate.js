@@ -4,6 +4,12 @@ const { replyPrivate } = require('../lib/util');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
+    // Vorschläge beim Tippen (z. B. Spielernamen aus den Live-Daten)
+    if (interaction.isAutocomplete()) {
+      const command = client.commands.get(interaction.commandName);
+      await Promise.resolve(command?.autocomplete?.(interaction) ?? interaction.respond([])).catch(() => {});
+      return;
+    }
     let handler;
     let label;
     if (interaction.isChatInputCommand()) {

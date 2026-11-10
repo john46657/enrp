@@ -2,6 +2,14 @@ const { Events, ActivityType } = require('discord.js');
 const settings = require('../lib/settings');
 const { fetchFivemStatus } = require('../lib/fivem');
 const robloxCloud = require('../lib/roblox/openCloud');
+const web = require('../lib/web/server');
+const live = require('../lib/game/live');
+const gameEvents = require('../lib/game/events');
+const gameCommands = require('../lib/game/commands');
+const cad = require('../lib/game/cad');
+const modcalls = require('../lib/game/modcalls');
+const bolo = require('../lib/game/bolo');
+const livePanel = require('../lib/game/livePanel');
 const { startTicketWatcher } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
@@ -34,10 +42,24 @@ module.exports = {
       rights.syncGuild(guild).catch((err) => console.error(`[spielrechte] ${guild.name}:`, err.message));
     }
     startTicketWatcher(client);
+
+    // Spiel-Anbindung: Bridge-Webserver (Domain), Ereignis-Verarbeitung, Live-Daten, Live-Panel, BOLO-Abgleich
+    cad.setNotifier(gameCommands.notifyPlayer);
+    modcalls.setNotifier(gameCommands.notifyPlayer);
+    gameEvents.start(client);
+    live.start();
+    bolo.start(client);
+    livePanel.start(client);
+    web.start();
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
     // Bot-Status: Spieler im eigenen Roblox-Spiel, sonst die Spieleranzahl des ersten FiveM-Servers, sonst der Name aus config.json.
     const updatePresence = async () => {
+      if (live.status().connected) {
+        const players = live.serversFor({ type: 'main' }).reduce((sum, s) => sum + s.players.length, 0);
+        client.user.setActivity(`${players} Spieler im Spiel`, { type: ActivityType.Watching });
+        return;
+      }
       if (robloxCloud.universeId()) {
         const stats = await robloxCloud.gameStats().catch((err) => console.error('[roblox] Status:', err.message));
         client.user.setActivity(stats ? `${stats.playing} Spieler in ${stats.name}` : settings.base.serverName, { type: ActivityType.Watching });

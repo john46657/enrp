@@ -9,16 +9,17 @@
 const db = require('../db');
 const { forGuild } = require('../settings');
 const { sendTo, embed } = require('../util');
-const cloud = require('./openCloud');
+const outbox = require('../game/outbox');
 const links = require('./links');
 const appStore = require('../applications/store');
 const { profileUrl } = require('../applications/roblox');
 
-const RIGHTS_STORE = 'ENRPRechte'; // Datastore, Schlüssel siehe rightsKey()
 const DEBOUNCE_MS = 2000; // Mehrere Rollenänderungen kurz hintereinander (z. B. bei einer Annahme) zusammenfassen
 const GAP_MS = 300; // Abstand zwischen zwei Abgleichen, damit Roblox nicht bremst
 
-const rightsKey = (ownerId, robloxId) => `owner-${ownerId}-user-${robloxId}`; // so auch im Spiel-Skript
+// Gespeicherte Rechte je Privatserver-Besitzer: { ownerId: { robloxId: [rechte] } }. Das Spiel fragt sie über die
+// Bridge ab (GET /bridge/v1/player) und bekommt Änderungen live als Befehl „rights“.
+const rightsStore = () => (db.data.gameRights ??= {});
 const synced = () => (db.data.robloxRights ??= {}); // "guildId:discordId" → { robloxId, robloxName, rights }
 const stateKey = (guildId, discordId) => `${guildId}:${discordId}`;
 
@@ -55,13 +56,15 @@ const warnedMissing = new Map(); // Warnung „Roblox-Konto fehlt“ nur einmal 
 
 // Im Datastore speichern und laufende Privatserver sofort informieren.
 async function pushRights(ownerId, robloxId, rights) {
-  await cloud.setEntry(RIGHTS_STORE, rightsKey(ownerId, robloxId), { rights, updated: Math.floor(Date.now() / 1000) });
-  await cloud.publish('rights', cloud.privateTarget(ownerId), { userId: String(robloxId), rights });
+  const owner = (rightsStore()[ownerId] ??= {});
+  if (rights.length) owner[robloxId] = rights;
+  else delete owner[robloxId];
+  db.save();
+  outbox.enqueue(`owner:${ownerId}`, 'rights', { userId: String(robloxId), rights });
 }
 
-async function getRights(ownerId, robloxId) {
-  const value = await cloud.getEntry(RIGHTS_STORE, rightsKey(ownerId, robloxId));
-  return Array.isArray(value?.rights) ? value.rights : [];
+function getRights(ownerId, robloxId) {
+  return rightsStore()[ownerId]?.[robloxId] ?? [];
 }
 
 function logChange(guild, title, lines, color = 'primary') {
@@ -71,7 +74,7 @@ function logChange(guild, title, lines, color = 'primary') {
 // Gleicht eine Person ab. Gibt { account, rights, before } zurück oder null, wenn dieser Discord keine Spielrechte hat.
 async function syncMember(guild, discordId, { log = false } = {}) {
   const scope = links.scopeOf(guild.id);
-  if (scope.type !== 'private' || !cloud.isConfigured()) return null;
+  if (scope.type !== 'private') return null;
 
   const key = stateKey(guild.id, discordId);
   const state = synced()[key];
@@ -130,7 +133,7 @@ function enqueue(task) {
 
 const timers = new Map();
 function scheduleSync(guild, discordId, options = { log: true }) {
-  if (links.scopeOf(guild.id).type !== 'private' || !cloud.isConfigured()) return;
+  if (links.scopeOf(guild.id).type !== 'private') return;
   const key = stateKey(guild.id, discordId);
   clearTimeout(timers.get(key));
   timers.set(
@@ -144,7 +147,7 @@ function scheduleSync(guild, discordId, options = { log: true }) {
 
 // Ganzen Discord abgleichen (Start, Verknüpfen, geänderte Einstellungen). Gibt die Anzahl geprüfter Personen zurück.
 async function syncGuild(guild, options = { log: false }) {
-  if (links.scopeOf(guild.id).type !== 'private' || !cloud.isConfigured()) return 0;
+  if (links.scopeOf(guild.id).type !== 'private') return 0;
   const roleIds = new Set(Object.values(rightRoles(guild.id)));
   const ids = new Set(
     Object.keys(synced())
@@ -181,9 +184,7 @@ async function clearGuild(guildId, ownerId) {
 const RIGHT_NAME = /^[a-z0-9_]{1,30}$/;
 
 module.exports = {
-  RIGHTS_STORE,
   RIGHT_NAME,
-  rightsKey,
   availableRights,
   rightRoles,
   accountFor,

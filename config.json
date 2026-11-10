@@ -28,6 +28,34 @@
     ],
     "rightRoles": {}
   },
+  "game": {
+    "brand": "EN | POLIZEI",
+    "logs": {
+      "join": "",
+      "kill": "",
+      "command": "",
+      "modcall": "",
+      "call": "",
+      "vehicle": "",
+      "team": "",
+      "actions": "",
+      "bolo": ""
+    },
+    "dispatchChannel": "",
+    "dispatchRole": "",
+    "boloChannel": "",
+    "livePanel": {
+      "channelId": "",
+      "messageId": ""
+    },
+    "permissions": {
+      "view": [],
+      "dispatch": [],
+      "moderation": [],
+      "admin": []
+    },
+    "cadTeams": ["Polizei", "Rettungsdienst", "Feuerwehr"]
+  },
   "welcome": {
     "message": "Willkommen {user} auf **{server}**! Du bist unser {count}. Mitglied. 🎉"
   },

@@ -489,7 +489,7 @@ module.exports = {
       if (robloxLinks.scopeOf(interaction.guildId).type !== 'private') {
         await replyPrivate(
           interaction,
-          'ℹ️ Gespeichert. Spielrechte wirken aber nur, wenn dieser Discord vom Haupt-Discord mit einem Privatserver verknüpft ist (`/spiel privatserver verknuepfen`).',
+          'ℹ️ Gespeichert. Spielrechte wirken aber nur, wenn dieser Discord vom Haupt-Discord mit einem Privatserver verknüpft ist (`/spiel-admin privatserver verknuepfen`).',
         );
       } else {
         robloxRights.syncGuild(interaction.guild, { log: true }).catch((err) => console.error('[spielrechte]', err.message));

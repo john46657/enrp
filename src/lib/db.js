@@ -24,6 +24,31 @@ function load() {
 const data = load();
 let timer = null;
 
+// ---------- Migrationen ----------
+// Jede Migration bringt data/db.json von Version n-1 auf n. Sie laufen beim Start einmalig und in Reihenfolge.
+// Neue Bereiche entstehen sonst bei Bedarf von selbst (bucket()); hier steht nur, was umgebaut werden muss.
+const MIGRATIONS = [
+  // 1 → 2: Spiel-Anbindung (Bridge, CAD, BOLO): Bereiche anlegen, damit Übersichten sofort funktionieren
+  (db) => {
+    for (const key of ['gameBans', 'gameRights', 'gameConfig', 'secrets', 'cad', 'bolos', 'gameCommands', 'gameModcalls']) db[key] ??= {};
+    for (const key of ['gameEvents', 'gameEventSeen', 'apiLogs']) db[key] ??= [];
+  },
+];
+const SCHEMA_VERSION = MIGRATIONS.length + 1;
+
+function migrate() {
+  const from = data.schemaVersion ?? 1;
+  if (from >= SCHEMA_VERSION) return [];
+  const applied = [];
+  for (let version = from; version < SCHEMA_VERSION; version++) {
+    MIGRATIONS[version - 1](data);
+    applied.push(version + 1);
+  }
+  data.schemaVersion = SCHEMA_VERSION;
+  save();
+  return applied;
+}
+
 function flush() {
   clearTimeout(timer);
   timer = null;
@@ -58,4 +83,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   });
 }
 
-module.exports = { data, save, flush, bucket, nextNumber };
+const applied = migrate();
+if (applied.length && !process.env.ENRP_DB_FILE) console.log(`🗄️  Datenbank auf Version ${SCHEMA_VERSION} gebracht (Migrationen: ${applied.join(', ')})`);
+
+module.exports = { data, save, flush, bucket, nextNumber, SCHEMA_VERSION };

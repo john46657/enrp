@@ -3,7 +3,8 @@ const { embed, replyPrivate } = require('../../lib/util');
 
 const SECTIONS = {
   '📋 Bewerbungen': ['bewerbung', 'bewerbungspanel', 'qualipanel', 'bewerbungen', 'bewerbungssperre'],
-  '🎮 Roblox-Spiel': ['spiel', 'verifizieren'],
+  '🎮 Roblox-Spiel': ['spiel', 'ingame', 'verifizieren', 'spiel-admin'],
+  '🚓 CAD & BOLO': ['cad', 'bolo'],
   '🎭 Roleplay': ['serverstatus', 'ankuendigung'],
   '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear'],
   '🎫 Tickets': ['ticket'],

@@ -1,393 +1,379 @@
-// /spiel – Verbindung zum eigenen Roblox-Spiel.
-// Was ein Discord darf, hängt von seinem Bereich ab (src/lib/roblox/links.js):
-//   Haupt-Discord      → ganzes Spiel
-//   Privatserver-Discord → nur die Privatserver des verknüpften Besitzers
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const cloud = require('../../lib/roblox/openCloud');
+// /spiel – Live-Daten aus dem eigenen Roblox-Spiel: Status, Server, Spieler, Fahrzeuge, Kennzeichen, Staff, Logs,
+// Notrufe und Spielrechte (Privatserver). Aktionen im Spiel stehen unter /ingame, Verwaltung unter /spiel-admin.
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const links = require('../../lib/roblox/links');
-const { statusMessage } = require('../../lib/roblox/status');
 const rights = require('../../lib/roblox/rights');
+const { statusMessage } = require('../../lib/roblox/status');
 const { findRobloxUser, profileUrl } = require('../../lib/applications/roblox');
-const { embed, replyPrivate, sendTo, isStaff, truncate } = require('../../lib/util');
+const live = require('../../lib/game/live');
+const events = require('../../lib/game/events');
+const permissions = require('../../lib/game/permissions');
+const commands = require('../../lib/game/commands');
+const cad = require('../../lib/game/cad');
+const bolo = require('../../lib/game/bolo');
+const bans = require('../../lib/game/bans');
+const modcalls = require('../../lib/game/modcalls');
+const { normalizePlate } = require('../../lib/game/protocol');
+const { embed, replyPrivate, truncate } = require('../../lib/util');
+
+const LOG_CHOICES = { alle: 'Alle', join: 'Beitritte & Verlassen', kill: 'Kills', command: 'Befehle', call: 'Notrufe', modcall: 'Mod-Calls', vehicle: 'Fahrzeuge', team: 'Teamwechsel' };
 
 const builder = new SlashCommandBuilder()
   .setName('spiel')
-  .setDescription('Unser Roblox-Spiel: Status, Ansagen und Moderation.')
-  .addSubcommand((s) => s.setName('status').setDescription('Zeigt Spieler online, Besuche und Favoriten.'))
+  .setDescription('Live-Daten aus unserem Roblox-Spiel.')
+  .addSubcommand((s) => s.setName('status').setDescription('Server, Spieler, Staff, Fahrzeuge, Notrufe und API-Status.'))
   .addSubcommand((s) =>
     s
-      .setName('ansage')
-      .setDescription('Zeigt eine Ansage als Banner im Spiel an (Team).')
-      .addStringOption((o) => o.setName('text').setDescription('Text der Ansage').setRequired(true).setMaxLength(400)),
+      .setName('server')
+      .setDescription('Laufende Server – oder Details zu einem Server.')
+      .addStringOption((o) => o.setName('server').setDescription('Server aus der Liste').setAutocomplete(true).setMaxLength(64)),
   )
   .addSubcommand((s) =>
     s
-      .setName('kick')
-      .setDescription('Wirft einen Spieler aus dem Spiel (Team).')
-      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (verifiziert)').setRequired(true))
-      .addStringOption((o) => o.setName('grund').setDescription('Grund').setMaxLength(200)),
+      .setName('spieler')
+      .setDescription('Live-Spielerliste.')
+      .addStringOption((o) => o.setName('server').setDescription('Nur dieser Server').setAutocomplete(true).setMaxLength(64))
+      .addStringOption((o) => o.setName('team').setDescription('Nur dieses Team').setAutocomplete(true).setMaxLength(40)),
   )
   .addSubcommand((s) =>
     s
-      .setName('ban')
-      .setDescription('Bannt einen Spieler (Team).')
-      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (verifiziert)').setRequired(true))
-      .addStringOption((o) => o.setName('dauer').setDescription('z. B. 30m, 12h, 7d, 2w oder perm').setRequired(true))
-      .addStringOption((o) => o.setName('grund').setDescription('Wird dem Spieler angezeigt').setRequired(true).setMaxLength(300))
-      .addStringOption((o) => o.setName('notiz').setDescription('Nur fürs Team sichtbar').setMaxLength(500))
-      .addBooleanOption((o) => o.setName('zweitaccounts').setDescription('Auch vermutete Zweitaccounts bannen (nur Haupt-Discord, Standard: ja)')),
+      .setName('spieler-info')
+      .setDescription('Alles zu einem Spieler: Status, Fahrzeuge, Logs, Notrufe, Banns.')
+      .addStringOption((o) => o.setName('spieler').setDescription('Name, Anzeigename, ID oder @verifizierte Person').setRequired(true).setAutocomplete(true).setMaxLength(40)),
   )
   .addSubcommand((s) =>
     s
-      .setName('unban')
-      .setDescription('Hebt einen Bann auf (Team).')
-      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (verifiziert)').setRequired(true)),
+      .setName('fahrzeuge')
+      .setDescription('Gespawnte Fahrzeuge.')
+      .addStringOption((o) => o.setName('spieler').setDescription('Nur Fahrzeuge dieses Spielers').setAutocomplete(true).setMaxLength(40)),
   )
   .addSubcommand((s) =>
     s
-      .setName('bann-pruefen')
-      .setDescription('Zeigt, ob ein Spieler gebannt ist (Team).')
-      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (verifiziert)').setRequired(true)),
+      .setName('kennzeichen')
+      .setDescription('Kennzeichen suchen (live, Verlauf und BOLO).')
+      .addStringOption((o) => o.setName('kennzeichen').setDescription('Ganz oder teilweise').setRequired(true).setMaxLength(16)),
   )
-  .addSubcommand((s) => s.setName('banns').setDescription('Listet die Banns eurer Privatserver (Team).'))
+  .addSubcommand((s) =>
+    s
+      .setName('staff')
+      .setDescription('Staff online und Aktivität.')
+      .addIntegerOption((o) => o.setName('tage').setDescription('Zeitraum für die Aktivität (Standard 7)').setMinValue(1).setMaxValue(60)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('logs')
+      .setDescription('Ereignisse aus dem Spiel durchsuchen.')
+      .addStringOption((o) => o.setName('typ').setDescription('Art').addChoices(...Object.entries(LOG_CHOICES).map(([value, name]) => ({ name, value }))))
+      .addStringOption((o) => o.setName('spieler').setDescription('Nur dieser Spieler (Name)').setMaxLength(40))
+      .addStringOption((o) => o.setName('suche').setDescription('Text, z. B. Befehl oder Kennzeichen').setMaxLength(60))
+      .addIntegerOption((o) => o.setName('anzahl').setDescription('Einträge (Standard 20)').setMinValue(1).setMaxValue(50)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('notrufe')
+      .setDescription('Notrufe aus dem Spiel.')
+      .addStringOption((o) => o.setName('team').setDescription('Nur dieser Bereich, z. B. Polizei').setMaxLength(40))
+      .addBooleanOption((o) => o.setName('alle').setDescription('Auch abgeschlossene')),
+  )
   .addSubcommand((s) =>
     s
       .setName('rechte')
-      .setDescription('Zeigt Spielrechte in euren Privatservern (z. B. Polizei).')
-      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Discord-Nutzer (nur Team; leer = du selbst)')),
+      .setDescription('Spielrechte in euren Privatservern (z. B. Polizei).')
+      .addStringOption((o) => o.setName('spieler').setDescription('Roblox-Name oder @Person (nur Team; leer = du selbst)').setMaxLength(40)),
   )
-  .addSubcommand((s) => s.setName('rechte-abgleichen').setDescription('Gleicht die Spielrechte aller Mitglieder mit ihren Rollen ab (Team).'))
-  .addSubcommand((s) =>
-    s
-      .setName('neustart')
-      .setDescription('Wirft alle Spieler raus, damit neue Server mit dem neuesten Update starten (Team).')
-      .addStringOption((o) => o.setName('grund').setDescription('z. B. Update').setMaxLength(200))
-      .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich alle Spieler rauswerfen?').setRequired(true)),
-  )
-  .addSubcommandGroup((g) =>
-    g
-      .setName('privatserver')
-      .setDescription('Privatserver-Discords verwalten (nur Haupt-Discord).')
-      .addSubcommand((s) =>
-        s
-          .setName('verknuepfen')
-          .setDescription('Gibt einem Discord die Rechte für die Privatserver eines Besitzers.')
-          .addStringOption((o) => o.setName('discord_server_id').setDescription('ID des Privatserver-Discords (Bot muss dort sein)').setRequired(true))
-          .addStringOption((o) => o.setName('besitzer').setDescription('Roblox-Name des Privatserver-Besitzers').setRequired(true))
-          .addStringOption((o) => o.setName('name').setDescription('Anzeigename, z. B. „Polizei-RP Nord“').setRequired(true).setMaxLength(60)),
-      )
-      .addSubcommand((s) =>
-        s
-          .setName('entfernen')
-          .setDescription('Nimmt einem Discord die Privatserver-Rechte.')
-          .addStringOption((o) => o.setName('discord_server_id').setDescription('ID des Discord-Servers').setRequired(true)),
-      )
-      .addSubcommand((s) => s.setName('liste').setDescription('Zeigt alle verknüpften Privatserver-Discords.')),
-  );
+  .addSubcommand((s) => s.setName('rechte-abgleichen').setDescription('Spielrechte aller Mitglieder mit ihren Rollen abgleichen (Admin).'));
 
-const SCOPE_LABEL = {
-  main: 'Ganzes Spiel',
-  private: (scope) => `Privatserver „${scope.name}“`,
-};
-const scopeLabel = (scope) => (typeof SCOPE_LABEL[scope.type] === 'function' ? SCOPE_LABEL[scope.type](scope) : SCOPE_LABEL[scope.type]);
-const target = (scope) => (scope.type === 'main' ? 'all' : cloud.privateTarget(scope.ownerId));
-// Verifiziertes Roblox-Konto des Absenders: Das Spiel filtert Texte aus Discord in seinem Namen.
-const sender = (interaction) => links.getAccount(interaction.user.id)?.id ?? null;
+const ts = (seconds, style = 'R') => `<t:${seconds}:${style}>`;
+const flags = (p) => [p.staff && `🛡️ ${p.staff}`, p.wanted && `⭐${p.wanted}`, p.jailedUntil !== 0 && '🔒 Gefängnis', p.callsign && `📻 ${p.callsign}`].filter(Boolean).join(' · ');
+const playerLine = (p) => `[${p.name}](${profileUrl(p.id)})${p.display && p.display !== p.name ? ` (${p.display})` : ''} · ${p.team ?? 'ohne Team'}${flags(p) ? ` · ${flags(p)}` : ''}`;
+const noData = () => (live.status().lastContactAt ? 'Gerade ist kein Server online.' : 'Noch keine Live-Daten vom Spiel (siehe `/spiel-admin uebersicht`).');
+const openIngameCalls = (guildId) => cad.list(guildId, { status: 'offen', source: 'ingame', limit: 1000 }).length;
 
-// Roblox-Name oder Discord-Erwähnung eines verifizierten Nutzers → { id, name }
-async function resolvePlayer(input) {
-  const text = input.trim();
-  const mention = text.match(/^<@!?(\d+)>$/);
-  if (mention) {
-    const account = links.getAccount(mention[1]);
-    if (!account) throw new cloud.RobloxError('Diese Person hat ihr Roblox-Konto noch nicht verknüpft (`/verifizieren start`).');
-    return { id: account.id, name: account.name };
+// Lange Listen auf mehrere Embeds verteilen (max. 10 × ~4000 Zeichen)
+function chunked(title, lines, color = 'primary') {
+  const embeds = [];
+  let current = [];
+  let size = 0;
+  for (const line of lines) {
+    if (size + line.length + 1 > 3900 && current.length) {
+      embeds.push(embed(color).setDescription(current.join('\n')));
+      current = [];
+      size = 0;
+    }
+    current.push(truncate(line, 1000));
+    size += Math.min(line.length, 1000) + 1;
   }
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(text)) throw new cloud.RobloxError(`„${truncate(text, 40)}“ ist kein gültiger Roblox-Name.`);
-  const user = await findRobloxUser(text);
-  if (!user) throw new cloud.RobloxError(`Es gibt kein Roblox-Konto „${text}“.`);
-  return user;
-}
-
-function playerField(player) {
-  const discordId = links.discordIdForRoblox(player.id);
-  return {
-    name: 'Spieler',
-    value: `[${player.name}](${profileUrl(player.id)}) (\`${player.id}\`)${discordId ? `\nDiscord: <@${discordId}>` : ''}`,
-    inline: true,
-  };
-}
-
-// Mod-Log dieses Discords; Aktionen eines Privatserver-Discords landen zur Kontrolle auch im Haupt-Discord.
-async function logGame(interaction, title, fields, color = 'danger') {
-  const scope = links.scopeOf(interaction.guildId);
-  const entry = embed(color)
-    .setTitle(`🎮 ${title}`)
-    .addFields(...fields, { name: 'Von', value: `${interaction.user}`, inline: true }, { name: 'Bereich', value: scopeLabel(scope), inline: true });
-  await sendTo(interaction.guild, 'modLog', { embeds: [entry] });
-  if (scope.type !== 'private') return;
-  for (const id of links.mainGuildIds()) {
-    const guild = interaction.client.guilds.cache.get(id);
-    if (guild) await sendTo(guild, 'modLog', { embeds: [EmbedBuilder.from(entry).setTitle(`🎮 ${title} · ${scope.name}`)] });
-  }
-}
-
-const formatTime = (unix) => `<t:${unix}:f> (<t:${unix}:R>)`;
-
-// Nach deferReply die (private) Antwort ersetzen, sonst normal privat antworten.
-function respond(interaction, content) {
-  const payload = typeof content === 'string' ? { content } : content;
-  return interaction.deferred && !interaction.replied ? interaction.editReply(payload) : replyPrivate(interaction, payload);
+  if (current.length) embeds.push(embed(color).setDescription(current.join('\n')));
+  if (!embeds.length) embeds.push(embed(color).setDescription('—'));
+  embeds[0].setTitle(title);
+  return embeds.slice(0, 10);
 }
 
 const handlers = {
-  async ansage(interaction, scope) {
-    const text = interaction.options.getString('text');
-    await cloud.publish('announce', target(scope), { text, by: sender(interaction) });
-    await respond(interaction, `📢 Ansage gesendet an: **${scopeLabel(scope)}**`);
-    await logGame(interaction, 'Ansage im Spiel', [{ name: 'Text', value: text }], 'primary');
+  async status(interaction) {
+    await interaction.deferReply();
+    return interaction.editReply(await statusMessage(interaction.guildId, { openCalls: openIngameCalls(interaction.guildId) }));
   },
 
-  async kick(interaction, scope) {
-    const player = await resolvePlayer(interaction.options.getString('spieler'));
-    const reason = interaction.options.getString('grund') ?? 'Kein Grund angegeben';
-    if (scope.type === 'private' && player.id === scope.ownerId) throw new cloud.RobloxError('Der Besitzer der Privatserver kann dort nicht gekickt werden.');
-    await cloud.publish('kick', target(scope), { userId: player.id, reason, by: sender(interaction) });
-    await respond(interaction, `👢 **${player.name}** wird gekickt, falls er gerade spielt (${scopeLabel(scope)}).`);
-    await logGame(interaction, 'Kick im Spiel', [playerField(player), { name: 'Grund', value: reason }], 'warning');
-  },
-
-  async ban(interaction, scope) {
-    const player = await resolvePlayer(interaction.options.getString('spieler'));
-    const seconds = cloud.parseDuration(interaction.options.getString('dauer'));
-    const reason = interaction.options.getString('grund');
-    const note = interaction.options.getString('notiz') ?? '';
-    const by = `${interaction.user.tag} (${interaction.user.id}) über Discord`;
-
-    if (scope.type === 'main') {
-      await cloud.banUser(player.id, {
-        seconds,
-        displayReason: reason,
-        privateReason: [note, by].filter(Boolean).join(' · '),
-        excludeAltAccounts: interaction.options.getBoolean('zweitaccounts') === false,
-      });
-    } else {
-      if (player.id === scope.ownerId) throw new cloud.RobloxError('Der Besitzer der Privatserver kann dort nicht gebannt werden.');
-      const expires = seconds ? Math.floor(Date.now() / 1000) + seconds : 0;
-      await cloud.updatePrivateBans(scope.ownerId, (bans) => {
-        bans[player.id] = { name: player.name, reason, note, expires, by };
-      });
-      await cloud.publish('ban', target(scope), { userId: player.id, reason, by: sender(interaction) });
+  async server(interaction, scope) {
+    const query = interaction.options.getString('server');
+    if (!query) {
+      const servers = live.serversFor(scope);
+      const lines = servers.map(
+        (s) =>
+          `**${live.serverLabel(s)}** — ${s.players.length}/${s.maxPlayers} Spieler · ${s.players.filter((p) => p.staff).length} Staff · ${s.vehicles.length} 🚗` +
+          `${s.startedAt ? ` · läuft seit ${ts(s.startedAt)}` : ''} · Version ${s.version} · Daten ${live.ageSeconds(s)} s alt`,
+      );
+      return replyPrivate(interaction, { embeds: chunked(`🖥️ Server (${servers.length})`, lines.length ? lines : [noData()]) });
     }
-
-    await respond(interaction, `🔨 **${player.name}** ist gebannt (${cloud.formatDuration(seconds)}, ${scopeLabel(scope)}).`);
-    await logGame(interaction, 'Bann im Spiel', [
-      playerField(player),
-      { name: 'Dauer', value: cloud.formatDuration(seconds), inline: true },
-      { name: 'Grund', value: reason },
-      ...(note ? [{ name: 'Notiz', value: note }] : []),
-    ]);
+    const server = live.findServer(scope, query);
+    if (!server) return replyPrivate(interaction, `Kein Server „${truncate(query, 30)}“. Liste: \`/spiel server\``);
+    const byTeam = {};
+    for (const p of server.players) (byTeam[p.team ?? 'ohne Team'] ??= []).push(p);
+    const result = embed()
+      .setTitle(`🖥️ ${live.serverLabel(server)}`)
+      .setDescription(`JobId \`${server.job}\``)
+      .addFields(
+        { name: 'Spieler', value: `${server.players.length}/${server.maxPlayers}`, inline: true },
+        { name: 'Staff', value: String(server.players.filter((p) => p.staff).length), inline: true },
+        { name: 'Fahrzeuge', value: String(server.vehicles.length), inline: true },
+        { name: 'Läuft seit', value: server.startedAt ? ts(server.startedAt) : '—', inline: true },
+        { name: 'Spielversion', value: String(server.version), inline: true },
+        { name: 'Daten', value: `vor ${live.ageSeconds(server)} s`, inline: true },
+      );
+    for (const [team, players] of Object.entries(byTeam).slice(0, 15)) {
+      result.addFields({ name: `${team} (${players.length})`, value: truncate(players.map((p) => `${p.name}${flags(p) ? ` (${flags(p)})` : ''}`).join(', '), 1024) });
+    }
+    return replyPrivate(interaction, { embeds: [result] });
   },
 
-  async unban(interaction, scope) {
-    const player = await resolvePlayer(interaction.options.getString('spieler'));
-    if (scope.type === 'main') {
-      await cloud.unbanUser(player.id);
-    } else {
-      let existed = false;
-      await cloud.updatePrivateBans(scope.ownerId, (bans) => {
-        existed = player.id in bans;
-        delete bans[player.id];
-      });
-      if (!existed) return respond(interaction, `**${player.name}** ist in euren Privatservern nicht gebannt.`);
-      await cloud.publish('refresh', target(scope));
+  async spieler(interaction, scope) {
+    const serverQuery = interaction.options.getString('server');
+    const team = interaction.options.getString('team')?.toLowerCase();
+    const servers = serverQuery ? [live.findServer(scope, serverQuery)].filter(Boolean) : live.serversFor(scope);
+    if (serverQuery && !servers.length) return replyPrivate(interaction, `Kein Server „${truncate(serverQuery, 30)}“.`);
+    const lines = [];
+    let count = 0;
+    for (const server of servers) {
+      const players = server.players.filter((p) => !team || p.team?.toLowerCase() === team);
+      if (!players.length) continue;
+      lines.push(`__**${live.serverLabel(server)}** (${players.length})__`);
+      for (const p of [...players].sort((a, b) => (a.team ?? '').localeCompare(b.team ?? '') || a.name.localeCompare(b.name))) lines.push(playerLine(p));
+      count += players.length;
     }
-    await respond(interaction, `✅ Bann von **${player.name}** aufgehoben (${scopeLabel(scope)}).`);
-    await logGame(interaction, 'Bann im Spiel aufgehoben', [playerField(player)], 'success');
+    return replyPrivate(interaction, { embeds: chunked(`👥 Spieler online (${count})`, lines.length ? lines : [noData()]) });
   },
 
-  async 'bann-pruefen'(interaction, scope) {
-    const player = await resolvePlayer(interaction.options.getString('spieler'));
-    const result = embed().setTitle(`🔎 ${player.name}`).setURL(profileUrl(player.id)).addFields(playerField(player));
-
-    if (scope.type === 'main') {
-      const ban = await cloud.getBan(player.id);
-      if (!ban) result.setColor('#57F287').setDescription('Nicht im Spiel gebannt.');
-      else {
-        const seconds = ban.duration ? parseInt(ban.duration, 10) : null;
-        result.setColor('#ED4245').setDescription('⛔ Im ganzen Spiel gebannt.').addFields(
-          { name: 'Dauer', value: cloud.formatDuration(seconds), inline: true },
-          ...(ban.startTime ? [{ name: 'Seit', value: formatTime(Math.floor(Date.parse(ban.startTime) / 1000)), inline: true }] : []),
-          { name: 'Grund (für Spieler)', value: ban.displayReason || '—' },
-          { name: 'Notiz (Team)', value: ban.privateReason || '—' },
-        );
-        if (ban.inherited) result.addFields({ name: 'Hinweis', value: 'Bann wurde von einem anderen Konto übernommen (vermuteter Zweitaccount).' });
-      }
-    } else {
-      const ban = (await cloud.getPrivateBans(scope.ownerId))[player.id];
-      if (!ban) result.setColor('#57F287').setDescription('In euren Privatservern nicht gebannt.');
-      else {
-        result.setColor('#ED4245').setDescription('⛔ In euren Privatservern gebannt.').addFields(
-          { name: 'Bis', value: ban.expires ? formatTime(ban.expires) : 'dauerhaft', inline: true },
-          { name: 'Grund', value: ban.reason || '—' },
-          ...(ban.note ? [{ name: 'Notiz', value: ban.note }] : []),
-          { name: 'Von', value: ban.by || '—' },
-        );
-      }
+  async 'spieler-info'(interaction, scope) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const input = interaction.options.getString('spieler');
+    let online = null;
+    try {
+      online = commands.resolveOnlinePlayer(scope, input);
+    } catch {
+      online = null;
     }
-    await respond(interaction, { embeds: [result] });
+    let player = online?.player;
+    if (!player) {
+      const mention = input.match(/^<@!?(\d+)>$/);
+      const account = mention ? links.getAccount(mention[1]) : null;
+      const user = account ? { id: account.id, name: account.name } : /^[A-Za-z0-9_]{3,20}$/.test(input.trim()) ? await findRobloxUser(input.trim()).catch(() => null) : null;
+      if (!user) return interaction.editReply(`Kein Spieler „${truncate(input, 40)}“ gefunden.`);
+      player = { id: String(user.id), name: user.name, display: user.displayName ?? user.name };
+    }
+    const discordId = links.discordIdForRoblox(player.id);
+    const result = embed(online ? 'success' : 'primary')
+      .setTitle(`👤 ${player.name}${player.display && player.display !== player.name ? ` (${player.display})` : ''}`)
+      .setURL(profileUrl(player.id))
+      .addFields(
+        { name: 'Roblox-ID', value: `\`${player.id}\``, inline: true },
+        { name: 'Discord', value: discordId ? `<@${discordId}>` : 'nicht verknüpft', inline: true },
+        {
+          name: 'Status',
+          value: online
+            ? truncate(`🟢 online · ${live.serverLabel(online.server)}\nTeam: ${player.team ?? '—'}${flags(player) ? `\n${flags(player)}` : ''}${player.joinedAt ? `\nim Spiel seit ${ts(player.joinedAt)}` : ''}`, 1024)
+            : '⚫ offline',
+        },
+      );
+    const vehicles = live.findVehicles(scope, { ownerId: player.id });
+    if (vehicles.length) result.addFields({ name: `Fahrzeuge (${vehicles.length})`, value: truncate(vehicles.map(({ vehicle: v }) => `🚗 ${v.model} [${v.plate ?? '—'}]${v.color ? ` · ${v.color}` : ''}`).join('\n'), 1024) });
+    const history = events.historyFor(scope, { userId: player.id, limit: 8 });
+    if (history.length) result.addFields({ name: 'Letzte Ereignisse', value: truncate(history.map((e) => events.logLine(e, { includeModcall: true })).filter(Boolean).join('\n'), 1024) });
+    const calls = Object.values(cad.incidents(interaction.guildId))
+      .filter((i) => i.ingame?.caller?.id === player.id)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5);
+    if (calls.length) result.addFields({ name: 'Notrufe', value: truncate(calls.map(cad.lineOf).join('\n'), 1024) });
+    if (permissions.can(interaction.member, 'moderation')) {
+      const actions = commands.findHistory(interaction.guildId, { userId: player.id, limit: 5 });
+      if (actions.length) result.addFields({ name: 'Aktionen aus Discord', value: truncate(actions.map((e) => `${ts(Math.floor(e.at / 1000))} ${e.command} · ${e.status} · <@${e.by}>`).join('\n'), 1024) });
+      const banned = [...new Set(['global', bans.scopeKeyOf(scope)])].map((k) => bans.get(k, player.id)).filter(Boolean);
+      if (banned.length) result.addFields({ name: '⛔ Gebannt', value: truncate(banned.map((b) => `${b.reason} · ${b.expires ? `bis ${ts(b.expires, 'd')}` : 'dauerhaft'}`).join('\n'), 1024) });
+    }
+    const wanted = bolo.list(interaction.guildId).filter((b) => b.type === 'person' && (b.robloxId === player.id || b.name?.toLowerCase() === player.name.toLowerCase()));
+    if (wanted.length) result.addFields({ name: '📢 BOLO', value: truncate(wanted.map((b) => `**${b.id}** – ${truncate(b.reason, 100)}`).join('\n'), 1024) });
+    return interaction.editReply({ embeds: [result] });
   },
 
-  async banns(interaction, scope) {
-    if (scope.type === 'main') {
-      return respond(interaction, 'Alle Banns des ganzen Spiels findest du im Creator Hub unter **Moderation → Bans**. Einzelne Spieler prüfst du mit `/spiel bann-pruefen`.');
+  async fahrzeuge(interaction, scope) {
+    const query = interaction.options.getString('spieler');
+    let ownerId = null;
+    if (query) {
+      const match = live.findPlayers(scope, query)[0];
+      if (!match) return replyPrivate(interaction, `„${truncate(query, 40)}“ ist gerade nicht online.`);
+      ownerId = match.player.id;
     }
-    const bans = Object.entries(await cloud.getPrivateBans(scope.ownerId));
-    const lines = bans.map(
-      ([id, ban]) => `• [${ban.name ?? id}](${profileUrl(id)}) – ${truncate(ban.reason ?? '', 80)} · ${ban.expires ? `bis <t:${ban.expires}:d>` : 'dauerhaft'}`,
+    const activePlates = new Set(bolo.list(interaction.guildId).filter((b) => b.plateKey).map((b) => b.plateKey));
+    const list = live.findVehicles(scope, { ownerId });
+    const lines = list.map(
+      ({ vehicle: v, server }) =>
+        `${activePlates.has(v.plateKey) ? '🚨 ' : ''}🚗 **${v.model}** [${v.plate ?? '—'}]${v.color ? ` · ${v.color}` : ''} · ${v.ownerName ?? 'ohne Besitzer'} · ${live.serverLabel(server)}`,
     );
-    await respond(interaction, {
-      embeds: [
-        embed()
-          .setTitle(`⛔ Banns – ${scope.name} (${bans.length})`)
-          .setDescription(lines.length ? truncate(lines.join('\n'), 4000) : 'Niemand gebannt.'),
-      ],
-    });
+    return replyPrivate(interaction, { embeds: chunked(`🚗 Fahrzeuge (${list.length})`, lines.length ? lines : [live.status().lastContactAt ? 'Keine Fahrzeuge.' : noData()]) });
+  },
+
+  async kennzeichen(interaction, scope) {
+    const plate = interaction.options.getString('kennzeichen');
+    const key = normalizePlate(plate);
+    if (key.length < 2) return replyPrivate(interaction, 'Bitte mindestens 2 Zeichen.');
+    const found = live.findVehicles(scope, { plate });
+    const lines = found.map(
+      ({ vehicle: v, server }) =>
+        `🟢 **${v.plate}** · ${v.model}${v.color ? ` · ${v.color}` : ''} · Besitzer: ${v.ownerId ? `[${v.ownerName ?? v.ownerId}](${profileUrl(v.ownerId)})` : '—'} · ${live.serverLabel(server)}`,
+    );
+    const hits = bolo.search(interaction.guildId, plate).filter((b) => b.plateKey?.includes(key));
+    const past = events.historyFor(scope, { types: ['vehicle'], limit: 500 }).filter((e) => e.vehicle?.plateKey?.includes(key)).slice(0, 10);
+    const result = embed(hits.some((b) => b.status === 'aktiv') ? 'danger' : 'primary')
+      .setTitle(`🔎 Kennzeichen „${truncate(plate.toUpperCase(), 16)}“`)
+      .addFields(
+        { name: `Jetzt im Spiel (${found.length})`, value: truncate(lines.join('\n') || 'Kein passendes Fahrzeug gespawnt.', 1024) },
+        { name: 'BOLO', value: truncate(hits.map((b) => `${bolo.STATUS[b.status]} **${b.id}** – ${b.reason}`).join('\n') || 'Kein BOLO.', 1024) },
+        { name: 'Verlauf', value: truncate(past.map((e) => events.logLine(e)).join('\n') || 'Keine Einträge.', 1024) },
+      );
+    return replyPrivate(interaction, { embeds: [result] });
+  },
+
+  async staff(interaction, scope) {
+    const days = interaction.options.getInteger('tage') ?? 7;
+    const sinceSeconds = Date.now() / 1000 - days * 86_400;
+    const sinceMs = Date.now() - days * 86_400_000;
+    const online = live.staffFor(scope).map(({ player, server }) => `🛡️ **${player.name}** · ${player.staff} · ${player.team ?? '—'} · ${live.serverLabel(server)}`);
+    // Spielzeit aus „Verlassen“-Ereignissen von Staff
+    const playtime = {};
+    for (const e of events.historyFor(scope, { types: ['leave'], limit: 3000 })) {
+      if (!e.staff || e.at < sinceSeconds) continue;
+      const entry = (playtime[e.userId] ??= { name: e.name, rank: e.staff, seconds: 0, sessions: 0 });
+      entry.seconds += e.duration ?? 0;
+      entry.sessions++;
+    }
+    const top = Object.values(playtime).sort((a, b) => b.seconds - a.seconds).slice(0, 10);
+    const taken = modcalls.takenCounts(interaction.guildId, sinceMs);
+    const actions = {};
+    for (const e of commands.findHistory(interaction.guildId, { limit: 500 })) if (e.at >= sinceMs) actions[e.by] = (actions[e.by] ?? 0) + 1;
+    const score = (id) => (taken[id] ?? 0) + (actions[id] ?? 0);
+    const discordIds = [...new Set([...Object.keys(taken), ...Object.keys(actions)])].sort((a, b) => score(b) - score(a)).slice(0, 10);
+    const result = embed()
+      .setTitle(`🛡️ Staff · letzte ${days} Tage`)
+      .addFields(
+        { name: `Jetzt online (${online.length})`, value: truncate(online.join('\n') || 'Niemand.', 1024) },
+        { name: 'Spielzeit im Spiel', value: truncate(top.map((s) => `**${s.name}** (${s.rank}) · ${(s.seconds / 3600).toFixed(1)} Std. in ${s.sessions} Sitzung(en)`).join('\n') || 'Keine Daten.', 1024) },
+        { name: 'Discord-Aktivität', value: truncate(discordIds.map((id) => `<@${id}> · ${taken[id] ?? 0} Mod-Calls · ${actions[id] ?? 0} Befehle`).join('\n') || 'Keine Daten.', 1024) },
+      );
+    return replyPrivate(interaction, { embeds: [result] });
+  },
+
+  async logs(interaction, scope) {
+    const type = interaction.options.getString('typ') ?? 'alle';
+    const name = interaction.options.getString('spieler');
+    const limit = interaction.options.getInteger('anzahl') ?? 20;
+    const types = type === 'alle' ? null : type === 'join' ? ['join', 'leave'] : [type];
+    let userId = null;
+    if (name) {
+      const match = live.findPlayers(scope, name)[0] ?? null;
+      const user = match ? { id: match.player.id } : /^[A-Za-z0-9_]{3,20}$/.test(name) ? await findRobloxUser(name).catch(() => null) : null;
+      if (!user) return replyPrivate(interaction, `Spieler „${truncate(name, 40)}“ nicht gefunden.`);
+      userId = String(user.id);
+    }
+    const list = events.historyFor(scope, { types, userId, query: interaction.options.getString('suche'), limit });
+    const lines = list.map((e) => `${events.logLine(e, { includeModcall: true })} · ${ts(e.at, 'd')}`);
+    return replyPrivate(interaction, { embeds: chunked(`📜 Logs · ${LOG_CHOICES[type]} (${list.length})`, lines.length ? lines : ['Keine Einträge.']) });
+  },
+
+  async notrufe(interaction) {
+    const team = interaction.options.getString('team');
+    const list = cad.list(interaction.guildId, { status: interaction.options.getBoolean('alle') ? 'alle' : 'offen', source: 'ingame', team, limit: 25 });
+    return replyPrivate(interaction, { embeds: chunked(`🚨 Notrufe aus dem Spiel (${list.length})`, list.length ? list.map(cad.lineOf) : ['Keine Notrufe.']) });
   },
 
   async rechte(interaction, scope) {
     if (scope.type !== 'private') {
-      return respond(interaction, 'Spielrechte gibt es nur für Privatserver. Jeder Privatserver-Discord stellt sie mit `/einstellungen spielrecht` ein.');
+      return replyPrivate(interaction, 'Spielrechte gibt es nur für Privatserver. Jeder Privatserver-Discord stellt sie mit `/einstellungen spielrecht` ein.');
     }
     const input = interaction.options.getString('spieler');
-    const player = input ? await resolvePlayer(input) : rights.accountFor(interaction.guildId, interaction.user.id);
-    if (!player) throw new cloud.RobloxError('Du hast noch kein Roblox-Konto verknüpft. Nutze `/verifizieren start`.');
-
-    const current = await rights.getRights(scope.ownerId, player.id);
+    if (input && !permissions.can(interaction.member, 'moderation')) return replyPrivate(interaction, 'Die Rechte anderer sieht nur das Team.');
+    let player;
+    try {
+      player = input ? await commands.resolveAnyPlayer(input) : rights.accountFor(interaction.guildId, interaction.user.id);
+    } catch (err) {
+      return replyPrivate(interaction, `❌ ${err.message}`);
+    }
+    if (!player) return replyPrivate(interaction, 'Du hast noch kein Roblox-Konto verknüpft. Nutze `/verifizieren start`.');
+    const current = rights.getRights(scope.ownerId, player.id);
     const names = Object.fromEntries(rights.availableRights(interaction.guildId).map((r) => [r.id, r.name]));
     const howTo = Object.entries(rights.rightRoles(interaction.guildId)).map(([right, roleId]) => `${names[right] ?? right}: <@&${roleId}>`);
-    await respond(interaction, {
+    return replyPrivate(interaction, {
       embeds: [
         embed(current.length ? 'success' : 'primary')
           .setTitle(`🔑 Spielrechte – ${player.name}`)
           .setURL(profileUrl(player.id))
-          .setDescription(
-            `In den Privatservern **${scope.name}**:\n` + (current.length ? current.map((r) => `✅ ${names[r] ?? r}`).join('\n') : 'Keine besonderen Rechte.'),
-          )
+          .setDescription(`In den Privatservern **${scope.name}**:\n` + (current.length ? current.map((r) => `✅ ${names[r] ?? r}`).join('\n') : 'Keine besonderen Rechte.'))
           .addFields({ name: 'Welche Rolle gibt welches Recht?', value: howTo.join('\n') || 'Noch nicht eingestellt (`/einstellungen spielrecht`).' }),
       ],
     });
   },
 
   async 'rechte-abgleichen'(interaction, scope) {
-    if (scope.type !== 'private') return respond(interaction, 'Spielrechte gibt es nur für Privatserver-Discords.');
+    if (scope.type !== 'private') return replyPrivate(interaction, 'Spielrechte gibt es nur für Privatserver-Discords.');
+    if (!permissions.can(interaction.member, 'admin')) return replyPrivate(interaction, permissions.deny('admin'));
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const count = await rights.syncGuild(interaction.guild, { log: true });
-    await respond(interaction, `🔄 ${count} Person(en) abgeglichen. Änderungen stehen im Mod-Log.`);
-  },
-
-  async neustart(interaction, scope) {
-    if (!interaction.options.getBoolean('bestaetigen')) return respond(interaction, 'Abgebrochen.');
-    const reason = interaction.options.getString('grund') ?? 'Neustart';
-    await cloud.publish('shutdown', target(scope), { reason, by: sender(interaction) });
-    await respond(interaction, `♻️ Neustart gesendet an: **${scopeLabel(scope)}**. Alle Spieler werden rausgeworfen und können sofort wieder joinen.`);
-    await logGame(interaction, 'Server-Neustart', [{ name: 'Grund', value: reason }], 'warning');
-  },
-};
-
-const privateServerHandlers = {
-  async verknuepfen(interaction) {
-    const guildId = interaction.options.getString('discord_server_id').trim();
-    const guild = interaction.client.guilds.cache.get(guildId);
-    if (!guild) return respond(interaction, '❌ Der Bot ist nicht auf diesem Discord-Server. Lade ihn zuerst dort ein und prüfe die ID.');
-    const owner = await resolvePlayer(interaction.options.getString('besitzer'));
-    const name = interaction.options.getString('name').trim();
-    const previous = links.scopeOf(guildId);
-    try {
-      links.linkPrivateServer(guildId, { ownerId: owner.id, ownerName: owner.name, name, linkedBy: interaction.user.id });
-    } catch (err) {
-      throw new cloud.RobloxError(err.message);
-    }
-    if (previous.type === 'private' && previous.ownerId !== owner.id) await rights.clearGuild(guildId, previous.ownerId);
-    rights.syncGuild(guild).catch((err) => console.error('[spielrechte]', err.message));
-
-    await respond(interaction, `✅ **${guild.name}** darf jetzt die Privatserver von **${owner.name}** verwalten („${name}“).`);
-    await sendTo(guild, 'modLog', {
-      embeds: [
-        embed('success')
-          .setTitle('🎮 Mit dem Spiel verknüpft')
-          .setDescription(
-            `Dieser Discord ist jetzt mit den Privatservern von **${owner.name}** verknüpft („${name}“).\n` +
-              'Das Team kann dort mit `/spiel` Ansagen machen, kicken, bannen und neu starten.',
-          ),
-      ],
-    });
-    await logGame(interaction, 'Privatserver verknüpft', [
-      { name: 'Discord', value: `${guild.name} (\`${guild.id}\`)` },
-      { name: 'Besitzer', value: `[${owner.name}](${profileUrl(owner.id)})`, inline: true },
-      { name: 'Name', value: name, inline: true },
-    ], 'success');
-  },
-
-  async entfernen(interaction) {
-    const guildId = interaction.options.getString('discord_server_id').trim();
-    const previous = links.scopeOf(guildId);
-    if (!links.unlinkPrivateServer(guildId)) return respond(interaction, 'Dieser Discord-Server ist mit keinem Privatserver verknüpft.');
-    // Spielrechte, die dieser Discord vergeben hat, gelten nicht mehr
-    if (previous.type === 'private') await rights.clearGuild(guildId, previous.ownerId);
-    await respond(interaction, `✅ Verknüpfung von \`${guildId}\` entfernt.`);
-    const guild = interaction.client.guilds.cache.get(guildId);
-    if (guild) await sendTo(guild, 'modLog', { embeds: [embed('danger').setTitle('🎮 Verknüpfung mit dem Spiel entfernt')] });
-  },
-
-  async liste(interaction) {
-    const lines = links.listPrivateServers().map((link) => {
-      const guild = interaction.client.guilds.cache.get(link.guildId);
-      return `• **${link.name}** – ${guild ? guild.name : 'Bot nicht mehr dort'} (\`${link.guildId}\`) · Besitzer [${link.ownerName}](${profileUrl(link.ownerId)})`;
-    });
-    await respond(interaction, {
-      embeds: [embed().setTitle('🎮 Privatserver-Discords').setDescription(lines.length ? truncate(lines.join('\n'), 4000) : 'Noch keine verknüpft.')],
-    });
+    return interaction.editReply(`🔄 ${count} Person(en) abgeglichen. Änderungen stehen im Mod-Log.`);
   },
 };
 
 module.exports = {
   data: builder,
-  resolvePlayer,
 
   async execute(interaction) {
-    const group = interaction.options.getSubcommandGroup();
     const sub = interaction.options.getSubcommand();
-    if (sub === 'status') {
-      await interaction.deferReply();
-      return interaction.editReply(await statusMessage(interaction.guildId));
-    }
-
-    const ownRights = sub === 'rechte' && !interaction.options.getString('spieler'); // eigene Rechte darf jeder sehen
-    if (!ownRights && !isStaff(interaction.member)) return replyPrivate(interaction, 'Das darf nur das Team (Staff-Rolle oder „Server verwalten“).');
-    if (!cloud.isConfigured()) {
-      return replyPrivate(interaction, 'Das Spiel ist noch nicht verbunden: In der `.env` fehlen `ROBLOX_UNIVERSE_ID` und `ROBLOX_API_KEY` (siehe docs/roblox.md).');
-    }
-
     const scope = links.scopeOf(interaction.guildId);
-    if (group === 'privatserver' && scope.type !== 'main') return replyPrivate(interaction, 'Privatserver verwaltet nur der Haupt-Discord.');
+    if (sub === 'status') return handlers.status(interaction, scope);
     if (scope.type === 'none') {
-      return replyPrivate(
-        interaction,
-        'Dieser Discord ist mit keinem Teil des Spiels verknüpft. Das Team des Haupt-Discords kann ihn mit `/spiel privatserver verknuepfen` mit euren Privatservern verbinden.',
+      return replyPrivate(interaction, 'Dieser Discord ist mit keinem Teil des Spiels verknüpft. Hier gibt es nur `/spiel status`.');
+    }
+    if (sub !== 'rechte' && !permissions.can(interaction.member, 'view')) return replyPrivate(interaction, permissions.deny('view'));
+    return handlers[sub](interaction, scope);
+  },
+
+  async autocomplete(interaction) {
+    const scope = links.scopeOf(interaction.guildId);
+    if (scope.type === 'none' || !permissions.can(interaction.member, 'view')) return interaction.respond([]);
+    const focused = interaction.options.getFocused(true);
+    const q = String(focused.value ?? '').toLowerCase();
+    if (focused.name === 'server') {
+      return interaction.respond(
+        live
+          .serversFor(scope)
+          .filter((s) => !q || live.serverLabel(s).toLowerCase().includes(q))
+          .slice(0, 25)
+          .map((s) => ({ name: truncate(`${live.serverLabel(s)} — ${s.players.length}/${s.maxPlayers}`, 100), value: s.job.slice(0, 64) })),
       );
     }
-
-    // Roblox antwortet nicht immer innerhalb der 3 Sekunden, die Discord für eine Antwort lässt.
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    try {
-      if (group === 'privatserver') await privateServerHandlers[sub](interaction);
-      else await handlers[sub](interaction, scope);
-    } catch (err) {
-      if (!(err instanceof cloud.RobloxError)) {
-        console.error(`[/spiel ${sub}]`, err);
-        return respond(interaction, '❌ Da ist etwas schiefgelaufen. Details stehen in der Konsole.');
-      }
-      await respond(interaction, `❌ ${err.message}`);
+    if (focused.name === 'team') {
+      const teams = [...new Set(live.serversFor(scope).flatMap((s) => s.teams))].filter((t) => t.toLowerCase().includes(q));
+      return interaction.respond(teams.slice(0, 25).map((t) => ({ name: t, value: t })));
     }
+    const players = live.playersFor(scope).filter(({ player }) => !q || player.name.toLowerCase().includes(q) || player.display.toLowerCase().includes(q));
+    return interaction.respond(players.slice(0, 25).map(({ player, server }) => ({ name: truncate(`${player.name} (${player.display}) · ${live.serverLabel(server)}`, 100), value: player.name })));
   },
 };

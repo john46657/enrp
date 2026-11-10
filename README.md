@@ -10,7 +10,9 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 | Bereich | Befehle / Features |
 |---|---|
 | 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
-| 🎮 **Roblox-Spiel** | `/spiel status\|ansage\|kick\|ban\|unban\|bann-pruefen\|banns\|neustart` direkt aus Discord · Banns über die offizielle Roblox-Ban-API · **Privatserver-Discords** moderieren nur ihre eigenen Privatserver · **Spielrechte nur für Privatserver**: angenommene Bewerbung → Discord-Rolle → z. B. Polizei-Team im Privatserver, Rolle weg → Recht weg · `/verifizieren`: Discord ↔ Roblox-Konto mit Rolle und Nickname auf allen Servern · Bot-Status zeigt Spieler im Spiel – **ausführlich in [docs/roblox.md](docs/roblox.md)** |
+| 🎮 **Roblox-Spiel (Live)** | Euer eigenes Spiel spricht über eure Domain direkt mit dem Bot (signierte Webhooks, kein ER:LC nötig) · `/spiel`: Status, Server, Live-Spieler, Spieler-Info, Fahrzeuge, Kennzeichen, Staff, Logs, Notrufe · `/ingame`: PM, Kick, Bann, Jail, Heal, Kill, Respawn, Wanted, Team, Ansage, Neustart mit Bestätigung aus dem Spiel · Logs je Art in eigene Kanäle · Live-Panel · **Privatserver-Discords** steuern nur ihre Privatserver · **Spielrechte nur für Privatserver** · `/verifizieren` – **[docs/live-system.md](docs/live-system.md)**, [docs/roblox.md](docs/roblox.md) |
+| 🚓 **CAD & BOLO** | `/cad`: Einsätze aus Ingame-Notrufen und Discord, Dispatch-Kanal mit Buttons, Einheiten-Status, Notizen, Berichte, Suche, Statistik · `/bolo`: Personen- und Fahrzeug-Fahndungen mit automatischem Treffer-Alarm |
+| 🛠️ **Admin-Center** | `/spiel-admin`: Übersicht, Verbindungstest, Bridge-Schlüssel, API-Logs, Intervalle, Log-Kanäle, Berechtigungsstufen, Privatserver-Discords |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
@@ -40,8 +42,8 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 DISCORD_TOKEN=dein-bot-token
 ```
 
-Für das eigene Roblox-Spiel kommen noch `ROBLOX_UNIVERSE_ID`, `ROBLOX_API_KEY` und `ROBLOX_MAIN_GUILD_IDS` dazu –
-Schritt für Schritt in [docs/roblox.md](docs/roblox.md#1-einrichtung-einmalig-ca-10-minuten).
+Für das eigene Roblox-Spiel kommen `PUBLIC_URL`, `ENRP_SECRET` und `ROBLOX_MAIN_GUILD_IDS` dazu (optional
+`ROBLOX_UNIVERSE_ID`, `ROBLOX_API_KEY`) – Schritt für Schritt in [docs/live-system.md](docs/live-system.md#2-einrichtung).
 
 `GUILD_ID` brauchst du nicht mehr. Nur wenn der Bot schon vor dem Mehr-Server-Update lief und inzwischen auf
 mehreren Servern ist, trägst du dort die ID des alten Servers ein, damit dessen `/einstellungen`-Änderungen
@@ -141,7 +143,8 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 23 Slash-Commands auf „…“ registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …`, für jeden Server `✅ 27 Slash-Commands auf „…“ registriert` und
+   `✅ Bridge-Webserver läuft auf Port …` stehen.
 
 Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.
@@ -154,8 +157,8 @@ Auf **jedem** Server, auf dem der Bot läuft:
 2. `/ticket panel` im Support-Kanal ausführen.
 3. `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
 4. Optional `/rollenpanel` für selbst wählbare Rollen.
-5. Roblox-Spiel: einmalig nach [docs/roblox.md](docs/roblox.md) einrichten. Privatserver-Discords verknüpft der
-   Haupt-Discord mit `/spiel privatserver verknuepfen`.
+5. Roblox-Spiel: einmalig nach [docs/live-system.md](docs/live-system.md) einrichten. Privatserver-Discords verknüpft der
+   Haupt-Discord mit `/spiel-admin privatserver verknuepfen`.
 
 ## Projektstruktur
 
@@ -165,7 +168,10 @@ config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
 src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
-src/lib/roblox/…      Roblox Open Cloud, Discord-Bereiche (Haupt/Privatserver), Verifizierung, Spielrechte
+src/lib/roblox/…      Discord-Bereiche (Haupt/Privatserver), Verifizierung, Spielrechte, Roblox Open Cloud (optional)
+src/lib/game/…        Live-Daten, Ereignisse, Befehle ans Spiel, Banns, CAD, BOLO, Mod-Calls, Berechtigungen
+src/lib/web/…         Bridge-Webserver (Domain) und Signaturprüfung
 roblox/…              Skript für euer Roblox-Spiel (kommt in den ServerScriptService)
 scripts/check.js      Offline-Prüfung: npm run check
+scripts/test-lua-crypto.py  Prüft SHA-256/HMAC des Spiel-Skripts gegen den Bot (pip install lupa)
 ```
