@@ -5,6 +5,7 @@ const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
 const stats = require('../../lib/stats');
 const { isValidTimeZone } = require('../../lib/time');
+const { parsePlaceId, gameUrl } = require('../../lib/robloxGame');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -116,8 +117,8 @@ function overview(guild) {
         inline: true,
       },
       {
-        name: 'FiveM',
-        value: `Adresse: ${config.fivem.address ? `\`${config.fivem.address}\`` : '—'}\nVerbinden: ${config.fivem.connectUrl || '—'}`,
+        name: 'Roblox',
+        value: `Spiel: ${parsePlaceId(config.roblox.game) ? gameUrl(parsePlaceId(config.roblox.game)) : '—'}`,
         inline: true,
       },
       {
@@ -344,10 +345,9 @@ const builder = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
-      .setName('fivem')
-      .setDescription('Gameserver für /serverstatus (- = leeren).')
-      .addStringOption((o) => o.setName('adresse').setDescription('IP:Port, z. B. 123.45.67.89:30120'))
-      .addStringOption((o) => o.setName('verbinden_url').setDescription('z. B. https://cfx.re/join/abc123')),
+      .setName('roblox')
+      .setDescription('Roblox-Spiel für /serverstatus (- = leeren).')
+      .addStringOption((o) => o.setName('spiel').setDescription('Spiel-Link oder Place-ID, z. B. https://www.roblox.com/games/123456').setRequired(true)),
   )
   .addSubcommand((s) =>
     s
@@ -580,11 +580,11 @@ function changesFor(interaction, sub) {
       if (!isValidTimeZone(zone)) throw new Error(`Unbekannte Zeitzone „${zone}“. Beispiele: Europe/Berlin, Europe/Vienna, America/New_York`);
       return [['timezone', zone]];
     }
-    case 'fivem':
-      return collect(interaction, [
-        ['adresse', 'fivem.address', 'getString', (v) => clearable(v).replace(/^https?:\/\//, '')],
-        ['verbinden_url', 'fivem.connectUrl', 'getString', clearable],
-      ]);
+    case 'roblox': {
+      const value = clearable(o.getString('spiel'));
+      if (value && !parsePlaceId(value)) throw new Error('Kein gültiger Roblox-Spiel-Link. Beispiel: https://www.roblox.com/games/123456 oder nur 123456');
+      return [['roblox.game', value ? parsePlaceId(value) : '']];
+    }
     default:
       return [];
   }
