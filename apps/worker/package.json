@@ -6,6 +6,7 @@
   "exports": {
     "./backup": "./src/jobs/backup.ts",
     "./messages": "./src/jobs/messages.ts",
+    "./dispatch-messages": "./src/jobs/dispatch-messages.ts",
     "./watchdog": "./src/jobs/watchdog.ts"
   },
   "scripts": {

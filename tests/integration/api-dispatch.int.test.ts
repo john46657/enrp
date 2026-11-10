@@ -88,4 +88,48 @@ describe('API: Leitstelle', () => {
     );
     await app.close();
   });
+
+  it('Fahndungen und Ingame-Aktionen über die API', async () => {
+    const { app } = await createTestApp();
+    const owner = botHeaders(OWNER_ID);
+    expect((await app.inject({ url: '/api/v1/dispatch/bolos', headers: botHeaders(USER) })).statusCode).toBe(403);
+    expect((await app.inject({ url: '/api/v1/roblox/player-actions', headers: botHeaders(USER) })).statusCode).toBe(
+      403,
+    );
+
+    const create = (key: string, payload: object) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/dispatch/bolos',
+        headers: { ...owner, 'idempotency-key': key },
+        payload,
+      });
+    expect((await create('bolo-key-bad-00001', { kind: 'person', reason: 'Ohne Ziel' })).statusCode).toBe(400);
+    expect((await create('bolo-key-bad-00002', { kind: 'boot', plate: 'X', reason: 'x' })).statusCode).toBe(400);
+    const created = await create('bolo-key-create-01', { kind: 'vehicle', plate: 'EN-AB 12', reason: 'Gestohlen' });
+    expect(created.statusCode).toBe(200);
+    expect(created.json()).toMatchObject({ number: 1, plateNormalized: 'ENAB12', status: 'active' });
+
+    const list = await app.inject({ url: '/api/v1/dispatch/bolos?status=active', headers: owner });
+    expect(list.json()).toMatchObject({ total: 1 });
+    expect((await app.inject({ url: '/api/v1/dispatch/bolos/1', headers: owner })).json().plate).toBe('EN-AB 12');
+    const resolve = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dispatch/bolos/1/resolve',
+      headers: owner,
+      payload: { note: 'Gefunden' },
+    });
+    expect(resolve.json()).toMatchObject({ status: 'resolved' });
+
+    const action = (payload: object) =>
+      app.inject({ method: 'POST', url: '/api/v1/roblox/players/4711/actions', headers: owner, payload });
+    expect((await action({ command: { action: 'jail' }, reason: 'Ohne Minuten' })).statusCode).toBe(400);
+    expect((await action({ command: { action: 'fly' }, reason: 'Unbekannt' })).statusCode).toBe(400);
+    expect((await action({ command: { action: 'heal' } })).statusCode).toBe(400); // Begründung fehlt
+    const offline = await action({ command: { action: 'heal' }, reason: 'Spieler offline' });
+    expect(offline.statusCode).toBe(400);
+    expect(offline.json().error.message).toContain('online');
+    expect((await app.inject({ url: '/api/v1/roblox/player-actions', headers: owner })).json().items).toEqual([]);
+    await app.close();
+  });
 });

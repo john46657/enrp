@@ -26,6 +26,7 @@ import { isUniqueViolation } from '../util';
 import { confirmRedemptionDelivered, currentMaintenance, inGameAnnouncements, redeemCode } from './community';
 import { endActiveDuty, endDuty, startDuty } from './duty';
 import { getActiveMembership } from './factions';
+import { checkBoloHits } from './bolo';
 import { activeRobloxBan, pendingRobloxSanctions } from './moderation';
 import { upsertRobloxUser } from './verification';
 import { vehiclesForPlayer } from './vehicles';
@@ -281,6 +282,12 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
     return server!;
   });
   ctx.realtime.publish('servers', 'server.heartbeat', { jobId: input.jobId, playerCount: input.players.length });
+  // Fahndungsabgleich (BOLO). Fehler dürfen den Heartbeat nicht scheitern lassen.
+  try {
+    await checkBoloHits(ctx, result, live);
+  } catch (err) {
+    ctx.logger.error({ err: (err as Error).message }, 'BOLO-Abgleich fehlgeschlagen');
+  }
   const since = input.announcementsSince ? new Date(input.announcementsSince) : new Date(now.getTime() - 5 * 60_000);
   const maintenance = await currentMaintenance(ctx.db, now);
   return {
@@ -519,7 +526,7 @@ export async function takeServerCommands(ctx: CoreContext, serverId: string) {
     .returning();
   return open
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .map((c) => ({ id: c.id, type: c.type, robloxUserId: c.robloxUserId, message: c.message }));
+    .map((c) => ({ id: c.id, type: c.type, robloxUserId: c.robloxUserId, message: c.message, params: c.params }));
 }
 
 /**

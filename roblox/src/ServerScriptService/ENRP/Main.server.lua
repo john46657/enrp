@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local MessagingService = game:GetService("MessagingService")
 
+local Actions = require(script.Parent.Actions)
 local Api = require(script.Parent.Api)
 local Config = require(script.Parent.Config)
 local Dispatch = require(script.Parent.Dispatch)
@@ -134,7 +135,8 @@ local function applySanction(sanction: any)
 	Api.request("POST", ("/api/v1/game/sanctions/%s/ack"):format(sanction.id), { jobId = Api.jobId(), success = ok, error = if ok then nil else tostring(err) })
 end
 
--- Befehle aus dem Dashboard (Nachricht an Server/Spieler, Herunterfahren). Jede ID wird nur einmal ausgeführt.
+-- Befehle aus Dashboard und Discord (Nachricht an Server/Spieler, Herunterfahren, Ingame-Aktionen).
+-- Jede ID wird nur einmal ausgeführt.
 local function applyCommand(command: any)
 	if state.handledCommands[command.id] then
 		return
@@ -149,6 +151,9 @@ local function applyCommand(command: any)
 				error("Spieler ist nicht auf diesem Server")
 			end
 			announce:FireClient(player, "Nachricht vom Team", command.message)
+		elseif Actions.handles(command.type) then
+			-- Ingame-Aktion an einem Spieler (Heilen, Töten, Respawn, Gefängnis, Fahndung, Team)
+			Actions.run(command)
 		elseif command.type == "shutdown" then
 			state.shuttingDown = true
 			local text = command.message or "Der Server wird vom Team neu gestartet."
@@ -232,6 +237,8 @@ end
 
 -- Notrufe, Mod-Calls und Protokoll-Ereignisse (Chat-Befehle siehe Config.CallCommands)
 Dispatch.init(announce)
+-- Ingame-Aktionen (Gefängnis-Zeiten, Respawn im Gefängnis, ServerStorage.ENRP.Gefaengnis)
+Actions.init(announce)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()

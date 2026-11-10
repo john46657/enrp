@@ -1,4 +1,200 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Item class="Folder" referent="RBX6"><Properties><string name="Name">ENRP</string></Properties><Item class="ModuleScript" referent="RBX0"><Properties><string name="Name">Api</string><ProtectedString name="Source"><![CDATA[--!strict
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Item class="Folder" referent="RBX8"><Properties><string name="Name">ENRP</string></Properties><Item class="ModuleScript" referent="RBX0"><Properties><string name="Name">Actions</string><ProtectedString name="Source"><![CDATA[-- Ingame-Aktionen aus Dashboard und Discord (ModuleScript): Heilen, Töten, Respawn, Gefängnis, Fahndungsstufe, Team.
+-- Das Backend legt sie als Server-Befehle an; Main.server.lua holt sie ab und ruft Actions.run auf.
+-- Bewusst in einfacher Syntax geschrieben (gültiges Luau und Lua 5.1), damit es sich überall prüfen lässt.
+--
+-- Gefängnis: Attribut ENRP_Jail = Entlass-Zeitpunkt (os.time()), 0 = frei. Der Spieler wird zu einem Part mit dem
+-- Tag Config.JailTag teleportiert (auch nach jedem Respawn) und optional ins Team Config.JailTeam gesetzt.
+-- Eigene Skripte können ENRP_Jail lesen oder über ServerStorage.ENRP.Gefaengnis:Fire(player, minuten) selbst einsperren.
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ServerStorage = game:GetService("ServerStorage")
+local Teams = game:GetService("Teams")
+
+local Config = require(script.Parent.Config)
+
+local Actions = {}
+
+local announce = nil
+local previousTeam = {} -- Team vor dem Gefängnis, um es beim Entlassen wiederherzustellen
+
+local HANDLED = { heal = true, kill = true, respawn = true, jail = true, unjail = true, wanted = true, team = true }
+
+function Actions.handles(commandType)
+	return HANDLED[commandType] == true
+end
+
+local function notify(player, title, text)
+	if announce and text then
+		announce:FireClient(player, title, text)
+	end
+end
+
+local function humanoidOf(player)
+	local character = player.Character
+	return character and character:FindFirstChildOfClass("Humanoid")
+end
+
+local function findTeam(name)
+	if type(name) ~= "string" then
+		return nil
+	end
+	for _, team in ipairs(Teams:GetTeams()) do
+		if string.lower(team.Name) == string.lower(name) then
+			return team
+		end
+	end
+	return nil
+end
+
+local function jailSpot()
+	local spots = {}
+	for _, part in ipairs(CollectionService:GetTagged(Config.JailTag or "ENRPGefaengnis")) do
+		if part:IsA("BasePart") and part:IsDescendantOf(workspace) then
+			table.insert(spots, part)
+		end
+	end
+	if #spots == 0 then
+		return nil
+	end
+	return spots[math.random(1, #spots)]
+end
+
+local function isJailed(player)
+	local value = tonumber(player:GetAttribute("ENRP_Jail"))
+	return value ~= nil and value > 0
+end
+
+-- Gefangene an einen Gefängnis-Part setzen (nach dem Spawnen kurz warten, bis der Charakter steht)
+local function placeInJail(player)
+	local spot = jailSpot()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if spot and root then
+		character:PivotTo(spot.CFrame + Vector3.new(0, 3, 0))
+	end
+end
+
+function Actions.jail(player, minutes)
+	minutes = math.clamp(math.floor(tonumber(minutes) or 5), 1, 240)
+	player:SetAttribute("ENRP_Jail", os.time() + minutes * 60)
+	local jailTeam = findTeam(Config.JailTeam)
+	if jailTeam and player.Team ~= jailTeam then
+		previousTeam[player] = player.Team
+		player.Team = jailTeam
+	end
+	placeInJail(player)
+end
+
+function Actions.unjail(player)
+	if not isJailed(player) then
+		return false
+	end
+	player:SetAttribute("ENRP_Jail", 0)
+	local jailTeam = findTeam(Config.JailTeam)
+	if jailTeam and player.Team == jailTeam then
+		player.Team = previousTeam[player] or findTeam(Config.ReleaseTeam)
+	end
+	previousTeam[player] = nil
+	player:LoadCharacter()
+	return true
+end
+
+-- Führt einen Befehl aus. Fehler werden geworfen und von Main.server.lua an das Backend gemeldet.
+function Actions.run(command)
+	local player = Players:GetPlayerByUserId(command.robloxUserId)
+	if not player then
+		error("Spieler ist nicht auf diesem Server")
+	end
+	local params = command.params or {}
+	local kind = command.type
+	if kind == "heal" then
+		local humanoid = humanoidOf(player)
+		if not humanoid then
+			error("Spieler hat keinen Charakter")
+		end
+		humanoid.Health = humanoid.MaxHealth
+	elseif kind == "kill" then
+		local humanoid = humanoidOf(player)
+		if not humanoid then
+			error("Spieler hat keinen Charakter")
+		end
+		humanoid.Health = 0
+	elseif kind == "respawn" then
+		player:LoadCharacter()
+	elseif kind == "jail" then
+		Actions.jail(player, params.minutes)
+	elseif kind == "unjail" then
+		if not Actions.unjail(player) then
+			error("Spieler ist nicht im Gefängnis")
+		end
+	elseif kind == "wanted" then
+		player:SetAttribute("ENRP_Wanted", math.clamp(math.floor(tonumber(params.level) or 0), 0, 5))
+	elseif kind == "team" then
+		local team = findTeam(params.team)
+		if not team then
+			error("Team nicht gefunden: " .. tostring(params.team))
+		end
+		player.Team = team
+		player:LoadCharacter()
+	else
+		error("Unbekannte Aktion: " .. tostring(kind))
+	end
+	notify(player, "Hinweis vom Team", command.message)
+end
+
+function Actions.init(announceEvent)
+	announce = announceEvent
+
+	local function watch(player)
+		player.CharacterAdded:Connect(function()
+			if isJailed(player) then
+				task.wait(0.5)
+				placeInJail(player)
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(watch)
+	for _, player in ipairs(Players:GetPlayers()) do
+		watch(player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		previousTeam[player] = nil
+	end)
+
+	-- Abgelaufene Gefängnisstrafen beenden
+	task.spawn(function()
+		while true do
+			task.wait(5)
+			local now = os.time()
+			for _, player in ipairs(Players:GetPlayers()) do
+				local untilTime = tonumber(player:GetAttribute("ENRP_Jail"))
+				if untilTime and untilTime > 0 and now >= untilTime then
+					Actions.unjail(player)
+					notify(player, "🔓 Entlassen", "Deine Zeit im Gefängnis ist vorbei.")
+				end
+			end
+		end
+	end)
+
+	-- Schnittstelle für eigene Skripte (gleicher Ordner wie Dispatch: ServerStorage.ENRP)
+	local api = ServerStorage:FindFirstChild("ENRP")
+	if not api then
+		api = Instance.new("Folder")
+		api.Name = "ENRP"
+		api.Parent = ServerStorage
+	end
+	local jailEvent = Instance.new("BindableEvent")
+	jailEvent.Name = "Gefaengnis"
+	jailEvent.Event:Connect(function(player, minutes)
+		if typeof(player) == "Instance" and player:IsA("Player") then
+			Actions.jail(player, minutes)
+		end
+	end)
+	jailEvent.Parent = api
+end
+
+return Actions
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">Api</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Authentifizierter HTTP-Client für die ENRP-API. Läuft ausschließlich auf dem Server.
 -- Jede Anfrage trägt: Bearer-Schlüssel (aus dem Secrets Store), Zeitstempel und Nonce (Replay-Schutz).
 local HttpService = game:GetService("HttpService")
@@ -113,7 +309,7 @@ function Api.request(method: string, path: string, body: any?, idempotencyKey: s
 end
 
 return Api
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Konfiguration der ENRP-Integration. Enthält KEINE Geheimnisse:
 -- Der API-Schlüssel liegt ausschließlich im Roblox Secrets Store (Creator Hub → Spiel → Secrets).
 local Config = {
@@ -143,10 +339,398 @@ local Config = {
 	-- Zugang verweigern, wenn das Backend beim Betreten nicht erreichbar ist?
 	-- false = Spieler dürfen spielen; Bann-Prüfung wird beim nächsten Heartbeat nachgeholt.
 	DenyJoinWhenBackendDown = false,
+
+	-- Leitstelle: Chat-Befehle für Notrufe (Befehl → Bereich, muss im Dashboard unter Leitstelle existieren).
+	CallCommands = { ["/notruf"] = "Polizei", ["/110"] = "Polizei", ["/112"] = "Rettungsdienst", ["/feuerwehr"] = "Feuerwehr" },
+	ModCallCommand = "/modcall",
+	CallCooldownSeconds = 60,
+	ModCallCooldownSeconds = 120,
+	-- CollectionService-Tag für Fahrzeug-Modelle (Live-Lage, Kennzeichen-Suche, Fahrzeug-Protokoll).
+	VehicleTag = "ENRPFahrzeug",
+	-- CollectionService-Tag für Orts-Parts (Attribut „Name“), der nächste Ort wird beim Notruf mitgeschickt.
+	LocationTag = "ENRPOrt",
+	LocationMaxDistance = 300,
+
+	-- Ingame-Aktionen: CollectionService-Tag für Gefängnis-Parts (Spawnpunkte im Gefängnis).
+	JailTag = "ENRPGefaengnis",
+	-- Optional: Team für Gefangene (nil = Team bleibt). Beim Entlassen zurück ins vorherige Team,
+	-- sonst in ReleaseTeam (nil = ohne Team).
+	JailTeam = nil :: string?,
+	ReleaseTeam = nil :: string?,
 }
 
 return Config
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties><string name="Name">Duty</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties><string name="Name">Dispatch</string><ProtectedString name="Source"><![CDATA[-- Leitstelle im Spiel (ModuleScript): Notrufe und Mod-Calls per Chat, Live-Lage für den Heartbeat
+-- (Team, Fahndung, Gefängnis, Rufname, Fahrzeuge) und Protokoll-Ereignisse (Kills, Teamwechsel, Fahrzeuge).
+-- Bewusst in einfacher Syntax geschrieben (gültiges Luau und Lua 5.1), damit es sich überall prüfen lässt.
+--
+-- Für eigene Skripte (z. B. ein Handy-UI) gibt es in ServerStorage.ENRP:
+--   Notruf:Fire(player, "Polizei", "Text")   ModCall:Fire(player, "Text")   Kill:Fire(opfer, taeter, "Waffe")
+-- Attribute am Spieler, die in die Live-Lage einfließen: ENRP_Wanted (0–5), ENRP_Jail (≠ 0 = im Gefängnis),
+-- ENRP_Callsign (Rufname). Fahrzeuge: CollectionService-Tag Config.VehicleTag mit den Attributen
+-- „Besitzer“ (UserId), optional „Kennzeichen“, „Farbe“, „Modell“ – fehlt das Kennzeichen, wird eins vergeben.
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local TextChatService = game:GetService("TextChatService")
+local ServerStorage = game:GetService("ServerStorage")
+local Teams = game:GetService("Teams")
+
+local Config = require(script.Parent.Config)
+local EventQueue = require(script.Parent.EventQueue)
+
+local Dispatch = {}
+
+local announce = nil -- RemoteEvent „Announcement“ für Rückmeldungen an einzelne Spieler
+local callNumber = 0
+local lastCall = {}
+local lastModCall = {}
+
+local function notify(player, title, text)
+	if announce then
+		announce:FireClient(player, title, text)
+	end
+end
+
+local function trim(text)
+	return (string.gsub(tostring(text or ""), "^%s*(.-)%s*$", "%1"))
+end
+
+local function isPlayer(value)
+	return typeof(value) == "Instance" and value:IsA("Player") and value.UserId > 0
+end
+
+-- Sofort senden statt auf das nächste Intervall zu warten (Notrufe sollen schnell ankommen)
+local function flushSoon()
+	task.spawn(function()
+		EventQueue.flush()
+	end)
+end
+
+local function nearestLocation(position)
+	local best = nil
+	local bestDistance = Config.LocationMaxDistance or 300
+	for _, part in ipairs(CollectionService:GetTagged(Config.LocationTag or "ENRPOrt")) do
+		if part:IsA("BasePart") then
+			local distance = (part.Position - position).Magnitude
+			if distance < bestDistance then
+				best = part:GetAttribute("Name") or part.Name
+				bestDistance = distance
+			end
+		end
+	end
+	if best then
+		return string.sub(tostring(best), 1, 100)
+	end
+	return nil
+end
+
+-- ===================== Notrufe und Mod-Calls =====================
+
+function Dispatch.emergencyCall(player, department, text)
+	if not isPlayer(player) then
+		return false
+	end
+	text = string.sub(trim(text), 1, 400)
+	if text == "" then
+		notify(player, "🚨 Notruf", "Beschreibe den Notfall, z. B. /notruf Überfall an der Tankstelle")
+		return false
+	end
+	local now = os.time()
+	local cooldown = Config.CallCooldownSeconds or 60
+	if lastCall[player.UserId] and now - lastCall[player.UserId] < cooldown then
+		notify(player, "⏳ Notruf", "Bitte warte kurz bis zum nächsten Notruf.")
+		return false
+	end
+	lastCall[player.UserId] = now
+	callNumber = callNumber + 1
+	local data = {
+		userId = player.UserId,
+		username = player.Name,
+		department = string.sub(tostring(department or "Polizei"), 1, 40),
+		text = text,
+		callNumber = callNumber,
+	}
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root then
+		data.location = nearestLocation(root.Position)
+		data.position = { x = math.floor(root.Position.X), z = math.floor(root.Position.Z) }
+	end
+	EventQueue.push("emergency_call", data)
+	flushSoon()
+	notify(player, "🚨 Notruf #" .. callNumber .. " abgesetzt", "Bereich: " .. data.department .. ". Bleib in der Nähe, Hilfe ist unterwegs.")
+	return true
+end
+
+function Dispatch.modCall(player, text)
+	if not isPlayer(player) then
+		return false
+	end
+	local now = os.time()
+	local cooldown = Config.ModCallCooldownSeconds or 120
+	if lastModCall[player.UserId] and now - lastModCall[player.UserId] < cooldown then
+		notify(player, "⏳ Mod-Call", "Bitte warte kurz bis zum nächsten Mod-Call.")
+		return false
+	end
+	lastModCall[player.UserId] = now
+	EventQueue.push("mod_call", { userId = player.UserId, username = player.Name, text = string.sub(trim(text), 1, 300) })
+	flushSoon()
+	notify(player, "🆘 Mod-Call gesendet", "Das Team wurde benachrichtigt.")
+	return true
+end
+
+local function handleChat(player, message)
+	local command, rest = string.match(tostring(message or ""), "^(%S+)%s*(.*)$")
+	if not command then
+		return
+	end
+	command = string.lower(command)
+	local department = Config.CallCommands and Config.CallCommands[command]
+	if department then
+		Dispatch.emergencyCall(player, department, rest)
+	elseif command == (Config.ModCallCommand or "/modcall") then
+		Dispatch.modCall(player, rest)
+	end
+end
+
+local function setupChatCommands()
+	local aliases = {}
+	for alias in pairs(Config.CallCommands or {}) do
+		table.insert(aliases, alias)
+	end
+	table.insert(aliases, Config.ModCallCommand or "/modcall")
+	if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+		for _, alias in ipairs(aliases) do
+			local command = Instance.new("TextChatCommand")
+			command.Name = "ENRP" .. string.gsub(alias, "%W", "")
+			command.PrimaryAlias = alias
+			command.Triggered:Connect(function(textSource, message)
+				local player = Players:GetPlayerByUserId(textSource.UserId)
+				if player then
+					handleChat(player, message)
+				end
+			end)
+			command.Parent = TextChatService
+		end
+	else
+		local function hook(player)
+			player.Chatted:Connect(function(message)
+				handleChat(player, message)
+			end)
+		end
+		Players.PlayerAdded:Connect(hook)
+		for _, player in ipairs(Players:GetPlayers()) do
+			hook(player)
+		end
+	end
+end
+
+-- ===================== Protokoll: Kills, Teamwechsel, Fahrzeuge =====================
+
+local function reportKill(victim, killer, weapon)
+	if not isPlayer(victim) then
+		return
+	end
+	local data = { userId = victim.UserId, username = victim.Name }
+	if isPlayer(killer) then
+		data.killerId = killer.UserId
+		data.killerName = killer.Name
+	end
+	if weapon then
+		data.weapon = string.sub(tostring(weapon), 1, 60)
+	end
+	EventQueue.push("player_killed", data)
+end
+
+local function watchCharacter(player, character)
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if not humanoid then
+		return
+	end
+	humanoid.Died:Connect(function()
+		-- Übliche Waffen setzen ein ObjectValue „creator“; eigene Systeme können ENRP_LastDamager (UserId) setzen.
+		local creator = humanoid:FindFirstChild("creator")
+		local killer = creator and creator.Value
+		if not isPlayer(killer) then
+			local id = character:GetAttribute("ENRP_LastDamager")
+			killer = id and Players:GetPlayerByUserId(id) or nil
+		end
+		local weapon = nil
+		if isPlayer(killer) and killer.Character then
+			local tool = killer.Character:FindFirstChildOfClass("Tool")
+			weapon = tool and tool.Name or nil
+		end
+		reportKill(player, killer, weapon)
+	end)
+end
+
+local lastTeam = {}
+
+local function watchPlayer(player)
+	lastTeam[player] = player.Team and player.Team.Name or nil
+	player:GetPropertyChangedSignal("Team"):Connect(function()
+		local now = player.Team and player.Team.Name or nil
+		if now ~= lastTeam[player] then
+			local data = { userId = player.UserId, username = player.Name }
+			if lastTeam[player] then
+				data.from = string.sub(lastTeam[player], 1, 40)
+			end
+			if now then
+				data.to = string.sub(now, 1, 40)
+			end
+			EventQueue.push("team_changed", data)
+			lastTeam[player] = now
+		end
+	end)
+	player.CharacterAdded:Connect(function(character)
+		watchCharacter(player, character)
+	end)
+	if player.Character then
+		task.spawn(watchCharacter, player, player.Character)
+	end
+end
+
+local function vehicleInfo(model)
+	local info = { model = string.sub(tostring(model:GetAttribute("Modell") or model.Name), 1, 60) }
+	local owner = tonumber(model:GetAttribute("Besitzer"))
+	if owner and owner > 0 then
+		info.ownerId = math.floor(owner)
+	end
+	local plate = model:GetAttribute("Kennzeichen")
+	if type(plate) == "string" and plate ~= "" then
+		info.plate = string.sub(plate, 1, 16)
+	end
+	local color = model:GetAttribute("Farbe")
+	if color == nil and model:IsA("Model") then
+		local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+		color = part and part.BrickColor.Name or nil
+	end
+	if color ~= nil then
+		info.color = string.sub(tostring(color), 1, 30)
+	end
+	return info
+end
+
+local function vehicleEvent(eventType, model)
+	local info = vehicleInfo(model)
+	local data = { model = info.model, plate = info.plate, color = info.color }
+	local owner = info.ownerId and Players:GetPlayerByUserId(info.ownerId) or nil
+	if owner then
+		data.userId = owner.UserId
+		data.username = owner.Name
+	end
+	EventQueue.push(eventType, data)
+end
+
+local function onVehicleAdded(model)
+	task.delay(1, function() -- dem Spawner Zeit geben, die Attribute zu setzen
+		if not model:IsDescendantOf(workspace) then
+			return
+		end
+		if not model:GetAttribute("Kennzeichen") then
+			model:SetAttribute("Kennzeichen", string.format("EN-%s%04d", string.char(64 + math.random(1, 26)), math.random(0, 9999)))
+		end
+		vehicleEvent("vehicle_spawned", model)
+	end)
+end
+
+-- ===================== Live-Lage für den Heartbeat =====================
+
+-- Spieler mit Team, Fahndungsstufe, Gefängnis und Rufname (Felder, die das Backend kennt)
+function Dispatch.playerInfo(player)
+	local info = { userId = player.UserId, username = player.Name, displayName = player.DisplayName }
+	if player.Team then
+		info.team = string.sub(player.Team.Name, 1, 40)
+	end
+	local wanted = tonumber(player:GetAttribute("ENRP_Wanted"))
+	if wanted and wanted > 0 then
+		info.wanted = math.clamp(math.floor(wanted), 0, 5)
+	end
+	local jail = player:GetAttribute("ENRP_Jail")
+	if jail ~= nil and jail ~= 0 and jail ~= false then
+		info.jailed = true
+	end
+	local callsign = player:GetAttribute("ENRP_Callsign") or player:GetAttribute("Callsign")
+	if type(callsign) == "string" and callsign ~= "" then
+		info.callsign = string.sub(callsign, 1, 20)
+	end
+	return info
+end
+
+-- Gespawnte Fahrzeuge (höchstens 300)
+function Dispatch.vehicles()
+	local list = {}
+	for _, model in ipairs(CollectionService:GetTagged(Config.VehicleTag or "ENRPFahrzeug")) do
+		if #list >= 300 then
+			break
+		end
+		if model:IsDescendantOf(workspace) then
+			table.insert(list, vehicleInfo(model))
+		end
+	end
+	return list
+end
+
+function Dispatch.teams()
+	local names = {}
+	for _, team in ipairs(Teams:GetTeams()) do
+		if #names < 50 then
+			table.insert(names, string.sub(team.Name, 1, 40))
+		end
+	end
+	return names
+end
+
+-- ===================== Start =====================
+
+function Dispatch.init(announceEvent)
+	announce = announceEvent
+	setupChatCommands()
+
+	Players.PlayerAdded:Connect(watchPlayer)
+	for _, player in ipairs(Players:GetPlayers()) do
+		watchPlayer(player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		lastTeam[player] = nil
+		lastCall[player.UserId] = nil
+		lastModCall[player.UserId] = nil
+	end)
+
+	local tag = Config.VehicleTag or "ENRPFahrzeug"
+	CollectionService:GetInstanceAddedSignal(tag):Connect(onVehicleAdded)
+	CollectionService:GetInstanceRemovedSignal(tag):Connect(function(model)
+		vehicleEvent("vehicle_despawned", model)
+	end)
+	for _, model in ipairs(CollectionService:GetTagged(tag)) do
+		if not model:GetAttribute("Kennzeichen") then
+			onVehicleAdded(model)
+		end
+	end
+
+	-- Schnittstelle für eigene Skripte
+	local api = Instance.new("Folder")
+	api.Name = "ENRP"
+	local function bindable(name, callback)
+		local event = Instance.new("BindableEvent")
+		event.Name = name
+		event.Event:Connect(callback)
+		event.Parent = api
+	end
+	bindable("Notruf", function(player, department, text)
+		Dispatch.emergencyCall(player, department, text)
+	end)
+	bindable("ModCall", function(player, text)
+		Dispatch.modCall(player, text)
+	end)
+	bindable("Kill", function(victim, killer, weapon)
+		reportKill(victim, killer, weapon)
+	end)
+	api.Parent = ServerStorage
+end
+
+return Dispatch
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX4"><Properties><string name="Name">Duty</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Dienstsystem auf dem Spielserver. Der Client darf Dienst nur ANFRAGEN; der Server prüft Fraktion und
 -- Abstand, meldet das Ereignis, und das Backend entscheidet endgültig (Serverzeit, Mitgliedschaft).
 local Players = game:GetService("Players")
@@ -217,7 +801,7 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 return Duty
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties><string name="Name">EventQueue</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">EventQueue</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Puffert Spielereignisse und sendet sie gebündelt. Jedes Ereignis hat eine feste ID (GUID):
 -- Das Backend verarbeitet jede ID genau einmal, Wiederholungen nach Fehlern sind daher sicher.
 local Api = require(script.Parent.Api)
@@ -291,7 +875,7 @@ function EventQueue.size(): number
 end
 
 return EventQueue
-]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX4"><Properties><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX6"><Properties><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Einstiegspunkt der ENRP-Integration (Script in ServerScriptService/ENRP).
 -- Voraussetzungen: Spieleinstellungen → Sicherheit → „HTTP-Anfragen zulassen“ aktiv,
 -- Secret ENRP_API_KEY im Creator Hub hinterlegt (siehe roblox/README.md).
@@ -300,8 +884,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local MessagingService = game:GetService("MessagingService")
 
+local Actions = require(script.Parent.Actions)
 local Api = require(script.Parent.Api)
 local Config = require(script.Parent.Config)
+local Dispatch = require(script.Parent.Dispatch)
 local Duty = require(script.Parent.Duty)
 local EventQueue = require(script.Parent.EventQueue)
 local Rewards = require(script.Parent.Rewards)
@@ -426,7 +1012,8 @@ local function applySanction(sanction: any)
 	Api.request("POST", ("/api/v1/game/sanctions/%s/ack"):format(sanction.id), { jobId = Api.jobId(), success = ok, error = if ok then nil else tostring(err) })
 end
 
--- Befehle aus dem Dashboard (Nachricht an Server/Spieler, Herunterfahren). Jede ID wird nur einmal ausgeführt.
+-- Befehle aus Dashboard und Discord (Nachricht an Server/Spieler, Herunterfahren, Ingame-Aktionen).
+-- Jede ID wird nur einmal ausgeführt.
 local function applyCommand(command: any)
 	if state.handledCommands[command.id] then
 		return
@@ -441,6 +1028,9 @@ local function applyCommand(command: any)
 				error("Spieler ist nicht auf diesem Server")
 			end
 			announce:FireClient(player, "Nachricht vom Team", command.message)
+		elseif Actions.handles(command.type) then
+			-- Ingame-Aktion an einem Spieler (Heilen, Töten, Respawn, Gefängnis, Fahndung, Team)
+			Actions.run(command)
 		elseif command.type == "shutdown" then
 			state.shuttingDown = true
 			local text = command.message or "Der Server wird vom Team neu gestartet."
@@ -477,7 +1067,8 @@ local function heartbeat()
 	local players = {}
 	for _, p in Players:GetPlayers() do
 		if p.UserId > 0 then
-			table.insert(players, { userId = p.UserId, username = p.Name, displayName = p.DisplayName })
+			-- Mit Team, Fahndung, Gefängnis und Rufname für die Live-Lage im Dashboard
+			table.insert(players, Dispatch.playerInfo(p))
 		end
 	end
 	local response = Api.request("POST", "/api/v1/game/heartbeat", {
@@ -489,6 +1080,8 @@ local function heartbeat()
 		privateServerId = game.PrivateServerId,
 		privateServerOwnerId = game.PrivateServerOwnerId,
 		players = players,
+		vehicles = Dispatch.vehicles(),
+		teams = Dispatch.teams(),
 		announcementsSince = state.announcementsSince,
 	})
 	state.connected = response.ok
@@ -518,6 +1111,11 @@ local function heartbeat()
 		task.spawn(applyCommand, command)
 	end
 end
+
+-- Notrufe, Mod-Calls und Protokoll-Ereignisse (Chat-Befehle siehe Config.CallCommands)
+Dispatch.init(announce)
+-- Ingame-Aktionen (Gefängnis-Zeiten, Respawn im Gefängnis, ServerStorage.ENRP.Gefaengnis)
+Actions.init(announce)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()
@@ -575,7 +1173,7 @@ end)
 if not HttpService.HttpEnabled then
 	warn("[ENRP] HTTP-Anfragen sind deaktiviert. Spieleinstellungen → Sicherheit → „HTTP-Anfragen zulassen“.")
 end
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">Rewards</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX7"><Properties><string name="Name">Rewards</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Vergabe von Code-Belohnungen. Das Backend prüft Gültigkeit, Limits und Doppelungen;
 -- das Spiel vergibt die Belohnung serverseitig über die hier registrierten Handler.
 --

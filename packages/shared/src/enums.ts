@@ -84,3 +84,11 @@ export const UNIT_STATUS = ['available', 'en_route', 'on_scene', 'busy', 'off_du
 export type UnitStatus = (typeof UNIT_STATUS)[number];
 export const MOD_CALL_STATUS = ['open', 'claimed', 'closed'] as const;
 export type ModCallStatus = (typeof MOD_CALL_STATUS)[number];
+/** Fahndungen (BOLO = „be on the lookout“) nach Personen oder Fahrzeugen. */
+export const BOLO_KIND = ['person', 'vehicle'] as const;
+export type BoloKind = (typeof BOLO_KIND)[number];
+export const BOLO_STATUS = ['active', 'resolved', 'expired'] as const;
+export type BoloStatus = (typeof BOLO_STATUS)[number];
+/** Aktionen an einzelnen Spielern im Spiel (Kick und Bann laufen über die Moderation). */
+export const PLAYER_ACTIONS = ['heal', 'kill', 'respawn', 'jail', 'unjail', 'wanted', 'team'] as const;
+export type PlayerAction = (typeof PLAYER_ACTIONS)[number];

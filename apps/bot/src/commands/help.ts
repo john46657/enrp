@@ -8,10 +8,14 @@ const SECTIONS: Array<[string, string]> = [
     '🎮 Spielwelt',
     '`/status` · `/leaderboard playtime|duty` · `/faction …` · `/duty status|stats|sessions` · `/vehicle list|info`',
   ],
+  [
+    '🚨 Leitstelle',
+    '`/cad list|info|create|assign|status|note|close|unit|units` · `/bolo person|vehicle|list|info|resolve` · `/live players|vehicles|plate`',
+  ],
   ['🎫 Support', 'Ticketpanel im Support-Kanal · `/report create` · `/appeal create` · `/suggest create`'],
   [
     '🛡️ Moderation',
-    '`/mod warn|timeout|kick|ban|unban|history|revoke` · `/report list|resolve` · `/appeal review` · `/clear`',
+    '`/mod warn|timeout|kick|ban|unban|history|revoke` · `/ingame heal|respawn|kill|jail|unjail|wanted|team|history` · `/report list|resolve` · `/appeal review` · `/clear`',
   ],
   ['🎉 Community', '`/poll` · `/giveaway` · `/announce create` · `/rollenpanel` · `/rang` · `/bestenliste`'],
   ['📋 Bewerbungen', '`/bewerbung` · `/bewerbungen` · `/bewerbungspanel` · `/qualipanel` · `/bewerbungssperre`'],

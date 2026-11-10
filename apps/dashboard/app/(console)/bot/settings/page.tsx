@@ -34,6 +34,10 @@ const FIELD_LABELS: Record<string, string> = {
   modCallChannelId: 'Kanal für Mod-Calls aus dem Spiel',
   departments: 'Bereiche (Polizei, Rettungsdienst …)',
   notifyCaller: 'Anrufer im Spiel benachrichtigen',
+  boloChannelId: 'Kanal für Fahndungstreffer (leer = Dispatch-Kanal)',
+  boloPingRoleId: 'Rolle für Fahndungstreffer (leer = Leitstellen-Rolle)',
+  boloHitCooldownMinutes: 'Gleicher Fahndungstreffer frühestens wieder nach (Minuten)',
+  maxJailMinutes: 'Höchstdauer Gefängnis über Ingame-Aktionen (Minuten)',
 };
 
 /** Einstellungsformulare werden aus den aktuellen Werten erzeugt; die API validiert jede Änderung. */

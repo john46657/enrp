@@ -6,7 +6,7 @@ import { appeal, mod, report } from './moderation';
 import { automation, backup, deploy, env, feature, incident, killswitch, ops, status } from './ops';
 import { leaderboard, profile, verify } from './player';
 import { duty, faction, vehicle } from './world';
-import { cad, live } from './dispatch';
+import { bolo, cad, ingameCmd, live } from './dispatch';
 
 export const COMMANDS: BotCommand[] = [
   verify,
@@ -17,6 +17,8 @@ export const COMMANDS: BotCommand[] = [
   vehicle,
   cad,
   live,
+  bolo,
+  ingameCmd,
   mod,
   report,
   appeal,

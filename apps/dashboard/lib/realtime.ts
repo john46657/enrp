@@ -4,14 +4,27 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 const TOPIC_QUERIES: Record<string, string[][]> = {
-  servers: [['overview'], ['roblox-servers'], ['roblox-server'], ['live-players'], ['live-vehicles']],
+  servers: [
+    ['overview'],
+    ['roblox-servers'],
+    ['roblox-server'],
+    ['live-players'],
+    ['live-vehicles'],
+    ['player-actions'],
+  ],
   tickets: [['list', '/tickets'], ['overview']],
   reports: [['list', '/reports'], ['overview']],
   alerts: [['overview'], ['alerts']],
   jobs: [['queues']],
   incidents: [['list', '/incidents'], ['overview']],
   approvals: [['list', '/approvals'], ['overview']],
-  dispatch: [['list', '/dispatch/incidents'], ['dispatch-incident'], ['dispatch-units'], ['dispatch-stats']],
+  dispatch: [
+    ['list', '/dispatch/incidents'],
+    ['list', '/dispatch/bolos'],
+    ['dispatch-incident'],
+    ['dispatch-units'],
+    ['dispatch-stats'],
+  ],
   mod_calls: [['list', '/mod-calls']],
 };
 

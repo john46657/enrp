@@ -39,6 +39,13 @@ local Config = {
 	-- CollectionService-Tag für Orts-Parts (Attribut „Name“), der nächste Ort wird beim Notruf mitgeschickt.
 	LocationTag = "ENRPOrt",
 	LocationMaxDistance = 300,
+
+	-- Ingame-Aktionen: CollectionService-Tag für Gefängnis-Parts (Spawnpunkte im Gefängnis).
+	JailTag = "ENRPGefaengnis",
+	-- Optional: Team für Gefangene (nil = Team bleibt). Beim Entlassen zurück ins vorherige Team,
+	-- sonst in ReleaseTeam (nil = ohne Team).
+	JailTeam = nil :: string?,
+	ReleaseTeam = nil :: string?,
 }
 
 return Config

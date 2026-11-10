@@ -1,9 +1,9 @@
 import { type FastifyInstance } from 'fastify';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { dispatch, live } from '@enrp/core';
+import { bolo, dispatch, ingame, live, requirePermission } from '@enrp/core';
 import { DISPATCH_SOURCE } from '@enrp/shared';
-import { csvList, idParam, paginationQuery, snowflake } from './schemas';
+import { csvList, idParam, paginationQuery, reason, robloxUserId, snowflake } from './schemas';
 
 /** Leitstelle: Einsätze (Ingame-Notrufe + eigene), Einheiten, Mod-Calls und Live-Lage aus dem Spiel. */
 export async function dispatchRoutes(fastify: FastifyInstance) {
@@ -166,5 +166,96 @@ export async function dispatchRoutes(fastify: FastifyInstance) {
       },
     },
     async (request) => live.liveVehicles(core.db, request.actor, core.now(), request.query),
+  );
+
+  // Fahndungen (BOLO)
+  const btags = ['Fahndungen'];
+  app.get(
+    '/dispatch/bolos',
+    {
+      schema: {
+        tags: btags,
+        summary: 'Fahndungen (aktive zuerst)',
+        querystring: paginationQuery.extend({
+          status: csvList,
+          kind: z.enum(['person', 'vehicle']).optional(),
+          q: z.string().max(100).optional(),
+        }),
+      },
+    },
+    async (request) => bolo.listBolos(core.db, request.actor, request.query),
+  );
+  app.post(
+    '/dispatch/bolos',
+    {
+      schema: {
+        tags: btags,
+        summary: 'Fahndung nach Person (Roblox-ID/Name) oder Kennzeichen anlegen',
+        body: bolo.createBoloSchema,
+      },
+      config: { idempotent: true },
+    },
+    async (request) => bolo.createBolo(core, request.actor, request.body),
+  );
+  app.get(
+    '/dispatch/bolos/:id',
+    { schema: { tags: btags, summary: 'Fahndung mit letztem Treffer', params: idParam } },
+    async (request) => {
+      requirePermission(request.actor, 'dispatch:view');
+      return bolo.getBolo(core.db, request.params.id);
+    },
+  );
+  app.post(
+    '/dispatch/bolos/:id/resolve',
+    {
+      schema: {
+        tags: btags,
+        summary: 'Fahndung als erledigt markieren',
+        params: idParam,
+        body: z.object({ note: z.string().trim().max(500).optional() }),
+      },
+    },
+    async (request) => bolo.resolveBolo(core, request.actor, request.params.id, request.body.note),
+  );
+
+  // Ingame-Aktionen an Spielern
+  const itags = ['Ingame-Aktionen'];
+  app.post(
+    '/roblox/players/:robloxUserId/actions',
+    {
+      schema: {
+        tags: itags,
+        summary: 'Aktion an einem Spieler im Spiel (Heilen, Töten, Respawn, Gefängnis, Fahndung, Team)',
+        params: z.object({ robloxUserId }),
+        body: z.object({ command: ingame.playerActionSchema, reason }),
+      },
+    },
+    async (request) => {
+      const result = await ingame.createPlayerAction(
+        core,
+        request.actor,
+        request.params.robloxUserId,
+        request.body.command,
+        request.body.reason,
+      );
+      app.deps.robloxMessaging
+        ?.publish('ENRP_Commands', JSON.stringify({ serverIds: [result.server.id] }))
+        .catch((err: Error) => request.log.warn({ err: err.message }, 'Open-Cloud-Weckruf fehlgeschlagen'));
+      return result;
+    },
+  );
+  app.get(
+    '/roblox/player-actions',
+    {
+      schema: {
+        tags: itags,
+        summary: 'Verlauf der Ingame-Aktionen (optional je Spieler)',
+        querystring: z.object({
+          robloxUserId: robloxUserId.optional(),
+          limit: z.coerce.number().int().min(1).max(100).default(25),
+        }),
+      },
+    },
+    async (request) => ingame.listPlayerActions(core.db, request.actor, request.query),
   );
 }

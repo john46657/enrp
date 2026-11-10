@@ -23,6 +23,7 @@ import {
   Megaphone,
   MessageSquare,
   Radio,
+  ScanSearch,
   Rocket,
   ScrollText,
   Server,
@@ -72,6 +73,7 @@ export const NAV: NavGroup[] = [
     label: 'Leitstelle',
     items: [
       { href: '/dispatch', label: 'Einsätze & Einheiten', icon: Radio, permission: 'dispatch:view' },
+      { href: '/bolo', label: 'Fahndungen (BOLO)', icon: ScanSearch, permission: 'dispatch:view' },
       { href: '/live', label: 'Live-Lage', icon: MapPin, permission: ['dispatch:view', 'roblox_servers:view'] },
       { href: '/mod-calls', label: 'Mod-Calls', icon: LifeBuoy, permission: 'mod_calls:view' },
     ],

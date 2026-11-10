@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { DISPATCH_SOURCE, DISPATCH_STATUS, MOD_CALL_STATUS, UNIT_STATUS } from '@enrp/shared';
+import { check, index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { BOLO_KIND, BOLO_STATUS, DISPATCH_SOURCE, DISPATCH_STATUS, MOD_CALL_STATUS, UNIT_STATUS } from '@enrp/shared';
 import { createdAt, id, robloxId, ts, updatedAt } from './_helpers';
 import { gameServers } from './game';
 
@@ -110,5 +110,56 @@ export const modCalls = pgTable(
     uniqueIndex('mod_calls_source_event_uq')
       .on(t.sourceEventId)
       .where(sql`${t.sourceEventId} is not null`),
+  ],
+);
+
+export const boloKind = pgEnum('bolo_kind', BOLO_KIND);
+export const boloStatus = pgEnum('bolo_status', BOLO_STATUS);
+
+/**
+ * Fahndungen (BOLO) nach Personen (Roblox-ID) oder Fahrzeugen (Kennzeichen). Jeder Heartbeat wird mit den aktiven
+ * Fahndungen abgeglichen; ein Treffer wird höchstens einmal je Abklingzeit gemeldet (last_hit_at).
+ */
+export const bolos = pgTable(
+  'bolos',
+  {
+    id: id(),
+    number: integer('number').generatedAlwaysAsIdentity().notNull().unique(),
+    kind: boloKind('kind').notNull(),
+    status: boloStatus('status').notNull().default('active'),
+    /** Person: Roblox-ID (Pflicht bei kind = person). */
+    robloxUserId: robloxId('roblox_user_id'),
+    personName: text('person_name'),
+    /** Fahrzeug: Kennzeichen wie eingegeben und normalisiert (Großbuchstaben, ohne Trennzeichen). */
+    plate: text('plate'),
+    plateNormalized: text('plate_normalized'),
+    vehicleDescription: text('vehicle_description'),
+    reason: text('reason').notNull(),
+    /** 1 = hoch, 2 = mittel, 3 = niedrig. */
+    priority: integer('priority').notNull().default(2),
+    createdBy: text('created_by').notNull(),
+    expiresAt: ts('expires_at'),
+    hitCount: integer('hit_count').notNull().default(0),
+    lastHitAt: ts('last_hit_at'),
+    lastHitServerId: uuid('last_hit_server_id').references(() => gameServers.id, { onDelete: 'set null' }),
+    lastHit: jsonb('last_hit'),
+    resolvedAt: ts('resolved_at'),
+    resolvedBy: text('resolved_by'),
+    resolveNote: text('resolve_note'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('bolos_status_idx').on(t.status, t.createdAt),
+    index('bolos_plate_idx')
+      .on(t.plateNormalized)
+      .where(sql`${t.status} = 'active'`),
+    index('bolos_person_idx')
+      .on(t.robloxUserId)
+      .where(sql`${t.status} = 'active'`),
+    check(
+      'bolos_target_chk',
+      sql`(${t.kind} = 'person' and ${t.robloxUserId} is not null) or (${t.kind} = 'vehicle' and ${t.plateNormalized} is not null and ${t.plateNormalized} <> '')`,
+    ),
   ],
 );

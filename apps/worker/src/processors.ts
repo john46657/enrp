@@ -15,7 +15,7 @@ import { eq, gameServers, sql } from '@enrp/database';
 import { type WorkerEnv } from './env';
 import { pruneBackups, runBackup, runRestore, type BackupConfig } from './jobs/backup';
 import { announcementMessage, giveawayMessage, pollMessage, suggestionMessage } from './jobs/messages';
-import { dispatchMessage, modCallMessage } from './jobs/dispatch-messages';
+import { boloHitMessage, dispatchMessage, modCallMessage } from './jobs/dispatch-messages';
 import { runWatchdog } from './jobs/watchdog';
 
 type Data = Record<string, unknown>;
@@ -56,6 +56,19 @@ export function createProcessors(
         if (!settings.modCallChannelId || call.discordMessageId) return;
         const sent = await ctx.discord.sendMessage(settings.modCallChannelId, message);
         await dispatch.attachModCallMessage(ctx.db, call.id, settings.modCallChannelId, sent.id);
+      },
+      // Fahndungstreffer: eigener BOLO-Kanal oder Einsatz-Kanal, Ping der BOLO- bzw. Leitstellen-Rolle
+      'bolo.hit': async (d) => {
+        const settings = await getSetting(ctx.db, 'dispatch');
+        const channelId = settings.boloChannelId ?? settings.channelId;
+        if (!channelId) return;
+        const { bolo: b, message } = await boloHitMessage(ctx, str(d.boloId));
+        if (b.status !== 'active') return;
+        const ping = settings.boloPingRoleId ?? settings.pingRoleId;
+        await ctx.discord.sendMessage(channelId, {
+          ...message,
+          ...(ping ? { content: `<@&${ping}>`, allowRoleMentions: [ping] } : {}),
+        });
       },
       'modcall.refresh': async (d) => {
         const { call, message } = await modCallMessage(ctx, str(d.modCallId));

@@ -78,6 +78,7 @@ gegen echtes PostgreSQL/Redis bzw. manueller Start der gebauten Dienste.
 | Statistiken (Spieler pro Stunde, Spitzenzeiten, Moderation, Ticket-Bearbeitungszeiten) | ✅ Integrationstest; Dashboard-Seite gebaut, im Browser **nicht** durchgeklickt |
 | Discord-Sicherheit: Schutz vor Massenlöschung, Lockdown (Altmodule) | ✅ Tests mit nachgebauten Discord-Objekten; mit echtem Discord-Server **nicht** getestet |
 | Leitstelle (Ingame-Notrufe, Einsätze/CAD, Einheitenstatus, Mod-Calls, Live-Lage mit Kennzeichen-Suche) | ✅ Kern- und API-Integrationstests; Discord-Meldungen gegen Attrappe; im Spiel **nicht** getestet |
+| Fahndungen (BOLO mit Treffer-Alarm aus dem Heartbeat) und Ingame-Aktionen (Heilen, Töten, Respawn, Gefängnis, Fahndungsstufe, Team) | ✅ Kern- und API-Integrationstests, Treffermeldung geprüft; Dashboard-Seiten gebaut, im Browser **nicht** durchgeklickt; `Actions.lua` im Spiel **nicht** getestet |
 | Roblox-Luau-Skripte | ⚠️ geschrieben, **nicht** in Roblox Studio ausgeführt – Testcheckliste in roblox/README.md |
 | Worker: Backups (pg_dump/pg_restore, Prüfsumme, Test-Wiederherstellung), Watchdogs, Aufbewahrung | ✅ gegen echtes PostgreSQL/Redis getestet |
 | Discord-Bot | ✅ Build, Befehlsregistrierung und Rechtekatalog geprüft, Start bis zum Login geprüft; mit echtem Discord-Server **nicht** getestet |

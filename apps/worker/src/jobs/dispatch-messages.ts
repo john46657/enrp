@@ -1,4 +1,4 @@
-import { dispatch, type CoreContext } from '@enrp/core';
+import { bolo, dispatch, type CoreContext } from '@enrp/core';
 import { dispatchAssignments, dispatchUnits, eq, isNull, and } from '@enrp/database';
 
 /**
@@ -104,6 +104,60 @@ export async function modCallMessage(ctx: CoreContext, modCallId: string) {
                 : []),
               { customId: `mc:close:${call.id}`, label: 'Schließen', emoji: '✅', style: 'secondary' as const },
             ],
+    },
+  };
+}
+
+const BOLO_PRIORITY = { 1: '🔴 Hoch', 2: '🟠 Mittel', 3: '🟢 Niedrig' } as Record<number, string>;
+const serverLabel = (hit: bolo.BoloHit) =>
+  `${hit.serverType === 'private' ? '🔒 Privat' : hit.serverType === 'reserved' ? '🔐 Reserviert' : '🌐 Öffentlich'} · \`${hit.jobId.slice(0, 8)}\``;
+
+/** Treffermeldung einer Fahndung (BOLO) mit Button „Erledigt“. */
+export async function boloHitMessage(ctx: CoreContext, boloId: string) {
+  const b = await bolo.getBolo(ctx.db, boloId);
+  const hit = b.lastHit as bolo.BoloHit | null;
+  const target =
+    b.kind === 'person'
+      ? `👤 **${plain(b.personName ?? String(b.robloxUserId))}** (\`${b.robloxUserId}\`)`
+      : `🚗 Kennzeichen **${plain(b.plate)}**${b.vehicleDescription ? ` · ${plain(b.vehicleDescription)}` : ''}`;
+  const fields = [
+    { name: 'Gesucht', value: target, inline: false },
+    { name: 'Grund', value: plain(b.reason) || '—', inline: false },
+    { name: 'Priorität', value: BOLO_PRIORITY[b.priority] ?? String(b.priority), inline: true },
+    { name: 'Treffer', value: String(b.hitCount), inline: true },
+  ];
+  if (hit) {
+    fields.push({ name: 'Server', value: serverLabel(hit), inline: true });
+    if (hit.vehicle)
+      fields.push({
+        name: 'Fahrzeug',
+        value: `${plain(hit.vehicle.model)} [${plain(hit.vehicle.plate ?? '—')}]${hit.vehicle.color ? ` · ${plain(hit.vehicle.color)}` : ''}`,
+        inline: true,
+      });
+    if (hit.player)
+      fields.push({
+        name: b.kind === 'vehicle' ? 'Besitzer im Spiel' : 'Im Spiel',
+        value: `${plain(hit.player.username)} · ${plain(hit.player.team ?? 'ohne Team')}${hit.player.wanted ? ` · ⭐${hit.player.wanted}` : ''}`,
+        inline: true,
+      });
+  }
+  return {
+    bolo: b,
+    message: {
+      embed: {
+        title: `🔎 Fahndungstreffer · BOLO #${b.number}`,
+        description:
+          b.kind === 'person'
+            ? 'Die gesuchte Person ist gerade im Spiel.'
+            : 'Ein gesuchtes Kennzeichen ist gerade im Spiel unterwegs.',
+        color: b.priority === 1 ? '#dc2626' : '#ea580c',
+        fields,
+        footer: 'Fahndung · Treffer aus der Live-Lage des Spiels',
+      },
+      buttons:
+        b.status === 'active'
+          ? [{ customId: `bolo:resolve:${b.id}`, label: 'Erledigt', emoji: '✅', style: 'success' as const }]
+          : [],
     },
   };
 }

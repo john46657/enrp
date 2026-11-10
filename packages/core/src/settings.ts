@@ -154,6 +154,20 @@ export const SETTING_DEFINITIONS = {
       departments: z.array(z.string().trim().min(1).max(40)).min(1).max(15),
       /** Anrufer im Spiel benachrichtigen, sobald eine Einheit den Notruf übernimmt. */
       notifyCaller: z.boolean(),
+      /** Discord-Kanal für Fahndungstreffer (BOLO). Leer = Einsatz-Kanal. */
+      boloChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      /** Wird bei Fahndungstreffern markiert (leer = Leitstellen-Rolle). */
+      boloPingRoleId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      /** Derselbe BOLO meldet frühestens nach dieser Zeit erneut einen Treffer. */
+      boloHitCooldownMinutes: z.number().int().min(1).max(1440),
+      /** Höchstdauer einer Gefängnisstrafe über Ingame-Aktionen. */
+      maxJailMinutes: z.number().int().min(1).max(240),
     }),
     default: {
       channelId: null,
@@ -161,6 +175,10 @@ export const SETTING_DEFINITIONS = {
       modCallChannelId: null,
       departments: ['Polizei', 'Rettungsdienst', 'Feuerwehr'] as string[],
       notifyCaller: true,
+      boloChannelId: null,
+      boloPingRoleId: null,
+      boloHitCooldownMinutes: 10,
+      maxJailMinutes: 60,
     },
   },
 } as const;

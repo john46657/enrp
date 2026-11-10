@@ -243,6 +243,22 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `GET` | `/api/v1/roblox/live/players` | Spieler auf laufenden Servern (Team, Fahndung, Gefängnis, Rufname) |
 | `GET` | `/api/v1/roblox/live/vehicles` | Gespawnte Fahrzeuge (Kennzeichensuche) |
 
+## Fahndungen
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/dispatch/bolos` | Fahndungen (aktive zuerst) |
+| `POST` | `/api/v1/dispatch/bolos` | Fahndung nach Person (Roblox-ID/Name) oder Kennzeichen anlegen |
+| `GET` | `/api/v1/dispatch/bolos/{id}` | Fahndung mit letztem Treffer |
+| `POST` | `/api/v1/dispatch/bolos/{id}/resolve` | Fahndung als erledigt markieren |
+
+## Ingame-Aktionen
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `POST` | `/api/v1/roblox/players/{robloxUserId}/actions` | Aktion an einem Spieler im Spiel (Heilen, Töten, Respawn, Gefängnis, Fahndung, Team) |
+| `GET` | `/api/v1/roblox/player-actions` | Verlauf der Ingame-Aktionen (optional je Spieler) |
+
 ## Berechtigungen
 
 | Methode | Pfad | Zweck |

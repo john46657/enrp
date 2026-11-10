@@ -37,6 +37,8 @@ sichtbar.
 | `/backup` | `status`, `run` |
 | `/cad` | `list`, `info`, `create`, `assign`, `status`, `note`, `close`, `unit`, `units` (+ Buttons Übernehmen/Anfahrt/Vor Ort/Abschließen an jeder Einsatzmeldung) |
 | `/live` | `players`, `vehicles`, `plate` |
+| `/bolo` | `person`, `vehicle`, `list`, `info`, `resolve` (+ Button *Erledigt* an jeder Treffermeldung) |
+| `/ingame` | `heal`, `respawn`, `kill`, `jail`, `unjail`, `wanted`, `team`, `history` – Spieler per Name oder ID, muss online sein |
 | `/status`, `/hilfe` | – |
 
 Discord-Moderation beachtet die Rollenhierarchie (niemand sanktioniert gleich- oder höhergestellte Personen,

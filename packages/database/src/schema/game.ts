@@ -80,7 +80,19 @@ export const gameServers = pgTable(
   (t) => [index('game_servers_status_idx').on(t.status, t.lastHeartbeatAt)],
 );
 
-export const serverCommandType = pgEnum('server_command_type', ['message_server', 'message_player', 'shutdown']);
+export const serverCommandType = pgEnum('server_command_type', [
+  'message_server',
+  'message_player',
+  'shutdown',
+  // Ingame-Aktionen an einem Spieler (robloxUserId), Parameter in params
+  'heal',
+  'kill',
+  'respawn',
+  'jail',
+  'unjail',
+  'wanted',
+  'team',
+]);
 export const serverCommandStatus = pgEnum('server_command_status', [
   'pending',
   'delivered',
@@ -104,6 +116,8 @@ export const serverCommands = pgTable(
     /** Zielspieler bei message_player. */
     robloxUserId: robloxId('roblox_user_id'),
     message: text('message'),
+    /** Parameter von Ingame-Aktionen, z. B. { "minutes": 10 } (jail), { "level": 3 } (wanted), { "team": "Polizei" }. */
+    params: jsonb('params'),
     reason: text('reason').notNull(),
     status: serverCommandStatus('status').notNull().default('pending'),
     createdBy: text('created_by').notNull(),
@@ -116,6 +130,7 @@ export const serverCommands = pgTable(
   (t) => [
     index('server_commands_server_idx').on(t.serverId, t.status),
     index('server_commands_created_idx').on(t.createdAt),
+    index('server_commands_player_idx').on(t.robloxUserId, t.createdAt),
   ],
 );
 

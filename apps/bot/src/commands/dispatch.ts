@@ -4,6 +4,7 @@ import {
   ModalBuilder,
   SlashCommandBuilder,
   type SlashCommandIntegerOption,
+  type SlashCommandSubcommandBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
@@ -431,6 +432,337 @@ export const live = defineCommand({
             : `🚗 Fahrzeuge (${res.items.length})`,
         )
         .setDescription(trunc(lines.join('\n') || 'Nichts gefunden.', 4000)),
+    );
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Fahndungen (BOLO)
+// ---------------------------------------------------------------------------
+
+interface Bolo {
+  id: string;
+  number: number;
+  kind: 'person' | 'vehicle';
+  status: 'active' | 'resolved' | 'expired';
+  robloxUserId: number | null;
+  personName: string | null;
+  plate: string | null;
+  vehicleDescription: string | null;
+  reason: string;
+  priority: number;
+  hitCount: number;
+  lastHitAt: string | null;
+  expiresAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  resolveNote: string | null;
+}
+
+const BOLO_STATUS: Record<string, string> = { active: '🟥 Aktiv', resolved: '✅ Erledigt', expired: '⌛ Abgelaufen' };
+const boloTarget = (b: Bolo) =>
+  b.kind === 'person'
+    ? `👤 ${b.personName ?? b.robloxUserId}`
+    : `🚗 ${b.plate}${b.vehicleDescription ? ` (${trunc(b.vehicleDescription, 40)})` : ''}`;
+const boloLine = (b: Bolo) =>
+  `${BOLO_STATUS[b.status] ?? b.status} **#${b.number}** ${boloTarget(b)} · ${PRIO[b.priority] ?? ''} · ${trunc(b.reason, 60)}${b.hitCount ? ` · 🎯 ${b.hitCount}× (zuletzt ${ts(b.lastHitAt!, 'R')})` : ''}`;
+
+const boloCommon = <T extends SlashCommandSubcommandBuilder>(s: T) =>
+  s
+    .addStringOption((o) =>
+      o.setName('grund').setDescription('Warum wird gefahndet?').setRequired(true).setMaxLength(500),
+    )
+    .addIntegerOption((o) =>
+      o
+        .setName('prioritaet')
+        .setDescription('Priorität')
+        .addChoices({ name: 'Hoch', value: 1 }, { name: 'Mittel', value: 2 }, { name: 'Niedrig', value: 3 }),
+    )
+    .addIntegerOption((o) =>
+      o.setName('stunden').setDescription('Automatisch beenden nach … Stunden').setMinValue(1).setMaxValue(720),
+    );
+
+export const bolo = defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('bolo')
+    .setDescription('Fahndungen nach Personen und Kennzeichen (Treffer-Alarm aus dem Spiel)')
+    .addSubcommand((s) =>
+      boloCommon(
+        s
+          .setName('person')
+          .setDescription('Nach einer Person fahnden')
+          .addStringOption((o) =>
+            o
+              .setName('spieler')
+              .setDescription('Roblox-Benutzername oder Roblox-ID')
+              .setRequired(true)
+              .setMaxLength(20),
+          ),
+      ),
+    )
+    .addSubcommand((s) =>
+      boloCommon(
+        s
+          .setName('vehicle')
+          .setDescription('Nach einem Kennzeichen fahnden')
+          .addStringOption((o) =>
+            o.setName('kennzeichen').setDescription('z. B. EN-A1234').setRequired(true).setMaxLength(16),
+          )
+          .addStringOption((o) =>
+            o.setName('fahrzeug').setDescription('Beschreibung, z. B. schwarzer SUV').setMaxLength(120),
+          ),
+      ),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('list')
+        .setDescription('Aktive Fahndungen (oder alle)')
+        .addBooleanOption((o) => o.setName('alle').setDescription('Auch erledigte und abgelaufene'))
+        .addStringOption((o) => o.setName('suche').setDescription('Name, Kennzeichen oder Grund').setMaxLength(100)),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('info')
+        .setDescription('Fahndung mit letztem Treffer')
+        .addIntegerOption((o) => o.setName('nummer').setDescription('BOLO-Nummer').setRequired(true).setMinValue(1)),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('resolve')
+        .setDescription('Fahndung als erledigt markieren')
+        .addIntegerOption((o) => o.setName('nummer').setDescription('BOLO-Nummer').setRequired(true).setMinValue(1))
+        .addStringOption((o) => o.setName('notiz').setDescription('z. B. festgenommen').setMaxLength(500)),
+    ),
+  async execute(interaction, { api }) {
+    const o = interaction.options;
+    const sub = o.getSubcommand();
+    const common = {
+      reason: o.getString('grund') ?? '',
+      priority: o.getInteger('prioritaet') ?? undefined,
+      expiresInHours: o.getInteger('stunden') ?? undefined,
+    };
+    switch (sub) {
+      case 'person':
+      case 'vehicle': {
+        const target = sub === 'person' ? o.getString('spieler', true).trim() : '';
+        const body =
+          sub === 'person'
+            ? {
+                kind: 'person',
+                ...(/^\d+$/.test(target) ? { robloxUserId: Number(target) } : { username: target }),
+                ...common,
+              }
+            : {
+                kind: 'vehicle',
+                plate: o.getString('kennzeichen', true),
+                vehicleDescription: o.getString('fahrzeug') ?? undefined,
+                ...common,
+              };
+        const b = await api.post<Bolo>('/api/v1/dispatch/bolos', body, { idempotencyKey: `bolo-${interaction.id}` });
+        return reply(
+          interaction,
+          `🔎 Fahndung **#${b.number}** angelegt: ${boloTarget(b)}.${b.hitCount ? ' 🎯 **Sofort-Treffer** – siehe Fahndungskanal.' : ' Treffer im Spiel werden automatisch gemeldet.'}`,
+        );
+      }
+      case 'list': {
+        const query = new URLSearchParams({ pageSize: '25' });
+        if (!o.getBoolean('alle')) query.set('status', 'active');
+        if (o.getString('suche')) query.set('q', o.getString('suche')!);
+        const res = await api.get<{ items: Bolo[]; total: number }>(`/api/v1/dispatch/bolos?${query}`);
+        return reply(
+          interaction,
+          embed()
+            .setTitle(`🔎 Fahndungen (${res.total})`)
+            .setDescription(trunc(res.items.map(boloLine).join('\n') || 'Keine Fahndungen.', 4000)),
+        );
+      }
+      case 'info': {
+        const b = await api.get<
+          Bolo & {
+            lastHit: {
+              jobId: string;
+              serverType: string;
+              player?: { username: string; team: string | null; wanted: number };
+              vehicle?: { model: string; plate: string | null; color: string | null };
+            } | null;
+          }
+        >(`/api/v1/dispatch/bolos/${o.getInteger('nummer', true)}`);
+        const e = embed(b.status === 'active' ? 'danger' : 'muted')
+          .setTitle(`🔎 BOLO #${b.number}`)
+          .setDescription(`${boloTarget(b)}\n\n${trunc(b.reason, 1500)}`)
+          .addFields(
+            { name: 'Status', value: BOLO_STATUS[b.status] ?? b.status, inline: true },
+            { name: 'Priorität', value: PRIO[b.priority] ?? String(b.priority), inline: true },
+            { name: 'Angelegt', value: `${ts(b.createdAt, 'R')} von ${user(b.createdBy)}`, inline: true },
+            { name: 'Treffer', value: String(b.hitCount), inline: true },
+          );
+        if (b.expiresAt) e.addFields({ name: 'Läuft ab', value: ts(b.expiresAt, 'R'), inline: true });
+        if (b.lastHit && b.lastHitAt)
+          e.addFields({
+            name: 'Letzter Treffer',
+            value: [
+              `${ts(b.lastHitAt, 'R')} · ${serverLabel(b.lastHit)}`,
+              b.lastHit.vehicle
+                ? `🚗 ${b.lastHit.vehicle.model} [${b.lastHit.vehicle.plate ?? '—'}]${b.lastHit.vehicle.color ? ` · ${b.lastHit.vehicle.color}` : ''}`
+                : null,
+              b.lastHit.player
+                ? `👤 ${b.lastHit.player.username} · ${b.lastHit.player.team ?? 'ohne Team'}${b.lastHit.player.wanted ? ` · ⭐${b.lastHit.player.wanted}` : ''}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          });
+        if (b.resolveNote) e.addFields({ name: 'Notiz', value: trunc(b.resolveNote, 1024) });
+        return reply(interaction, e);
+      }
+      case 'resolve': {
+        const b = await api.post<Bolo>(`/api/v1/dispatch/bolos/${o.getInteger('nummer', true)}/resolve`, {
+          note: o.getString('notiz') ?? undefined,
+        });
+        return reply(interaction, `✅ Fahndung **#${b.number}** erledigt.`);
+      }
+      default:
+        return reply(interaction, 'Unbekannter Unterbefehl.');
+    }
+  },
+  components: {
+    // Button an Treffermeldungen: bolo:resolve:<id>
+    async bolo(interaction, [action, id], { api }) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try {
+        if (action === 'resolve') {
+          const b = await api.post<Bolo>(`/api/v1/dispatch/bolos/${id}/resolve`, {});
+          return interaction.editReply(`✅ Fahndung **#${b.number}** erledigt.`);
+        }
+        return interaction.editReply('Unbekannte Aktion.');
+      } catch (err) {
+        return interaction.editReply(`❌ ${describeError(err)}`);
+      }
+    },
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Ingame-Aktionen an Spielern
+// ---------------------------------------------------------------------------
+
+const ACTION_DONE: Record<string, string> = {
+  heal: '❤️ Heilen',
+  kill: '💀 Töten',
+  respawn: '🔄 Respawn',
+  jail: '🔒 Gefängnis',
+  unjail: '🔓 Entlassen',
+  wanted: '⭐ Fahndungsstufe',
+  team: '👥 Teamwechsel',
+};
+const COMMAND_STATUS: Record<string, string> = {
+  pending: '⏳ wartet',
+  delivered: '📨 zugestellt',
+  succeeded: '✅ ausgeführt',
+  failed: '❌ fehlgeschlagen',
+  expired: '⌛ verfallen',
+};
+
+/** Spieler über Name oder ID in der Live-Lage finden (nur wer gerade online ist, kann Ziel einer Aktion sein). */
+async function findOnline(api: { get<T>(path: string): Promise<T> }, query: string) {
+  const res = await api.get<{ items: LivePlayer[] }>(`/api/v1/roblox/live/players?q=${encodeURIComponent(query)}`);
+  const q = query.toLowerCase();
+  return (
+    res.items.find((p) => String(p.userId) === q || p.username.toLowerCase() === q) ??
+    (res.items.length === 1 ? res.items[0] : undefined)
+  );
+}
+
+const playerOption = <T extends SlashCommandSubcommandBuilder>(s: T) =>
+  s.addStringOption((o) =>
+    o.setName('spieler').setDescription('Roblox-Name oder -ID (muss online sein)').setRequired(true).setMaxLength(20),
+  );
+const reasonOption = <T extends SlashCommandSubcommandBuilder>(s: T) =>
+  s.addStringOption((o) =>
+    o.setName('grund').setDescription('Begründung (Audit-Log)').setRequired(true).setMaxLength(300),
+  );
+
+export const ingameCmd = defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('ingame')
+    .setDescription('Aktionen an Spielern im Spiel (Kick/Bann: /mod mit platform roblox)')
+    .addSubcommand((s) => reasonOption(playerOption(s.setName('heal').setDescription('Spieler heilen'))))
+    .addSubcommand((s) => reasonOption(playerOption(s.setName('respawn').setDescription('Spieler neu spawnen'))))
+    .addSubcommand((s) => reasonOption(playerOption(s.setName('kill').setDescription('Spieler töten'))))
+    .addSubcommand((s) =>
+      reasonOption(
+        playerOption(s.setName('jail').setDescription('Ins Gefängnis setzen')).addIntegerOption((o) =>
+          o.setName('minuten').setDescription('Dauer').setRequired(true).setMinValue(1).setMaxValue(240),
+        ),
+      ),
+    )
+    .addSubcommand((s) => reasonOption(playerOption(s.setName('unjail').setDescription('Aus dem Gefängnis entlassen'))))
+    .addSubcommand((s) =>
+      reasonOption(
+        playerOption(s.setName('wanted').setDescription('Fahndungsstufe setzen')).addIntegerOption((o) =>
+          o.setName('stufe').setDescription('0 = keine Fahndung').setRequired(true).setMinValue(0).setMaxValue(5),
+        ),
+      ),
+    )
+    .addSubcommand((s) =>
+      reasonOption(
+        playerOption(s.setName('team').setDescription('Team wechseln')).addStringOption((o) =>
+          o.setName('team').setDescription('Name des Teams im Spiel').setRequired(true).setMaxLength(40),
+        ),
+      ),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('history')
+        .setDescription('Letzte Ingame-Aktionen')
+        .addStringOption((o) => o.setName('spieler').setDescription('Nur dieser Spieler (Roblox-ID)').setMaxLength(20)),
+    ),
+  async execute(interaction, { api }) {
+    const o = interaction.options;
+    const sub = o.getSubcommand();
+    if (sub === 'history') {
+      const id = o.getString('spieler')?.trim();
+      if (id && !/^\d+$/.test(id)) return reply(interaction, 'Bitte die Roblox-ID angeben.');
+      const res = await api.get<{
+        items: Array<{
+          type: string;
+          username: string | null;
+          robloxUserId: number;
+          params: Record<string, unknown> | null;
+          reason: string;
+          status: string;
+          error: string | null;
+          createdBy: string;
+          createdAt: string;
+        }>;
+      }>(`/api/v1/roblox/player-actions?limit=20${id ? `&robloxUserId=${id}` : ''}`);
+      const lines = res.items.map(
+        (a) =>
+          `${ts(a.createdAt, 'R')} ${ACTION_DONE[a.type] ?? a.type}${a.params ? ` (${Object.values(a.params).join(', ')})` : ''} · **${a.username ?? a.robloxUserId}** · ${COMMAND_STATUS[a.status] ?? a.status} · ${user(a.createdBy)} · ${trunc(a.reason, 50)}${a.error ? ` · ${trunc(a.error, 60)}` : ''}`,
+      );
+      return reply(
+        interaction,
+        embed()
+          .setTitle('🎮 Ingame-Aktionen')
+          .setDescription(trunc(lines.join('\n') || 'Noch keine Aktionen.', 4000)),
+      );
+    }
+    const query = o.getString('spieler', true).trim();
+    const player = await findOnline(api, query);
+    if (!player)
+      return reply(interaction, `❌ „${query}“ ist gerade nicht im Spiel (oder der Name ist nicht eindeutig).`);
+    const command =
+      sub === 'jail'
+        ? { action: 'jail', minutes: o.getInteger('minuten', true) }
+        : sub === 'wanted'
+          ? { action: 'wanted', level: o.getInteger('stufe', true) }
+          : sub === 'team'
+            ? { action: 'team', team: o.getString('team', true) }
+            : { action: sub };
+    await api.post(`/api/v1/roblox/players/${player.userId}/actions`, { command, reason: o.getString('grund', true) });
+    return reply(
+      interaction,
+      `${ACTION_DONE[sub] ?? sub} für **${player.username}** an ${serverLabel(player.server)} gesendet. Der Server führt die Aktion in wenigen Sekunden aus – Ergebnis mit \`/ingame history\`.`,
     );
   },
 });

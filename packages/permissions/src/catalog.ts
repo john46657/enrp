@@ -62,9 +62,15 @@ export const RESOURCES = {
   },
   dispatch: {
     label:
-      'Leitstelle: Einsätze, Notrufe, Einheiten (Erstellen = eigener Einsatz, Bearbeiten = zuweisen, Status, abschließen)',
+      'Leitstelle: Einsätze, Notrufe, Einheiten, Fahndungen (Erstellen = eigener Einsatz/BOLO, Bearbeiten = zuweisen, Status, abschließen, BOLO erledigen)',
     group: 'Leitstelle',
     actions: ['view', 'create', 'edit'],
+  },
+  ingame_actions: {
+    label:
+      'Ingame-Aktionen an Spielern (Anzeigen = Verlauf, Bearbeiten = Heilen, Respawn, Fahndung, Gefängnis, Team; Genehmigen = Töten)',
+    group: 'Moderation',
+    actions: ['view', 'edit', 'approve'],
   },
   appeals: { label: 'Einsprüche', group: 'Moderation', actions: ['view', 'approve'] },
   community: {
