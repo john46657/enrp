@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+@import '@fontsource/barlow/400.css';
+@import '@fontsource/barlow/500.css';
+@import '@fontsource/barlow/600.css';
+@import '@fontsource/barlow-semi-condensed/500.css';
+@import '@fontsource/barlow-semi-condensed/600.css';
+
+/*
+ * Gestaltung: Nachtblau statt Schwarz, ein einziger Signalakzent (Reflexgelb wie auf Einsatzfahrzeugen),
+ * Fraktionsfarben nur als Status. Barlow (Beschilderungscharakter), schmale Variante für Kennzahlen/Tabellen.
+ */
+@custom-variant light (&:where([data-theme='light'], [data-theme='light'] *));
+
+:root {
+  --bg: #0d1626;
+  --surface: #141f35;
+  --surface-2: #1a2742;
+  --line: #22304c;
+  --line-strong: #31436a;
+  --text: #e4eaf4;
+  --muted: #8d9bb5;
+  --signal: #f2d63a;
+  --signal-ink: #1b1a07;
+  --ok: #3fbf7f;
+  --warn: #f0a33a;
+  --bad: #ef5a5a;
+  --info: #5b9cf5;
+  --polizei: #4b8df8;
+  --feuerwehr: #ef4b4b;
+  --rettungsdienst: #f59a23;
+  --zivil: #94a3b8;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #eef2f8;
+  --surface: #ffffff;
+  --surface-2: #f4f7fb;
+  --line: #d7dfec;
+  --line-strong: #b9c6db;
+  --text: #121c2e;
+  --muted: #5a6a85;
+  --signal: #b8920a;
+  --signal-ink: #ffffff;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --font-sans: 'Barlow', system-ui, sans-serif;
+  --font-condensed: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-condensed);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  line-height: 1.2;
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.tabular {
+  font-family: var(--font-condensed);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leuchtleiste im Lagebild: einziger dekorativer Effekt, respektiert reduzierte Bewegung. */
+@keyframes pulse-light {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.light-on {
+  animation: pulse-light 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .light-on {
+    animation: none;
+  }
+  * {
+    transition: none !important;
+  }
+}
+
+dialog::backdrop {
+  background: rgb(5 10 20 / 0.7);
+}

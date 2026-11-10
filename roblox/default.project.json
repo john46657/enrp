@@ -1,0 +1,16 @@
+{
+  "name": "ENRP-Integration",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "ENRP": {
+        "$path": "src/ServerScriptService/ENRP"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    }
+  }
+}

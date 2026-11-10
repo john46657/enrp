@@ -1,0 +1,17 @@
+# Reverse Proxy mit automatischem HTTPS (Let's Encrypt) vor dem Dashboard.
+# Die API ist nur über /api des Dashboards erreichbar – auch für Roblox-Spielserver.
+{$ENRP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy dashboard:3000 {
+		# Echtzeit-Updates (Server-Sent Events) sofort durchreichen.
+		flush_interval -1
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	log {
+		output stdout
+		format json
+	}
+}

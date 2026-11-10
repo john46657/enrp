@@ -1,0 +1,22 @@
+{
+  "name": "@enrp/bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:legacy": "node legacy/scripts/check.js"
+  },
+  "dependencies": {
+    "@enrp/config": "workspace:*",
+    "@enrp/permissions": "workspace:*",
+    "@enrp/shared": "workspace:*",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.4.7",
+    "pino": "^9.14.0",
+    "zod": "^4.1.13"
+  }
+}
