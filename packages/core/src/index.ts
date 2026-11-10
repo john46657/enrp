@@ -21,6 +21,8 @@ export * as community from './modules/community';
 export * as game from './modules/game';
 export * as dispatch from './modules/dispatch';
 export * as live from './modules/live';
+export * as bolo from './modules/bolo';
+export * as actions from './modules/actions';
 export * as incidents from './modules/incidents';
 export * as releases from './modules/releases';
 export * as backups from './modules/backups';

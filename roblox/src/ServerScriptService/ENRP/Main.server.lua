@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local MessagingService = game:GetService("MessagingService")
 
+local Actions = require(script.Parent.Actions)
 local Api = require(script.Parent.Api)
 local Config = require(script.Parent.Config)
 local Dispatch = require(script.Parent.Dispatch)
@@ -149,6 +150,9 @@ local function applyCommand(command: any)
 				error("Spieler ist nicht auf diesem Server")
 			end
 			announce:FireClient(player, "Nachricht vom Team", command.message)
+		elseif command.type == "player_action" then
+			-- Gefängnis, Fahndungsstufe, Heilen, Töten, Respawn, Team, Nachricht, Kick (siehe Actions.lua)
+			Actions.apply(command)
 		elseif command.type == "shutdown" then
 			state.shuttingDown = true
 			local text = command.message or "Der Server wird vom Team neu gestartet."
@@ -232,6 +236,7 @@ end
 
 -- Notrufe, Mod-Calls und Protokoll-Ereignisse (Chat-Befehle siehe Config.CallCommands)
 Dispatch.init(announce)
+Actions.init(announce)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()

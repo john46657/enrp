@@ -8,6 +8,7 @@ import { Badge, Button, EmptyState, ErrorState, KeyValues, PageHeader, Panel, Sk
 import { get, post } from '@/lib/api';
 import { fmtDateTime, fmtDuration, fmtRelative, statusLabel } from '@/lib/format';
 import { useCan } from '@/lib/session';
+import { ACTION_LABEL } from '@/components/data/player-action';
 
 interface Detail {
   server: {
@@ -27,8 +28,9 @@ interface Detail {
   players: Array<{ userId: number; username: string; displayName: string | null; joinedAt: string }>;
   commands: Array<{
     id: string;
-    type: 'message_server' | 'message_player' | 'shutdown';
+    type: 'message_server' | 'message_player' | 'shutdown' | 'player_action';
     robloxUserId: number | null;
+    action: string | null;
     message: string | null;
     reason: string;
     status: string;
@@ -42,6 +44,7 @@ const COMMAND_LABELS: Record<Detail['commands'][number]['type'], string> = {
   message_server: 'Nachricht an Server',
   message_player: 'Nachricht an Spieler',
   shutdown: 'Herunterfahren',
+  player_action: 'Spieler-Aktion',
 };
 
 export default function RobloxServerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -169,7 +172,11 @@ export default function RobloxServerPage({ params }: { params: Promise<{ id: str
               <span className="w-40 shrink-0 text-muted">{fmtDateTime(c.createdAt)}</span>
               <span className="w-44 shrink-0">{COMMAND_LABELS[c.type]}</span>
               <StatusBadge status={c.status} />
-              <span className="min-w-0 truncate">{c.message ?? '–'}</span>
+              <span className="min-w-0 truncate">
+                {c.type === 'player_action'
+                  ? `${ACTION_LABEL[c.action ?? ''] ?? c.action} · Spieler ${c.robloxUserId}${c.message ? ` · ${c.message}` : ''}`
+                  : (c.message ?? '–')}
+              </span>
               <span className="text-muted">Grund: {c.reason}</span>
               {c.error && <span className="text-bad">{c.error}</span>}
             </li>

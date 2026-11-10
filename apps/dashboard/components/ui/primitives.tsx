@@ -104,6 +104,7 @@ const STATUS_TONE: Record<string, keyof typeof TONE> = {
   implemented: 'ok',
   approved: 'info',
   claimed: 'info',
+  cleared: 'muted',
   assigned: 'info',
   en_route: 'info',
   on_scene: 'ok',

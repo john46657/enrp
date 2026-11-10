@@ -20,6 +20,7 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 | Live-Lage | Heartbeat schickt pro Spieler Team, Fahndungsstufe (`ENRP_Wanted`), Gefängnis (`ENRP_Jail`), Rufname (`ENRP_Callsign`) sowie alle Fahrzeuge mit dem Tag `ENRPFahrzeug` (Attribute `Besitzer`, `Kennzeichen`, `Farbe`, `Modell`; fehlendes Kennzeichen wird vergeben) und die Teamliste. |
 | Notrufe & Mod-Calls (`Dispatch.lua`) | Chat: `/notruf`, `/110` → Polizei, `/112` → Rettungsdienst, `/feuerwehr`, `/modcall` (anpassbar in `Config.CallCommands`). Position und nächster Ort (Parts mit Tag `ENRPOrt`, Attribut `Name`) werden mitgeschickt und sofort gesendet. Eigene Skripte: `ServerStorage.ENRP.Notruf:Fire(player, "Polizei", text)`, `ModCall:Fire(player, text)`, `Kill:Fire(opfer, täter, waffe)`. |
 | Protokoll | `player_killed` (über `creator`-Tag oder Attribut `ENRP_LastDamager`), `team_changed`, `vehicle_spawned`, `vehicle_despawned`. |
+| Spieler-Aktionen (`Actions.lua`) | Server-Befehl `player_action` aus Dashboard/Discord: Gefängnis (Attribut `ENRP_Jail` = Entlassungszeit, Teleport zu Part mit Tag `ENRPGefaengnis`, auch nach Respawn, automatische Entlassung an `ENRPEntlassung`), Entlassen, Fahndungsstufe (`ENRP_Wanted`), Heilen, Töten, Respawn, Team, private Nachricht, Kick. Eigene Systeme hören auf `ServerStorage.ENRP.Aktion`. Fehler (Spieler weg, Team unbekannt) werden als „fehlgeschlagen“ bestätigt. |
 | Ankündigungen/Wartung | RemoteEvents `Announcement`, `Maintenance` → einfache Banner im Client. |
 
 ## Sicherheit
@@ -79,6 +80,8 @@ eigene Kennung `studio-…`; Testspieler mit negativer ID (lokaler Mehrspieler-T
 - [ ] „Herunterfahren“ → Ankündigung, nach 10 s werden alle Spieler gekickt, Server meldet sich ab.
 - [ ] `/notruf Test` im Chat → Banner „Notruf abgesetzt“, Einsatz erscheint im Dashboard unter *Leitstelle → Einsätze* und im Leitstellen-Kanal; „Übernehmen“ → Anrufer bekommt im Spiel eine Rückmeldung.
 - [ ] `/modcall Hilfe` → Mod-Call im Dashboard; „Übernehmen“ → Spieler bekommt den Namen des Teammitglieds angezeigt.
+- [ ] Live-Lage → „Aktion“ → Gefängnis 1 Minute → Spieler landet am `ENRPGefaengnis`-Part, nach 1 Minute frei; Befehl steht unter Roblox-Server auf „Ausgeführt“.
+- [ ] Fahndung nach dem Kennzeichen eines gespawnten Fahrzeugs → innerhalb von 30 s Alarm im Leitstellen-Kanal und unter *Fahndungen*.
 - [ ] Dashboard → *Leitstelle → Live-Lage* zeigt Teams; Fahrzeug mit Tag `ENRPFahrzeug` erscheint mit Kennzeichen.
 
 ## Grenzen der Roblox-Umgebung

@@ -66,6 +66,12 @@ export const RESOURCES = {
     group: 'Leitstelle',
     actions: ['view', 'create', 'edit'],
   },
+  player_actions: {
+    label:
+      'Aktionen an Spielern im Spiel (Bearbeiten = Gefängnis, Fahndungsstufe, Heilen, Respawn, Team, Nachricht; Löschen = Töten, Kicken)',
+    group: 'Leitstelle',
+    actions: ['edit', 'delete'],
+  },
   appeals: { label: 'Einsprüche', group: 'Moderation', actions: ['view', 'approve'] },
   community: {
     label: 'Community (Umfragen, Vorschläge, Giveaways)',

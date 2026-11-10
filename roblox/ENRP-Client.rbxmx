@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Item class="LocalScript" referent="RBX7"><Properties><string name="Name">ENRPClient</string><ProtectedString name="Source"><![CDATA[--!strict
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Item class="LocalScript" referent="RBX9"><Properties><string name="Name">ENRPClient</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client: zeigt Ankündigungen und Wartungshinweise an. Enthält keine Geheimnisse und trifft keine Entscheidungen.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

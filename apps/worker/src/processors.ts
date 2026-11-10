@@ -15,7 +15,7 @@ import { eq, gameServers, sql } from '@enrp/database';
 import { type WorkerEnv } from './env';
 import { pruneBackups, runBackup, runRestore, type BackupConfig } from './jobs/backup';
 import { announcementMessage, giveawayMessage, pollMessage, suggestionMessage } from './jobs/messages';
-import { dispatchMessage, modCallMessage } from './jobs/dispatch-messages';
+import { boloMessage, dispatchMessage, modCallMessage } from './jobs/dispatch-messages';
 import { runWatchdog } from './jobs/watchdog';
 
 type Data = Record<string, unknown>;
@@ -49,6 +49,22 @@ export function createProcessors(
         const { incident, message } = await dispatchMessage(ctx, str(d.incidentId));
         if (incident.discordChannelId && incident.discordMessageId)
           await ctx.discord.editMessage(incident.discordChannelId, incident.discordMessageId, message);
+      },
+      'bolo.post': async (d) => {
+        const settings = await getSetting(ctx.db, 'dispatch');
+        if (!settings.channelId) return;
+        const { message } = await boloMessage(ctx, str(d.boloId), 'created');
+        await ctx.discord.sendMessage(settings.channelId, message);
+      },
+      'bolo.hit': async (d) => {
+        const settings = await getSetting(ctx.db, 'dispatch');
+        if (!settings.channelId) return;
+        const { message } = await boloMessage(ctx, str(d.boloId), 'hit');
+        const ping = settings.pingRoleId;
+        await ctx.discord.sendMessage(settings.channelId, {
+          ...message,
+          ...(ping ? { content: `<@&${ping}>`, allowRoleMentions: [ping] } : {}),
+        });
       },
       'modcall.post': async (d) => {
         const settings = await getSetting(ctx.db, 'dispatch');

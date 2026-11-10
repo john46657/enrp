@@ -1,4 +1,5 @@
 import {
+  Search,
   Activity,
   AlertTriangle,
   BadgeCheck,
@@ -72,6 +73,7 @@ export const NAV: NavGroup[] = [
     label: 'Leitstelle',
     items: [
       { href: '/dispatch', label: 'Einsätze & Einheiten', icon: Radio, permission: 'dispatch:view' },
+      { href: '/dispatch/bolos', label: 'Fahndungen', icon: Search, permission: 'dispatch:view' },
       { href: '/live', label: 'Live-Lage', icon: MapPin, permission: ['dispatch:view', 'roblox_servers:view'] },
       { href: '/mod-calls', label: 'Mod-Calls', icon: LifeBuoy, permission: 'mod_calls:view' },
     ],

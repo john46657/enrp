@@ -85,6 +85,7 @@ export const DEFAULT_ROLES: DefaultRole[] = [
       'appeals:view',
       'appeals:approve',
       'mod_calls:*',
+      'player_actions:*',
       'dispatch:view',
       'roblox_servers:view',
       'roblox_servers:edit',
@@ -97,9 +98,18 @@ export const DEFAULT_ROLES: DefaultRole[] = [
   {
     key: 'dispatch',
     name: 'Leitstelle',
-    description: 'Notrufe aus dem Spiel, Einsätze, Einheiten und Live-Lage (Spieler, Fahrzeuge).',
+    description:
+      'Notrufe aus dem Spiel, Einsätze, Einheiten, Fahndungen und Live-Lage; Gefängnis/Fahndungsstufe im Spiel.',
     priority: 550,
-    grants: g('dispatch:*', 'players:view', 'roblox_servers:view', 'factions:view', 'duty:view', 'vehicles:view'),
+    grants: g(
+      'dispatch:*',
+      'player_actions:edit',
+      'players:view',
+      'roblox_servers:view',
+      'factions:view',
+      'duty:view',
+      'vehicles:view',
+    ),
   },
   {
     key: 'faction_management',

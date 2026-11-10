@@ -80,7 +80,12 @@ export const gameServers = pgTable(
   (t) => [index('game_servers_status_idx').on(t.status, t.lastHeartbeatAt)],
 );
 
-export const serverCommandType = pgEnum('server_command_type', ['message_server', 'message_player', 'shutdown']);
+export const serverCommandType = pgEnum('server_command_type', [
+  'message_server',
+  'message_player',
+  'shutdown',
+  'player_action',
+]);
 export const serverCommandStatus = pgEnum('server_command_status', [
   'pending',
   'delivered',
@@ -104,6 +109,9 @@ export const serverCommands = pgTable(
     /** Zielspieler bei message_player. */
     robloxUserId: robloxId('roblox_user_id'),
     message: text('message'),
+    /** Bei player_action: jail, heal, kill, … und die Werte dazu (Minuten, Stufe, Team). */
+    action: text('action'),
+    payload: jsonb('payload'),
     reason: text('reason').notNull(),
     status: serverCommandStatus('status').notNull().default('pending'),
     createdBy: text('created_by').notNull(),

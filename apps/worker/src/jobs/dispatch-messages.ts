@@ -1,5 +1,5 @@
-import { dispatch, type CoreContext } from '@enrp/core';
-import { dispatchAssignments, dispatchUnits, eq, isNull, and } from '@enrp/database';
+import { bolo, dispatch, type CoreContext } from '@enrp/core';
+import { dispatchAssignments, dispatchUnits, eq, isNull, and, robloxUsers } from '@enrp/database';
 
 /**
  * Discord-Nachrichten der Leitstelle. Buttons werden vom Bot ausgewertet (cad:…, mc:…), der wiederum nur die API
@@ -104,6 +104,47 @@ export async function modCallMessage(ctx: CoreContext, modCallId: string) {
                 : []),
               { customId: `mc:close:${call.id}`, label: 'Schließen', emoji: '✅', style: 'secondary' as const },
             ],
+    },
+  };
+}
+
+/** Fahndung: Neuanlage oder Treffer im Spiel (mit Ort und Besitzer bzw. Team). */
+export async function boloMessage(ctx: CoreContext, boloId: string, kind: 'created' | 'hit') {
+  const row = await bolo.getBolo(ctx.db, boloId);
+  const [user] = row.robloxUserId
+    ? await ctx.db.select().from(robloxUsers).where(eq(robloxUsers.id, row.robloxUserId))
+    : [];
+  const b = { ...row, username: user?.username ?? null };
+  const target =
+    b.kind === 'vehicle'
+      ? `🚗 Kennzeichen **${plain(b.plate)}**`
+      : `👤 Spieler **${plain(b.username ?? String(b.robloxUserId))}** (\`${b.robloxUserId}\`)`;
+  const fields = [{ name: 'Grund', value: plain(b.reason), inline: false }];
+  if (b.description) fields.push({ name: 'Beschreibung', value: plain(b.description), inline: false });
+  const hit = (b.lastHit ?? null) as Record<string, string | number | null> | null;
+  if (kind === 'hit' && hit) {
+    const details =
+      b.kind === 'vehicle'
+        ? `${plain(String(hit.model ?? 'Fahrzeug'))}${hit.color ? ` · ${plain(String(hit.color))}` : ''}${
+            hit.ownerName ? `\nBesitzer: ${plain(String(hit.ownerName))}` : ''
+          }`
+        : `${plain(String(hit.username ?? ''))}${hit.team ? ` · Team ${plain(String(hit.team))}` : ''}`;
+    fields.unshift({ name: '📍 Gesichtet im Spiel', value: details || '—', inline: false });
+  }
+  return {
+    bolo: b,
+    message: {
+      embed: {
+        title: kind === 'hit' ? `🚨 Fahndungstreffer · BOLO #${b.number}` : `🔎 Neue Fahndung · BOLO #${b.number}`,
+        description: target,
+        color: kind === 'hit' ? '#dc2626' : '#ca8a04',
+        fields,
+        footer: kind === 'hit' ? `Treffer Nr. ${b.hitCount} · Live-Lage aus dem Spiel` : 'Fahndung der Leitstelle',
+      },
+      buttons:
+        b.status === 'active'
+          ? [{ customId: `bolo:clear:${b.id}`, label: 'Fahndung aufheben', emoji: '✅', style: 'secondary' as const }]
+          : [],
     },
   };
 }
