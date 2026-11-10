@@ -35,6 +35,8 @@ sichtbar.
 | `/env` | `status`, `compare`, `config-diff`, `promote`, `history` |
 | `/automation` | `list`, `create`, `pause`, `test`, `history` |
 | `/backup` | `status`, `run` |
+| `/cad` | `list`, `info`, `create`, `assign`, `status`, `note`, `close`, `unit`, `units` (+ Buttons Übernehmen/Anfahrt/Vor Ort/Abschließen an jeder Einsatzmeldung) |
+| `/live` | `players`, `vehicles`, `plate` |
 | `/status`, `/hilfe` | – |
 
 Discord-Moderation beachtet die Rollenhierarchie (niemand sanktioniert gleich- oder höhergestellte Personen,

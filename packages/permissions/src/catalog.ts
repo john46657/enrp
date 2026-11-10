@@ -55,6 +55,17 @@ export const RESOURCES = {
   reports: { label: 'Spielerreports', group: 'Support', actions: ['view', 'create', 'edit'] },
   cases: { label: 'Fallberichte', group: 'Support', actions: ['view', 'create', 'edit'] },
   moderation: { label: 'Moderation', group: 'Moderation', actions: ['view', 'create', 'edit', 'delete', 'approve'] },
+  mod_calls: {
+    label: 'Mod-Calls aus dem Spiel (Bearbeiten = übernehmen, schließen)',
+    group: 'Moderation',
+    actions: ['view', 'edit'],
+  },
+  dispatch: {
+    label:
+      'Leitstelle: Einsätze, Notrufe, Einheiten (Erstellen = eigener Einsatz, Bearbeiten = zuweisen, Status, abschließen)',
+    group: 'Leitstelle',
+    actions: ['view', 'create', 'edit'],
+  },
   appeals: { label: 'Einsprüche', group: 'Moderation', actions: ['view', 'approve'] },
   community: {
     label: 'Community (Umfragen, Vorschläge, Giveaways)',

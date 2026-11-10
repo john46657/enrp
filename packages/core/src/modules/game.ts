@@ -157,6 +157,30 @@ export async function authenticateRobloxRequest(
 // Heartbeat & Serverstatus
 // ---------------------------------------------------------------------------
 
+/** Spieler im Heartbeat. Team, Fahndung, Gefängnis und Rufname sind optional (Live-Lage, Leitstelle). */
+export const livePlayerSchema = z.object({
+  userId: z.number().int().positive(),
+  username: z.string().min(1).max(40),
+  displayName: z.string().max(60).optional(),
+  team: z.string().max(40).optional(),
+  /** Fahndungsstufe 0–5 (Attribut ENRP_Wanted). */
+  wanted: z.number().int().min(0).max(5).optional(),
+  /** Im Gefängnis (Attribut ENRP_Jail). */
+  jailed: z.boolean().optional(),
+  callsign: z.string().max(20).optional(),
+});
+
+/** Gespawntes Fahrzeug im Heartbeat. */
+export const liveVehicleSchema = z.object({
+  model: z.string().min(1).max(60),
+  ownerId: z.number().int().positive().optional(),
+  plate: z.string().max(16).optional(),
+  color: z.string().max(30).optional(),
+});
+
+export type LivePlayer = z.infer<typeof livePlayerSchema>;
+export type LiveVehicle = z.infer<typeof liveVehicleSchema>;
+
 export const heartbeatSchema = z.object({
   jobId: z.string().min(1).max(100),
   placeId: z.string().regex(/^\d{1,20}$/),
@@ -165,15 +189,11 @@ export const heartbeatSchema = z.object({
   /** game.PrivateServerId und game.PrivateServerOwnerId – daraus wird der Servertyp abgeleitet. */
   privateServerId: z.string().max(100).optional(),
   privateServerOwnerId: z.number().int().nonnegative().optional(),
-  players: z
-    .array(
-      z.object({
-        userId: z.number().int().positive(),
-        username: z.string().min(1).max(40),
-        displayName: z.string().max(60).optional(),
-      }),
-    )
-    .max(200),
+  players: z.array(livePlayerSchema).max(200),
+  /** Gespawnte Fahrzeuge (Live-Lage, Kennzeichensuche). Optional – ältere Skripte senden keine. */
+  vehicles: z.array(liveVehicleSchema).max(300).optional(),
+  /** Vorhandene Teams im Spiel (für Auswahllisten). */
+  teams: z.array(z.string().min(1).max(40)).max(50).optional(),
   /** Zeitpunkt der letzten verarbeiteten Ankündigung (ISO), damit nur neue geliefert werden. */
   announcementsSince: z.iso.datetime().optional(),
 });
@@ -203,6 +223,13 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
   const now = ctx.now();
   const serverType = classifyServerType(input);
   const privateServerOwnerId = serverType === 'private' ? input.privateServerOwnerId! : null;
+  // Live-Zustand (überschreibt den vorherigen; keine Historie)
+  const live = {
+    at: now.toISOString(),
+    teams: input.teams ?? [],
+    players: input.players,
+    vehicles: input.vehicles ?? [],
+  };
   const result = await ctx.db.transaction(async (tx) => {
     const [server] = await tx
       .insert(gameServers)
@@ -218,6 +245,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
         status: 'online',
         startedAt: now,
         lastHeartbeatAt: now,
+        live,
       })
       .onConflictDoUpdate({
         target: gameServers.jobId,
@@ -230,6 +258,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
           status: 'online',
           lastHeartbeatAt: now,
           endedAt: null,
+          live,
         },
       })
       .returning();
@@ -493,6 +522,31 @@ export async function takeServerCommands(ctx: CoreContext, serverId: string) {
     .map((c) => ({ id: c.id, type: c.type, robloxUserId: c.robloxUserId, message: c.message }));
 }
 
+/**
+ * Systemnachricht an einen Spieler (z. B. „Eine Einheit ist unterwegs“). Ohne Rechteprüfung – nur für interne
+ * Abläufe der Plattform; der Server holt sie wie jeden Befehl ab und bestätigt sie.
+ */
+export async function queuePlayerMessage(
+  db: DbExecutor,
+  input: { serverId: string; robloxUserId: number; message: string; reason: string; createdBy: string },
+  now: Date,
+) {
+  const [row] = await db
+    .insert(serverCommands)
+    .values({
+      serverId: input.serverId,
+      type: 'message_player',
+      robloxUserId: input.robloxUserId,
+      message: input.message.slice(0, 300),
+      reason: input.reason,
+      createdBy: input.createdBy,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + SERVER_COMMAND_TTL_SECONDS * 1000),
+    })
+    .returning();
+  return row!;
+}
+
 /** Kurzes Abfragen offener Befehle zwischen zwei Heartbeats. */
 export async function pollServerCommands(ctx: CoreContext, actor: RobloxServerActor, jobId: string) {
   const server = await getServerByJobId(ctx.db, jobId);
@@ -545,6 +599,14 @@ const baseEvent = z.object({
   occurredAt: z.iso.datetime().optional(),
 });
 const playerRef = { userId: z.number().int().positive(), username: z.string().min(1).max(40).optional() };
+const vehicleEventData = z.object({
+  /** Besitzer (falls bekannt). */
+  userId: z.number().int().positive().optional(),
+  username: z.string().min(1).max(40).optional(),
+  model: z.string().min(1).max(60),
+  plate: z.string().max(16).optional(),
+  color: z.string().max(30).optional(),
+});
 
 export const gameEventSchema = z.discriminatedUnion('type', [
   baseEvent.extend({
@@ -561,6 +623,39 @@ export const gameEventSchema = z.discriminatedUnion('type', [
     type: z.literal('redemption_delivered'),
     data: z.object({ ...playerRef, redemptionId: z.uuid() }),
   }),
+  // Leitstelle: Notruf aus dem Spiel (/notruf, /110, /112 … oder eigenes Handy-UI) → Einsatz
+  baseEvent.extend({
+    type: z.literal('emergency_call'),
+    data: z.object({
+      ...playerRef,
+      department: z.string().trim().min(1).max(40).optional(),
+      text: z.string().trim().min(1).max(500),
+      location: z.string().trim().max(100).optional(),
+      position: z.object({ x: z.number().finite(), z: z.number().finite() }).optional(),
+      callNumber: z.number().int().nonnegative().optional(),
+    }),
+  }),
+  // Mod-Call aus dem Spiel (/modcall)
+  baseEvent.extend({
+    type: z.literal('mod_call'),
+    data: z.object({ ...playerRef, text: z.string().trim().max(300).default('') }),
+  }),
+  // Nur protokolliert (Spielereignisse im Dashboard)
+  baseEvent.extend({
+    type: z.literal('player_killed'),
+    data: z.object({
+      ...playerRef,
+      killerId: z.number().int().positive().optional(),
+      killerName: z.string().max(40).optional(),
+      weapon: z.string().max(60).optional(),
+    }),
+  }),
+  baseEvent.extend({
+    type: z.literal('team_changed'),
+    data: z.object({ ...playerRef, from: z.string().max(40).optional(), to: z.string().max(40).optional() }),
+  }),
+  baseEvent.extend({ type: z.literal('vehicle_spawned'), data: vehicleEventData }),
+  baseEvent.extend({ type: z.literal('vehicle_despawned'), data: vehicleEventData }),
 ]);
 export type GameEvent = z.infer<typeof gameEventSchema>;
 
@@ -631,6 +726,13 @@ export async function processGameEvents(
         return { id: event.id, status, result };
       });
       results.push(outcome);
+      // Erst nach dem Speichern benachrichtigen (Discord-Nachricht, Live-Update im Dashboard)
+      if (outcome.status === 'processed' && (event.type === 'emergency_call' || event.type === 'mod_call')) {
+        const { afterGameEvent } = await import('./dispatch');
+        await afterGameEvent(ctx, event.type, outcome.result).catch((err: Error) =>
+          ctx.logger.warn({ eventId: event.id, err: err.message }, 'Leitstelle: Benachrichtigung fehlgeschlagen'),
+        );
+      }
     } catch (err) {
       ctx.logger.warn(
         { eventId: event.id, type: event.type, err: (err as Error).message },
@@ -671,6 +773,20 @@ async function applyEvent(ctx: TxContext, serverId: string, event: GameEvent, du
           ? 'ok'
           : 'unknown_redemption',
       };
+    case 'emergency_call': {
+      const { createIncidentFromCall } = await import('./dispatch');
+      return createIncidentFromCall(ctx, serverId, event.id, event.data);
+    }
+    case 'mod_call': {
+      const { createModCallFromEvent } = await import('./dispatch');
+      return createModCallFromEvent(ctx, serverId, event.id, event.data);
+    }
+    case 'player_killed':
+    case 'team_changed':
+    case 'vehicle_spawned':
+    case 'vehicle_despawned':
+      // Rohdaten stehen bereits in game_events (Spielereignisse im Dashboard)
+      return { status: 'ok' };
   }
 }
 

@@ -17,6 +17,7 @@ const LABELS: Record<string, string> = {
   claim: 'übernommen',
   unclaim: 'freigegeben',
   assign: 'zugewiesen',
+  assigned: 'Einheit zugewiesen',
   status: 'Status geändert',
   priority: 'Priorität geändert',
   close: 'geschlossen',

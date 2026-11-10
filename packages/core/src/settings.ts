@@ -131,6 +131,38 @@ export const SETTING_DEFINITIONS = {
     }),
     default: { presenceText: 'GermanRP', disabledCommands: [] as string[] },
   },
+  dispatch: {
+    label: 'Leitstelle (Notrufe, Einsätze, Mod-Calls)',
+    critical: false,
+    schema: z.object({
+      /** Discord-Kanal für Einsätze (mit Buttons). */
+      channelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      /** Wird bei neuen Ingame-Notrufen markiert. */
+      pingRoleId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      /** Discord-Kanal für Mod-Calls aus dem Spiel. */
+      modCallChannelId: z
+        .string()
+        .regex(/^\d{15,22}$/)
+        .nullable(),
+      /** Zuständige Bereiche für Einsätze. */
+      departments: z.array(z.string().trim().min(1).max(40)).min(1).max(15),
+      /** Anrufer im Spiel benachrichtigen, sobald eine Einheit den Notruf übernimmt. */
+      notifyCaller: z.boolean(),
+    }),
+    default: {
+      channelId: null,
+      pingRoleId: null,
+      modCallChannelId: null,
+      departments: ['Polizei', 'Rettungsdienst', 'Feuerwehr'] as string[],
+      notifyCaller: true,
+    },
+  },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFINITIONS;

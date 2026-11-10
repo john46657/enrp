@@ -1,5 +1,7 @@
 import {
   community,
+  dispatch,
+  getSetting,
   duty,
   game,
   moderation,
@@ -13,6 +15,7 @@ import { eq, gameServers, sql } from '@enrp/database';
 import { type WorkerEnv } from './env';
 import { pruneBackups, runBackup, runRestore, type BackupConfig } from './jobs/backup';
 import { announcementMessage, giveawayMessage, pollMessage, suggestionMessage } from './jobs/messages';
+import { dispatchMessage, modCallMessage } from './jobs/dispatch-messages';
 import { runWatchdog } from './jobs/watchdog';
 
 type Data = Record<string, unknown>;
@@ -30,6 +33,35 @@ export function createProcessors(
     discord: {
       'role.add': (d) => ctx.discord.addRole(str(d.guildId), str(d.userId), str(d.roleId), str(d.reason)),
       'role.remove': (d) => ctx.discord.removeRole(str(d.guildId), str(d.userId), str(d.roleId), str(d.reason)),
+      // Leitstelle: Einsatz posten (mit Ping der Leitstellen-Rolle bei Ingame-Notrufen) bzw. aktualisieren
+      'dispatch.post': async (d) => {
+        const settings = await getSetting(ctx.db, 'dispatch');
+        const { incident, message } = await dispatchMessage(ctx, str(d.incidentId));
+        if (!settings.channelId || incident.discordMessageId) return;
+        const ping = incident.source === 'ingame' ? settings.pingRoleId : null;
+        const sent = await ctx.discord.sendMessage(settings.channelId, {
+          ...message,
+          ...(ping ? { content: `<@&${ping}>`, allowRoleMentions: [ping] } : {}),
+        });
+        await dispatch.attachIncidentMessage(ctx.db, incident.id, settings.channelId, sent.id);
+      },
+      'dispatch.refresh': async (d) => {
+        const { incident, message } = await dispatchMessage(ctx, str(d.incidentId));
+        if (incident.discordChannelId && incident.discordMessageId)
+          await ctx.discord.editMessage(incident.discordChannelId, incident.discordMessageId, message);
+      },
+      'modcall.post': async (d) => {
+        const settings = await getSetting(ctx.db, 'dispatch');
+        const { call, message } = await modCallMessage(ctx, str(d.modCallId));
+        if (!settings.modCallChannelId || call.discordMessageId) return;
+        const sent = await ctx.discord.sendMessage(settings.modCallChannelId, message);
+        await dispatch.attachModCallMessage(ctx.db, call.id, settings.modCallChannelId, sent.id);
+      },
+      'modcall.refresh': async (d) => {
+        const { call, message } = await modCallMessage(ctx, str(d.modCallId));
+        if (call.discordChannelId && call.discordMessageId)
+          await ctx.discord.editMessage(call.discordChannelId, call.discordMessageId, message);
+      },
       'message.send': (d) =>
         ctx.discord.sendMessage(str(d.channelId), {
           content: d.content as string | undefined,

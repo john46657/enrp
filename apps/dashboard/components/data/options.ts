@@ -20,3 +20,23 @@ export const SEVERITY_OPTIONS = [
   { value: 'sev3', label: 'SEV3 – mittel' },
   { value: 'sev4', label: 'SEV4 – niedrig' },
 ];
+
+/** Leitstelle */
+export const DISPATCH_PRIORITY_OPTIONS = [
+  { value: '1', label: 'P1 · Hoch' },
+  { value: '2', label: 'P2 · Mittel' },
+  { value: '3', label: 'P3 · Niedrig' },
+];
+export const DISPATCH_STATUS_OPTIONS = [
+  { value: 'open', label: 'Offen' },
+  { value: 'assigned', label: 'Zugewiesen' },
+  { value: 'en_route', label: 'Anfahrt' },
+  { value: 'on_scene', label: 'Vor Ort' },
+];
+export const UNIT_STATUS_OPTIONS = [
+  { value: 'available', label: 'Status 2 · Einsatzbereit' },
+  { value: 'en_route', label: 'Status 3 · Anfahrt' },
+  { value: 'on_scene', label: 'Status 4 · Am Einsatzort' },
+  { value: 'busy', label: 'Status 5 · Beschäftigt' },
+  { value: 'off_duty', label: 'Status 6 · Außer Dienst' },
+];

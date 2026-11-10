@@ -17,6 +17,9 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 | Dienstsystem | Client fragt per `ReplicatedStorage.ENRP.DutyToggle` an. Server prüft Fraktion + Abstand, Backend entscheidet endgültig mit eigener Serverzeit. |
 | Codes | `ReplicatedStorage.ENRP.RedeemCode` → Backend prüft Gültigkeit/Limits idempotent → Belohnung über registrierten Handler (`Rewards.register`). |
 | Sanktionen | Banns/Entbannungen über `Players:BanAsync` / `Players:UnbanAsync`, Kicks direkt; Ergebnis wird bestätigt (`/game/sanctions/:id/ack`). |
+| Live-Lage | Heartbeat schickt pro Spieler Team, Fahndungsstufe (`ENRP_Wanted`), Gefängnis (`ENRP_Jail`), Rufname (`ENRP_Callsign`) sowie alle Fahrzeuge mit dem Tag `ENRPFahrzeug` (Attribute `Besitzer`, `Kennzeichen`, `Farbe`, `Modell`; fehlendes Kennzeichen wird vergeben) und die Teamliste. |
+| Notrufe & Mod-Calls (`Dispatch.lua`) | Chat: `/notruf`, `/110` → Polizei, `/112` → Rettungsdienst, `/feuerwehr`, `/modcall` (anpassbar in `Config.CallCommands`). Position und nächster Ort (Parts mit Tag `ENRPOrt`, Attribut `Name`) werden mitgeschickt und sofort gesendet. Eigene Skripte: `ServerStorage.ENRP.Notruf:Fire(player, "Polizei", text)`, `ModCall:Fire(player, text)`, `Kill:Fire(opfer, täter, waffe)`. |
+| Protokoll | `player_killed` (über `creator`-Tag oder Attribut `ENRP_LastDamager`), `team_changed`, `vehicle_spawned`, `vehicle_despawned`. |
 | Ankündigungen/Wartung | RemoteEvents `Announcement`, `Maintenance` → einfache Banner im Client. |
 
 ## Sicherheit
@@ -72,6 +75,9 @@ eigene Kennung `studio-…`; Testspieler mit negativer ID (lokaler Mehrspieler-T
 - [ ] Privater Server (VIP) erscheint im Dashboard als „Privat“ mit Besitzer, reservierter Server als „Reserviert“.
 - [ ] Dashboard → Server → „Nachricht senden“ → Banner erscheint innerhalb weniger Sekunden, Befehl steht auf „Ausgeführt“.
 - [ ] „Herunterfahren“ → Ankündigung, nach 10 s werden alle Spieler gekickt, Server meldet sich ab.
+- [ ] `/notruf Test` im Chat → Banner „Notruf abgesetzt“, Einsatz erscheint im Dashboard unter *Leitstelle → Einsätze* und im Leitstellen-Kanal; „Übernehmen“ → Anrufer bekommt im Spiel eine Rückmeldung.
+- [ ] `/modcall Hilfe` → Mod-Call im Dashboard; „Übernehmen“ → Spieler bekommt den Namen des Teammitglieds angezeigt.
+- [ ] Dashboard → *Leitstelle → Live-Lage* zeigt Teams; Fahrzeug mit Tag `ENRPFahrzeug` erscheint mit Kennzeichen.
 
 ## Grenzen der Roblox-Umgebung
 

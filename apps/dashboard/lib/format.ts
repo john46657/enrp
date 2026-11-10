@@ -84,5 +84,11 @@ export const STATUS_LABELS: Record<string, string> = {
   not_configured: 'Nicht verbunden',
   configured: 'Konfiguriert',
   ended: 'Beendet',
+  assigned: 'Zugewiesen',
+  en_route: 'Anfahrt',
+  on_scene: 'Vor Ort',
+  available: 'Einsatzbereit',
+  busy: 'Beschäftigt',
+  off_duty: 'Außer Dienst',
 };
 export const statusLabel = (s: string) => STATUS_LABELS[s] ?? s;

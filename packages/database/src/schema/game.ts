@@ -71,6 +71,11 @@ export const gameServers = pgTable(
     startedAt: ts('started_at').notNull().defaultNow(),
     lastHeartbeatAt: ts('last_heartbeat_at').notNull().defaultNow(),
     endedAt: ts('ended_at'),
+    /**
+     * Letzter Live-Zustand aus dem Heartbeat (Spieler mit Team/Wanted/Gefängnis, gespawnte Fahrzeuge, Teams).
+     * Wird bei jedem Heartbeat überschrieben – keine Historie, keine Kopien.
+     */
+    live: jsonb('live'),
   },
   (t) => [index('game_servers_status_idx').on(t.status, t.lastHeartbeatAt)],
 );

@@ -29,6 +29,11 @@ const FIELD_LABELS: Record<string, string> = {
   serverTimeoutSeconds: 'Server gilt als offline nach (Sekunden)',
   presenceText: 'Statustext des Bots',
   disabledCommands: 'Deaktivierte Befehle',
+  channelId: 'Dispatch-Kanal (Einsätze mit Buttons)',
+  pingRoleId: 'Leitstellen-Rolle (wird bei Notrufen markiert)',
+  modCallChannelId: 'Kanal für Mod-Calls aus dem Spiel',
+  departments: 'Bereiche (Polizei, Rettungsdienst …)',
+  notifyCaller: 'Anrufer im Spiel benachrichtigen',
 };
 
 /** Einstellungsformulare werden aus den aktuellen Werten erzeugt; die API validiert jede Änderung. */
