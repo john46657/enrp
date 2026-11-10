@@ -259,6 +259,27 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/roblox/players/{robloxUserId}/actions` | Aktion an einem Spieler im Spiel (Heilen, Töten, Respawn, Gefängnis, Fahndung, Team) |
 | `GET` | `/api/v1/roblox/player-actions` | Verlauf der Ingame-Aktionen (optional je Spieler) |
 
+## Privatserver
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/private-servers` | Verknüpfte Privatserver-Discords |
+| `POST` | `/api/v1/private-servers` | Discord-Server mit dem Roblox-Besitzer von Privatservern verknüpfen |
+| `GET` | `/api/v1/private-servers/{id}` | Verknüpfung mit Rollen, Spielrechten und laufenden Servern |
+| `POST` | `/api/v1/private-servers/{id}/unlink` | Verknüpfung entfernen (alle Spielrechte dieses Discords entfallen) |
+| `GET` | `/api/v1/private-servers/bot/links` | Aktive Verknüpfungen mit Rollen (nur Bot) |
+| `POST` | `/api/v1/private-servers/{id}/sync` | Rollenabgleich → Spielrechte (nur Bot) |
+
+## Privatserver-Discord
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/private-servers/guild/status` | Eigene Privatserver mit Spielern, Teamsperre und Rechte-Rollen |
+| `PATCH` | `/api/v1/private-servers/guild/settings` | Teamsperre, Team-Rolle, Log-Kanal (Server verwalten) |
+| `PUT` | `/api/v1/private-servers/guild/rights/{right}` | Discord-Rolle für ein Spielrecht setzen oder entfernen (Server verwalten) |
+| `GET` | `/api/v1/private-servers/guild/grants` | Vergebene Spielrechte |
+| `POST` | `/api/v1/private-servers/guild/players/{robloxUserId}/actions` | Aktion an einem Spieler auf einem eigenen Privatserver (nie am Besitzer) |
+
 ## Berechtigungen
 
 | Methode | Pfad | Zweck |

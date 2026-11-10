@@ -23,6 +23,7 @@ export * as dispatch from './modules/dispatch';
 export * as live from './modules/live';
 export * as bolo from './modules/bolo';
 export * as ingame from './modules/ingame';
+export * as privateServers from './modules/private-servers';
 export * as incidents from './modules/incidents';
 export * as releases from './modules/releases';
 export * as backups from './modules/backups';

@@ -8,6 +8,12 @@ export interface UserActor {
   via: 'dashboard' | 'bot';
   subject: Subject;
   sessionId?: string;
+  /**
+   * Discord-Server, aus dem die Aktion kommt, wenn es NICHT der Haupt-Discord ist (Privatserver-Discord).
+   * Rollen aus solchen Discords zählen nie für Plattform-Rechte (roleIds ist dann leer); sie stehen nur hier und
+   * werden ausschließlich für die Privatserver-Funktionen dieses Discords geprüft.
+   */
+  guild?: { id: string; admin: boolean; roleIds: string[] };
 }
 
 export interface ServiceActor {

@@ -34,7 +34,7 @@ nennen bei Fehlern nur die Variablennamen (nie die Werte).
 | `BOT_API_TOKEN` | API, Bot | Gemeinsames Service-Token (≥ 32 Zeichen) |
 | `HASH_SECRET` | API, Worker | HMAC-Geheimnis für Code- und IP-Hashes (≥ 32 Zeichen, nie ändern ohne Plan) |
 | `OWNER_DISCORD_IDS` | API, Worker | Notfall-/Erstzugang mit Vollrechten |
-| `DISCORD_*` | API, Worker, Bot | siehe oben; `DISCORD_GUILD_ID` = Server-ID |
+| `DISCORD_*` | API, Worker, Bot | siehe oben; `DISCORD_GUILD_ID` = Server-ID des Haupt-Discords (Pflicht für Privatserver-Discords, siehe [private-servers.md](private-servers.md)) |
 | `VERIFIED_ROLE_ID` | API, Worker | Rolle „Verifiziert“ (alternativ im Dashboard → Konfiguration) |
 | `ROBLOX_CLIENT_*` | API | Roblox-OAuth |
 | `API_URL` | Bot, Dashboard | Interne API-Adresse (z. B. `http://api:4000`) |

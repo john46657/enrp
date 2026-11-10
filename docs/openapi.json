@@ -7426,6 +7426,536 @@
         }
       }
     },
+    "/api/v1/private-servers": {
+      "get": {
+        "summary": "Verknüpfte Privatserver-Discords",
+        "tags": [
+          "Privatserver"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "all",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "summary": "Discord-Server mit dem Roblox-Besitzer von Privatservern verknüpfen",
+        "tags": [
+          "Privatserver"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "link": {
+                    "type": "object",
+                    "properties": {
+                      "guildId": {
+                        "type": "string",
+                        "pattern": "^\\d{15,22}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 60
+                      },
+                      "ownerRobloxId": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 9007199254740991
+                      },
+                      "ownerUsername": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 20
+                      }
+                    },
+                    "required": [
+                      "guildId",
+                      "name"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "link",
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/{id}": {
+      "get": {
+        "summary": "Verknüpfung mit Rollen, Spielrechten und laufenden Servern",
+        "tags": [
+          "Privatserver"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/{id}/unlink": {
+      "post": {
+        "summary": "Verknüpfung entfernen (alle Spielrechte dieses Discords entfallen)",
+        "tags": [
+          "Privatserver"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/bot/links": {
+      "get": {
+        "summary": "Aktive Verknüpfungen mit Rollen (nur Bot)",
+        "tags": [
+          "Privatserver"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/{id}/sync": {
+      "post": {
+        "summary": "Rollenabgleich → Spielrechte (nur Bot)",
+        "tags": [
+          "Privatserver"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "full": {
+                    "type": "boolean"
+                  },
+                  "members": {
+                    "maxItems": 25000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "discordUserId": {
+                          "type": "string",
+                          "pattern": "^\\d{15,22}$"
+                        },
+                        "roleIds": {
+                          "maxItems": 250,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          }
+                        }
+                      },
+                      "required": [
+                        "discordUserId",
+                        "roleIds"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "full",
+                  "members"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/guild/status": {
+      "get": {
+        "summary": "Eigene Privatserver mit Spielern, Teamsperre und Rechte-Rollen",
+        "tags": [
+          "Privatserver-Discord"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/guild/settings": {
+      "patch": {
+        "summary": "Teamsperre, Team-Rolle, Log-Kanal (Server verwalten)",
+        "tags": [
+          "Privatserver-Discord"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "teamLock": {
+                    "type": "boolean"
+                  },
+                  "teamRoleId": {
+                    "nullable": true,
+                    "type": "string",
+                    "pattern": "^\\d{15,22}$"
+                  },
+                  "logChannelId": {
+                    "nullable": true,
+                    "type": "string",
+                    "pattern": "^\\d{15,22}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/guild/rights/{right}": {
+      "put": {
+        "summary": "Discord-Rolle für ein Spielrecht setzen oder entfernen (Server verwalten)",
+        "tags": [
+          "Privatserver-Discord"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roleId": {
+                    "nullable": true,
+                    "type": "string",
+                    "pattern": "^\\d{15,22}$"
+                  }
+                },
+                "required": [
+                  "roleId"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{2,30}$"
+            },
+            "in": "path",
+            "name": "right",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/guild/grants": {
+      "get": {
+        "summary": "Vergebene Spielrechte",
+        "tags": [
+          "Privatserver-Discord"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/guild/players/{robloxUserId}/actions": {
+      "post": {
+        "summary": "Aktion an einem Spieler auf einem eigenen Privatserver (nie am Besitzer)",
+        "tags": [
+          "Privatserver-Discord"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "heal"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "action"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "kill"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "action"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "respawn"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "action"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "jail"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "minutes"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "unjail"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "action"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "wanted"
+                                ]
+                              },
+                              "level": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 5
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "level"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "team"
+                                ]
+                              },
+                              "team": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "team"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "kick"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ]
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "command",
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 9007199254740991
+            },
+            "in": "path",
+            "name": "robloxUserId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/permissions/catalog": {
       "get": {
         "summary": "Berechtigungskatalog und Befehlsrechte",

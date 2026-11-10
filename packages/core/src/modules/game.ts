@@ -27,6 +27,7 @@ import { confirmRedemptionDelivered, currentMaintenance, inGameAnnouncements, re
 import { endActiveDuty, endDuty, startDuty } from './duty';
 import { getActiveMembership } from './factions';
 import { checkBoloHits } from './bolo';
+import { heartbeatInfo } from './private-servers';
 import { activeRobloxBan, pendingRobloxSanctions } from './moderation';
 import { upsertRobloxUser } from './verification';
 import { vehiclesForPlayer } from './vehicles';
@@ -299,6 +300,8 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
     announcements: await inGameAnnouncements(ctx.db, since),
     sanctions: await pendingRobloxSanctions(ctx.db),
     commands: await takeServerCommands(ctx, result.id),
+    // Privatserver: Teamsperre und Spielrechte der anwesenden Spieler (sonst null = keine Teamsperre)
+    privateServer: await heartbeatInfo(ctx.db, { serverType, privateServerOwnerId }),
   };
 }
 

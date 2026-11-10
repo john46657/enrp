@@ -105,6 +105,12 @@ export const NAV: NavGroup[] = [
         icon: Server,
         permission: ['monitoring:view', 'roblox_servers:view'],
       },
+      {
+        href: '/ops/private-servers',
+        label: 'Privatserver-Discords',
+        icon: Lock,
+        permission: 'private_servers:view',
+      },
       { href: '/ops/jobs', label: 'Warteschlangen & Jobs', icon: ClipboardList, permission: 'jobs:view' },
       { href: '/ops/incidents', label: 'Vorfälle', icon: AlertTriangle, permission: 'incidents:view' },
       { href: '/ops/backups', label: 'Backups', icon: DatabaseBackup, permission: 'backups:view' },

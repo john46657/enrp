@@ -119,6 +119,11 @@ export const RESOURCES = {
     group: 'Technik & Betrieb',
     actions: ['view', 'edit', 'configure'],
   },
+  private_servers: {
+    label: 'Privatserver-Discords (Bearbeiten = verknüpfen/entfernen)',
+    group: 'Technik & Betrieb',
+    actions: ['view', 'edit'],
+  },
   audit: { label: 'Audit-Logs', group: 'Sicherheit & Kontrolle', actions: ['view', 'export'] },
   security: { label: 'Sicherheitsereignisse & Sitzungen', group: 'Sicherheit & Kontrolle', actions: ['view', 'edit'] },
   approvals: { label: 'Freigabezentrum', group: 'Sicherheit & Kontrolle', actions: ['view', 'create', 'approve'] },

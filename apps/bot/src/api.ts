@@ -1,4 +1,4 @@
-import { type Interaction } from 'discord.js';
+import { PermissionFlagsBits, type Interaction } from 'discord.js';
 import { ApiClientError, createApiClient, type ApiClient } from '@enrp/shared';
 import { type BotEnv } from './env';
 
@@ -26,6 +26,14 @@ export function createApiFactory(env: BotEnv) {
           'x-actor-id': interaction.user.id,
           'x-actor-roles': memberRoleIds(interaction).join(','),
           'x-actor-name': encodeURIComponent(interaction.user.username),
+          // Aus welchem Discord? Die API wertet Rollen anderer Discords (Privatserver-Discords) nie als
+          // Plattform-Rechte, sondern nur für deren /ps-Funktionen („Server verwalten“ + Team-Rolle).
+          ...(interaction.guildId
+            ? {
+                'x-actor-guild': interaction.guildId,
+                'x-actor-guild-admin': interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ? '1' : '0',
+              }
+            : {}),
         }),
       });
     },

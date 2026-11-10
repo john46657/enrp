@@ -11,6 +11,8 @@ const TOPIC_QUERIES: Record<string, string[][]> = {
     ['live-players'],
     ['live-vehicles'],
     ['player-actions'],
+    ['list', '/private-servers'],
+    ['private-server'],
   ],
   tickets: [['list', '/tickets'], ['overview']],
   reports: [['list', '/reports'], ['overview']],

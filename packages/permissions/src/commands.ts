@@ -127,6 +127,10 @@ export const COMMAND_PERMISSIONS: Record<string, PermissionKey | null> = {
   'ingame team': 'ingame_actions:edit',
   'ingame kill': 'ingame_actions:approve',
   'ingame history': 'ingame_actions:view',
+  'privatserver list': 'private_servers:view',
+  'privatserver link': 'private_servers:edit',
+  'privatserver unlink': 'private_servers:edit',
+  'privatserver info': 'private_servers:view',
   status: null,
   hilfe: null,
 };

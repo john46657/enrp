@@ -6,6 +6,7 @@ import {
   Events,
   GatewayIntentBits,
   InteractionContextType,
+  PermissionFlagsBits,
   MessageFlags,
   Partials,
   type ChatInputCommandInteraction,
@@ -16,6 +17,8 @@ import { createLogger } from '@enrp/config';
 import { createApiFactory, describeError } from './api';
 import { type BotCommand } from './command';
 import { COMMANDS } from './commands/index';
+import { PRIVATE_SERVER_COMMANDS } from './commands/private-servers';
+import { createPrivateServerSync } from './private-servers';
 import { loadBotEnv } from './env';
 import { loadLegacy, type LegacyBridge } from './legacy';
 import { COLORS } from './ui';
@@ -37,13 +40,21 @@ const client = new Client({
 
 const commands = new Map<string, BotCommand>();
 const components = new Map<string, NonNullable<BotCommand['components']>[string]>();
-for (const command of COMMANDS) {
+const privateServerCommandNames = new Set(PRIVATE_SERVER_COMMANDS.map((c) => c.data.name));
+for (const command of [...COMMANDS, ...PRIVATE_SERVER_COMMANDS]) {
   (command.data as { setContexts: (...c: InteractionContextType[]) => unknown }).setContexts(
     InteractionContextType.Guild,
   );
   commands.set(command.data.name, command);
   for (const [prefix, handler] of Object.entries(command.components ?? {})) components.set(prefix, handler);
 }
+const privateServerSync = createPrivateServerSync({
+  client,
+  apis,
+  logger,
+  mainGuildId: env.guildId,
+  commands: PRIVATE_SERVER_COMMANDS.map((c) => c.data.toJSON()),
+});
 const legacyCommands = new Map((legacy?.commands ?? []).map((c) => [c.data.name, c]));
 const legacyComponents = new Map(legacy?.commands.flatMap((c) => Object.entries(c.components ?? {})) ?? []);
 for (const name of legacyCommands.keys()) if (commands.has(name)) throw new Error(`Doppelter Befehlsname /${name}`);
@@ -83,6 +94,19 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
   const defer = command.defer ?? 'ephemeral';
   if (defer) await interaction.deferReply(defer === 'ephemeral' ? { flags: MessageFlags.Ephemeral } : {});
   const api = apis.forInteraction(interaction);
+  if (privateServerCommandNames.has(interaction.commandName)) {
+    // Privatserver-Discords: keine Plattform-Rechteprüfung – die API prüft den Discord (Server verwalten/Team-Rolle).
+    const sub = interaction.options.getSubcommand(false);
+    if (sub === 'abgleichen' && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      return interaction.editReply('⛔ Dafür brauchst du „Server verwalten“.');
+    }
+    const result = await command.execute(interaction, { api, apis });
+    if ((sub === 'spielrecht' || sub === 'abgleichen') && interaction.guildId)
+      privateServerSync
+        .resync(interaction.guildId)
+        .catch((err) => logger.warn({ err }, 'Rechte-Abgleich fehlgeschlagen'));
+    return result;
+  }
   // Vorabprüfung inkl. Rollen-Overrides (/permissions grant|revoke). Die API prüft zusätzlich jede Aktion.
   const access = await api.post<{ allowed: boolean; permission: string | null; source: string }>(
     '/api/v1/permissions/check',
@@ -163,7 +187,11 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
   }
 });
 
+client.on(Events.GuildMemberUpdate, (before, after) => privateServerSync.onMemberUpdate(before, after));
+client.on(Events.GuildCreate, () => privateServerSync.refresh().catch(() => undefined));
+
 client.on(Events.GuildMemberRemove, (member) => {
+  privateServerSync.onMemberRemove(member);
   if (legacy) legacy.onMemberRemove(member).catch((err) => logger.error({ err }, 'guildMemberRemove'));
 });
 
@@ -173,6 +201,8 @@ client.once(Events.ClientReady, async (ready) => {
   if (env.guildId) await ready.application.commands.set(body as never, env.guildId);
   else await ready.application.commands.set(body as never);
   logger.info({ count: body.length, scope: env.guildId ?? 'global' }, 'Slash-Commands registriert');
+  // Privatserver-Discords: /ps registrieren und Spielrechte abgleichen (alle 60 s neue Verknüpfungen prüfen)
+  await privateServerSync.start();
 
   // Ticketpanel-Ereignisse in die Datenbank spiegeln (Dashboard).
   legacy?.setTicketHooks({

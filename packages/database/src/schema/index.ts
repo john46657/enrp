@@ -6,3 +6,4 @@ export * from './moderation';
 export * from './community';
 export * from './ops';
 export * from './dispatch';
+export * from './private-servers';

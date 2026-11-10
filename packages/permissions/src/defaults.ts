@@ -41,6 +41,8 @@ export const DEFAULT_ROLES: DefaultRole[] = [
       'settings:edit',
       'roblox_servers:view',
       'roblox_servers:edit',
+      'private_servers:view',
+      'private_servers:edit',
       'audit:view',
       'security:view',
       'approvals:view',

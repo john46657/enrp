@@ -38,6 +38,10 @@ const FIELD_LABELS: Record<string, string> = {
   boloPingRoleId: 'Rolle für Fahndungstreffer (leer = Leitstellen-Rolle)',
   boloHitCooldownMinutes: 'Gleicher Fahndungstreffer frühestens wieder nach (Minuten)',
   maxJailMinutes: 'Höchstdauer Gefängnis über Ingame-Aktionen (Minuten)',
+  rights: 'Spielrechte für Privatserver (z. B. polizei)',
+  teamRights: 'Gesperrte Teams bei Teamsperre (Team=recht)',
+  fallbackTeam: 'Team für Spieler ohne Recht',
+  ownerHasAllRights: 'Privatserver-Besitzer hat alle Rechte',
 };
 
 /** Einstellungsformulare werden aus den aktuellen Werten erzeugt; die API validiert jede Änderung. */

@@ -92,6 +92,8 @@ export const serverCommandType = pgEnum('server_command_type', [
   'unjail',
   'wanted',
   'team',
+  // Nur für Privatserver-Teams: Spieler vom eigenen Privatserver entfernen (keine Sanktion)
+  'kick',
 ]);
 export const serverCommandStatus = pgEnum('server_command_status', [
   'pending',

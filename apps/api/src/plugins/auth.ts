@@ -63,11 +63,26 @@ async function resolveBotActor(app: FastifyInstance, request: FastifyRequest): P
     .split(',')
     .filter((r) => SNOWFLAKE.test(r))
     .slice(0, 250);
-  const key = `${actorIdHeader}|${roleIds.sort().join(',')}`;
+  // Aktion aus einem anderen Discord als dem Haupt-Discord (Privatserver-Discord): dessen Rollen gelten nicht
+  // für Plattform-Rechte, sondern nur für die Privatserver-Funktionen dieses Discords.
+  const guildHeader = request.headers['x-actor-guild'];
+  if (guildHeader !== undefined && (typeof guildHeader !== 'string' || !SNOWFLAKE.test(guildHeader)))
+    throw new AppError('BAD_REQUEST', 'Ungültiger X-Actor-Guild-Header.');
+  const foreignGuild =
+    typeof guildHeader === 'string' && Boolean(core.config.guildId) && guildHeader !== core.config.guildId;
+  const guild = foreignGuild
+    ? { id: guildHeader, admin: request.headers['x-actor-guild-admin'] === '1', roleIds }
+    : undefined;
+  const key = `${actorIdHeader}|${roleIds.sort().join(',')}|${guild ? `${guild.id}:${guild.admin}` : ''}`;
   const now = Date.now();
   const hit = actorCache.get(key);
   if (hit && now - hit.at < 5_000) return hit.actor;
-  const actor = await buildUserActor(core.db, core.config, { discordUserId: actorIdHeader, roleIds, via: 'bot' });
+  const built = await buildUserActor(core.db, core.config, {
+    discordUserId: actorIdHeader,
+    roleIds: guild ? [] : roleIds,
+    via: 'bot',
+  });
+  const actor: UserActor = guild ? { ...built, guild } : built;
   actorCache.set(key, { at: now, actor });
   if (actorCache.size > 5000) actorCache.clear();
   // Anzeigenamen für das Dashboard aktuell halten (höchstens alle 10 Minuten je Person).

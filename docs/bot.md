@@ -39,7 +39,12 @@ sichtbar.
 | `/live` | `players`, `vehicles`, `plate` |
 | `/bolo` | `person`, `vehicle`, `list`, `info`, `resolve` (+ Button *Erledigt* an jeder Treffermeldung) |
 | `/ingame` | `heal`, `respawn`, `kill`, `jail`, `unjail`, `wanted`, `team`, `history` – Spieler per Name oder ID, muss online sein |
+| `/privatserver` | `list`, `link`, `unlink`, `info` – Privatserver-Discords verknüpfen ([docs/private-servers.md](private-servers.md)) |
 | `/status`, `/hilfe` | – |
+
+In verknüpften **Privatserver-Discords** registriert der Bot nur `/ps` (`status`, `aktion`, `teamsperre`,
+`spielrecht`, `teamrolle`, `logkanal`, `rechte`, `abgleichen`). Rechte dort: „Server verwalten“ bzw. die eingestellte
+Team-Rolle dieses Discords – nicht die Plattform-Rollen. Details: [docs/private-servers.md](private-servers.md).
 
 Discord-Moderation beachtet die Rollenhierarchie (niemand sanktioniert gleich- oder höhergestellte Personen,
 Owner und Bot sind geschützt) und Discord-Grenzen (Timeout max. 28 Tage). Teammitglieder mit

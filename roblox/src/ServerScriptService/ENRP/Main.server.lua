@@ -14,6 +14,7 @@ local Dispatch = require(script.Parent.Dispatch)
 local Duty = require(script.Parent.Duty)
 local EventQueue = require(script.Parent.EventQueue)
 local Rewards = require(script.Parent.Rewards)
+local TeamLock = require(script.Parent.TeamLock)
 
 -- Remotes für Clients (keine Geheimnisse, jede Anfrage wird serverseitig geprüft).
 local remotes = Instance.new("Folder")
@@ -227,6 +228,8 @@ local function heartbeat()
 			state.announcementsSince = a.publishedAt
 		end
 	end
+	-- Privatserver: Spielrechte und Teamsperre (nil im Hauptspiel → keine Sperre)
+	TeamLock.update(data.privateServer)
 	for _, sanction in data.sanctions or {} do
 		task.spawn(applySanction, sanction)
 	end
@@ -239,6 +242,8 @@ end
 Dispatch.init(announce)
 -- Ingame-Aktionen (Gefängnis-Zeiten, Respawn im Gefängnis, ServerStorage.ENRP.Gefaengnis)
 Actions.init(announce)
+-- Spielrechte/Teamsperre in Privatservern (Daten kommen mit jedem Heartbeat)
+TeamLock.init(announce)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()

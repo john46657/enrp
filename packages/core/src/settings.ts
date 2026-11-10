@@ -181,6 +181,26 @@ export const SETTING_DEFINITIONS = {
       maxJailMinutes: 60,
     },
   },
+  private_servers: {
+    label: 'Privatserver (Spielrechte, Teamsperre)',
+    critical: false,
+    schema: z.object({
+      /** Spielrechte, die Privatserver-Discords über eigene Rollen vergeben können. */
+      rights: z.array(z.string().regex(/^[a-z0-9_]{2,30}$/, 'Rechte: Kleinbuchstaben, Ziffern, _')).max(30),
+      /** Gesperrte Teams als „Team=recht“, z. B. „Polizei=polizei“. Gilt nur bei eingeschalteter Teamsperre. */
+      teamRights: z.array(z.string().regex(/^[^=]{1,40}=[a-z0-9_]{2,30}$/, 'Format: Team=recht')).max(50),
+      /** Team für Spieler ohne Recht (muss im Spiel existieren). */
+      fallbackTeam: z.string().trim().min(1).max(40),
+      /** Besitzer des Privatservers hat in seinen Privatservern alle Rechte. */
+      ownerHasAllRights: z.boolean(),
+    }),
+    default: {
+      rights: ['polizei', 'sek', 'flugstaffel', 'ausbilder'] as string[],
+      teamRights: ['Polizei=polizei'] as string[],
+      fallbackTeam: 'Zivilisten',
+      ownerHasAllRights: true,
+    },
+  },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFINITIONS;

@@ -1,4 +1,5 @@
--- Ingame-Aktionen aus Dashboard und Discord (ModuleScript): Heilen, Töten, Respawn, Gefängnis, Fahndungsstufe, Team.
+-- Ingame-Aktionen aus Dashboard und Discord (ModuleScript): Heilen, Töten, Respawn, Gefängnis, Fahndungsstufe, Team,
+-- Kick (nur Privatserver-Teams).
 -- Das Backend legt sie als Server-Befehle an; Main.server.lua holt sie ab und ruft Actions.run auf.
 -- Bewusst in einfacher Syntax geschrieben (gültiges Luau und Lua 5.1), damit es sich überall prüfen lässt.
 --
@@ -17,7 +18,7 @@ local Actions = {}
 local announce = nil
 local previousTeam = {} -- Team vor dem Gefängnis, um es beim Entlassen wiederherzustellen
 
-local HANDLED = { heal = true, kill = true, respawn = true, jail = true, unjail = true, wanted = true, team = true }
+local HANDLED = { heal = true, kill = true, respawn = true, jail = true, unjail = true, wanted = true, team = true, kick = true }
 
 function Actions.handles(commandType)
 	return HANDLED[commandType] == true
@@ -119,6 +120,10 @@ function Actions.run(command)
 			error("Spieler hat keinen Charakter")
 		end
 		humanoid.Health = 0
+	elseif kind == "kick" then
+		-- Nur vom Privatserver-Team (das Backend lässt es nur auf eigenen Privatservern zu)
+		player:Kick(command.message or "Du wurdest vom Server entfernt.")
+		return
 	elseif kind == "respawn" then
 		player:LoadCharacter()
 	elseif kind == "jail" then

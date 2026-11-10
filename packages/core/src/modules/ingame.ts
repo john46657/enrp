@@ -6,7 +6,7 @@ import { writeAudit } from '../audit';
 import { type CoreContext } from '../context';
 import { getSetting } from '../settings';
 import { SERVER_COMMAND_TTL_SECONDS } from './game';
-import { findOnlinePlayer, liveTeams } from './live';
+import { type LiveServer, findOnlinePlayer, liveTeams } from './live';
 
 /**
  * Ingame-Aktionen an einem einzelnen Spieler: Heilen, Töten, Respawn, Gefängnis, Fahndungsstufe, Team.
@@ -41,7 +41,7 @@ export const requiredPermission = (action: PlayerAction) =>
   action === 'kill' ? ('ingame_actions:approve' as const) : ('ingame_actions:edit' as const);
 
 /** Für Anzeige und Spiel: Parameter je Aktion (ohne das Feld „action“). */
-function paramsOf(input: PlayerActionInput): Record<string, unknown> | null {
+function paramsOf(input: QueuedAction): Record<string, unknown> | null {
   const { action: _action, ...rest } = input;
   return Object.keys(rest).length ? rest : null;
 }
@@ -64,18 +64,25 @@ function playerNotice(input: PlayerActionInput, reason: string) {
   }
 }
 
+/** Aktion oder Kick (Kick nur für Privatserver-Teams, siehe privateServers.ts). */
+export type QueuedAction = PlayerActionInput | { action: 'kick' };
+
 /**
- * Legt eine Ingame-Aktion für den Server an, auf dem der Spieler gerade ist. Ist er nirgends online, schlägt die
- * Aktion fehl – sie wird nicht für später gespeichert, weil sich die Lage im Spiel bis dahin geändert hat.
+ * Prüft Grenzen (Gefängnisdauer, Team) und legt den Befehl samt Audit-Eintrag für den Server des Spielers an.
+ * Rechte prüft der Aufrufer. `scope` begrenzt, auf welchen Servern der Spieler sein darf (Privatserver-Teams).
  */
-export async function createPlayerAction(
+export async function queuePlayerAction(
   ctx: CoreContext,
   actor: Actor,
   robloxUserId: number,
-  input: PlayerActionInput,
+  input: QueuedAction,
   reason: string,
+  options: {
+    scope?: (server: LiveServer) => boolean;
+    scopeError?: string;
+    audit?: Record<string, unknown>;
+  } = {},
 ) {
-  requirePermission(actor, requiredPermission(input.action));
   const now = ctx.now();
   if (input.action === 'jail') {
     const { maxJailMinutes } = await getSetting(ctx.db, 'dispatch');
@@ -84,6 +91,8 @@ export async function createPlayerAction(
   }
   const online = await findOnlinePlayer(ctx.db, now, robloxUserId);
   if (!online) throw errors.badRequest('Der Spieler ist gerade auf keinem Server online.');
+  if (options.scope && !options.scope(online.server))
+    throw errors.forbidden(options.scopeError ?? 'Der Spieler ist nicht auf einem deiner Server.');
   if (input.action === 'team') {
     const wanted = input.team;
     const teams = await liveTeams(ctx.db, now);
@@ -92,6 +101,8 @@ export async function createPlayerAction(
     if (match) input = { ...input, team: match };
   }
   const params = paramsOf(input);
+  const notice =
+    input.action === 'kick' ? `Du wurdest vom Privatserver entfernt. Grund: ${reason}` : playerNotice(input, reason);
   const row = await ctx.db.transaction(async (tx) => {
     const [created] = await tx
       .insert(serverCommands)
@@ -99,7 +110,7 @@ export async function createPlayerAction(
         serverId: online.server.id,
         type: input.action,
         robloxUserId,
-        message: playerNotice(input, reason).slice(0, 300),
+        message: notice.slice(0, 300),
         params,
         reason,
         createdBy: actorId(actor),
@@ -116,6 +127,7 @@ export async function createPlayerAction(
         resourceId: robloxUserId,
         reason,
         after: { commandId: created!.id, serverId: online.server.id, params },
+        metadata: options.audit,
       },
       now,
     );
@@ -127,6 +139,21 @@ export async function createPlayerAction(
     player: { userId: online.player.userId, username: online.player.username, team: online.player.team ?? null },
     server: online.server,
   };
+}
+
+/**
+ * Legt eine Ingame-Aktion für den Server an, auf dem der Spieler gerade ist. Ist er nirgends online, schlägt die
+ * Aktion fehl – sie wird nicht für später gespeichert, weil sich die Lage im Spiel bis dahin geändert hat.
+ */
+export async function createPlayerAction(
+  ctx: CoreContext,
+  actor: Actor,
+  robloxUserId: number,
+  input: PlayerActionInput,
+  reason: string,
+) {
+  requirePermission(actor, requiredPermission(input.action));
+  return queuePlayerAction(ctx, actor, robloxUserId, input, reason);
 }
 
 /** Verlauf der Ingame-Aktionen an einem Spieler (bzw. aller Spieler) mit Ergebnis. */
@@ -154,7 +181,7 @@ export async function listPlayerActions(
     .leftJoin(robloxUsers, eq(robloxUsers.id, serverCommands.robloxUserId))
     .where(
       and(
-        inArray(serverCommands.type, [...PLAYER_ACTIONS]),
+        inArray(serverCommands.type, [...PLAYER_ACTIONS, 'kick']),
         filter.robloxUserId ? eq(serverCommands.robloxUserId, filter.robloxUserId) : undefined,
       ),
     )

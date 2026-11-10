@@ -54,6 +54,7 @@ Prüfen: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test` (Integr
 | Sicherheit | [docs/security.md](docs/security.md) |
 | Betrieb, Backups, Notfallplan | [docs/operations.md](docs/operations.md) |
 | Deployment (Docker, CI/CD, Staging/Produktion) | [docs/deployment.md](docs/deployment.md) |
+| Privatserver-Discords, Spielrechte, Teamsperre | [docs/private-servers.md](docs/private-servers.md) |
 | Roblox-Integration | [roblox/README.md](roblox/README.md) · Test auf dem eigenen PC: [docs/roblox-test.md](docs/roblox-test.md) |
 
 ## Stand der Umsetzung
@@ -79,6 +80,7 @@ gegen echtes PostgreSQL/Redis bzw. manueller Start der gebauten Dienste.
 | Discord-Sicherheit: Schutz vor Massenlöschung, Lockdown (Altmodule) | ✅ Tests mit nachgebauten Discord-Objekten; mit echtem Discord-Server **nicht** getestet |
 | Leitstelle (Ingame-Notrufe, Einsätze/CAD, Einheitenstatus, Mod-Calls, Live-Lage mit Kennzeichen-Suche) | ✅ Kern- und API-Integrationstests; Discord-Meldungen gegen Attrappe; im Spiel **nicht** getestet |
 | Fahndungen (BOLO mit Treffer-Alarm aus dem Heartbeat) und Ingame-Aktionen (Heilen, Töten, Respawn, Gefängnis, Fahndungsstufe, Team) | ✅ Kern- und API-Integrationstests, Treffermeldung geprüft; Dashboard-Seiten gebaut, im Browser **nicht** durchgeklickt; `Actions.lua` im Spiel **nicht** getestet |
+| Privatserver-Discords (Verknüpfung, `/ps`, Spielrechte aus Discord-Rollen, Teamsperre im Heartbeat, Aktionen nur auf eigenen Privatservern) | ✅ Kern-, API- und Bot-Tests (Abgleich mit nachgebautem Discord-Client); mit echtem Discord und im Spiel **nicht** getestet |
 | Roblox-Luau-Skripte | ⚠️ geschrieben, **nicht** in Roblox Studio ausgeführt – Testcheckliste in roblox/README.md |
 | Worker: Backups (pg_dump/pg_restore, Prüfsumme, Test-Wiederherstellung), Watchdogs, Aufbewahrung | ✅ gegen echtes PostgreSQL/Redis getestet |
 | Discord-Bot | ✅ Build, Befehlsregistrierung und Rechtekatalog geprüft, Start bis zum Login geprüft; mit echtem Discord-Server **nicht** getestet |

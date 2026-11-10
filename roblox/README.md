@@ -20,6 +20,7 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 | Live-Lage | Heartbeat schickt pro Spieler Team, Fahndungsstufe (`ENRP_Wanted`), Gefängnis (`ENRP_Jail`), Rufname (`ENRP_Callsign`) sowie alle Fahrzeuge mit dem Tag `ENRPFahrzeug` (Attribute `Besitzer`, `Kennzeichen`, `Farbe`, `Modell`; fehlendes Kennzeichen wird vergeben) und die Teamliste. |
 | Notrufe & Mod-Calls (`Dispatch.lua`) | Chat: `/notruf`, `/110` → Polizei, `/112` → Rettungsdienst, `/feuerwehr`, `/modcall` (anpassbar in `Config.CallCommands`). Position und nächster Ort (Parts mit Tag `ENRPOrt`, Attribut `Name`) werden mitgeschickt und sofort gesendet. Eigene Skripte: `ServerStorage.ENRP.Notruf:Fire(player, "Polizei", text)`, `ModCall:Fire(player, text)`, `Kill:Fire(opfer, täter, waffe)`. |
 | Ingame-Aktionen (`Actions.lua`) | Server-Befehle `heal`, `kill`, `respawn`, `jail` (`params.minutes`), `unjail`, `wanted` (`params.level`), `team` (`params.team`) aus Dashboard/Discord. Gefängnis: Attribut `ENRP_Jail` = Entlasszeit (`os.time()`), Teleport zu Parts mit Tag `ENRPGefaengnis` (`Config.JailTag`), optional `Config.JailTeam`/`Config.ReleaseTeam`, automatische Entlassung. Eigene Skripte: `ServerStorage.ENRP.Gefaengnis:Fire(player, minuten)`. |
+| Spielrechte & Teamsperre (`TeamLock.lua`) | Nur verknüpfte Privatserver: Heartbeat-Antwort `privateServer` mit `teamLock`, `teamRights`, `fallbackTeam`, `rights`. Ohne Recht in gesperrtem Team → Ausweich-Team. Attribute `ENRP_Rechte`, `ENRP_<recht>`. Siehe [docs/private-servers.md](../docs/private-servers.md). |
 | Protokoll | `player_killed` (über `creator`-Tag oder Attribut `ENRP_LastDamager`), `team_changed`, `vehicle_spawned`, `vehicle_despawned`. |
 | Ankündigungen/Wartung | RemoteEvents `Announcement`, `Maintenance` → einfache Banner im Client. |
 
@@ -83,6 +84,7 @@ eigene Kennung `studio-…`; Testspieler mit negativer ID (lokaler Mehrspieler-T
 - [ ] Dashboard → *Leitstelle → Live-Lage* zeigt Teams; Fahrzeug mit Tag `ENRPFahrzeug` erscheint mit Kennzeichen.
 - [ ] Live-Lage → „Aktion“ → Heilen/Respawn/Fahndungsstufe/Team wirken, Ergebnis steht unter „Letzte Ingame-Aktionen“ auf „ausgeführt“.
 - [ ] Gefängnis 1 Minute → Spieler landet am Part mit Tag `ENRPGefaengnis`, bleibt dort nach Respawn, wird nach 1 Minute entlassen.
+- [ ] Privatserver eines verknüpften Besitzers: `/ps teamsperre aktiv:true` → Spieler ohne Spielrecht landet beim Wechsel ins Team „Polizei“ im Ausweich-Team; mit Rolle + `/verify` klappt es (≤ 30 s). `/ps aktion … kick` entfernt den Spieler.
 - [ ] Fahndung nach dem Kennzeichen eines gespawnten Fahrzeugs → Treffer im Dashboard und im Fahndungskanal innerhalb von 30 s.
 
 ## Grenzen der Roblox-Umgebung
