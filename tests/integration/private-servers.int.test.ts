@@ -10,7 +10,7 @@ import {
   userWithRole,
   type TestContext,
 } from './helpers';
-import { botHeaders, createTestApp } from './api-helpers';
+import { botHeaders, cookiesOf, createTestApp, fakeOAuthFetch } from './api-helpers';
 
 const OWNER_DISCORD = '540000000000000001';
 const OWNER_ROBLOX = 5201;
@@ -243,5 +243,29 @@ describe('API: Privat-Server', () => {
       payload: { teamLock: false },
     });
     expect(foreign.statusCode).toBe(404);
+  });
+});
+
+describe('Dashboard-Login für Privat-Server-Besitzer', () => {
+  it('Besitzer ohne Team-Rechte dürfen sich anmelden und landen auf „Privat-Server“, andere nicht', async () => {
+    const login = async (ctx: TestContext, discordId: string) => {
+      const oauthFetch = fakeOAuthFetch({ discordId, robloxId: 1, robloxName: 'x' });
+      const { app } = await createTestApp(ctx, oauthFetch.impl);
+      const start = await app.inject('/api/v1/auth/discord/login');
+      const state = new URL(start.headers.location as string).searchParams.get('state')!;
+      const cb = await app.inject({
+        url: `/api/v1/auth/discord/callback?code=c&state=${state}`,
+        cookies: { enrp_oauth: cookiesOf(start).enrp_oauth! },
+      });
+      await app.close();
+      return cb;
+    };
+    const ctx = createTestContext();
+    await setup(ctx);
+    const ok = await login(ctx, OWNER_DISCORD);
+    expect(ok.headers.location).toMatch(/\/private-servers$/);
+    expect(cookiesOf(ok).enrp_session).toBeTruthy();
+    const denied = await login(ctx, OTHER_DISCORD);
+    expect(denied.headers.location).toContain('error=kein_zugriff');
   });
 });

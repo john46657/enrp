@@ -70,6 +70,17 @@ async function linkedRobloxIds(db: DbExecutor, actor: Actor) {
   return rows.map((r) => r.id);
 }
 
+/** Besitzt die Person (über ihr verknüpftes Roblox-Konto) einen Privat-Server? Erlaubt den Dashboard-Login. */
+export async function ownsPrivateServer(db: DbExecutor, discordUserId: string) {
+  const [row] = await db
+    .select({ id: privateServers.id })
+    .from(privateServers)
+    .innerJoin(accountLinks, eq(accountLinks.robloxUserId, privateServers.ownerRobloxId))
+    .where(and(eq(accountLinks.discordUserId, discordUserId), eq(accountLinks.status, 'active')))
+    .limit(1);
+  return Boolean(row);
+}
+
 async function canManage(db: DbExecutor, actor: Actor, row: Row) {
   if (hasPermission(actor, 'roblox_servers:configure')) return true;
   return (await linkedRobloxIds(db, actor)).includes(row.ownerRobloxId);
