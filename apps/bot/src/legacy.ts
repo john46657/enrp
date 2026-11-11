@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Client, type GuildMember, type Message, type PartialGuildMember } from 'discord.js';
+import { type Client, type Guild, type GuildMember, type Message, type PartialGuildMember } from 'discord.js';
 import { type Logger } from '@enrp/config';
 
 /**
@@ -52,6 +52,11 @@ export interface LegacyBridge {
   flush(): void;
   /** Altbefehl mit Freigabe durch das Rechtesystem der Plattform ausführen (gilt als Staff). */
   runWithGrant<T>(userId: string, fn: () => T): T;
+  /** Anfrage aus dem Dashboard der Plattform ausführen (Daten lesen, Aktion, Einstellungen). */
+  handleRequest(
+    guild: Guild,
+    request: { kind: string; name: string; payload: Record<string, unknown>; actorDiscordId: string | null },
+  ): Promise<unknown>;
 }
 
 export function loadLegacy(logger: Logger): LegacyBridge {
@@ -68,6 +73,7 @@ export function loadLegacy(logger: Logger): LegacyBridge {
   });
   const db = require('./src/lib/db');
   const grant = require('./src/lib/platformGrant');
+  const platformBridge = require('./src/lib/platformBridge');
   const tickets = require('./src/lib/tickets');
   const appStore = require('./src/lib/applications/store');
   const appMessages = require('./src/lib/applications/messages');
@@ -109,5 +115,6 @@ export function loadLegacy(logger: Logger): LegacyBridge {
     },
     flush: () => db.flush(),
     runWithGrant: (userId, fn) => grant.runWithGrant(userId, fn),
+    handleRequest: (guild, request) => platformBridge.handle(guild, request),
   };
 }

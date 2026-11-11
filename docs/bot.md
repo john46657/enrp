@@ -107,8 +107,44 @@ So wird entschieden (es geht keine bisherige Berechtigung verloren):
 5. Ist die Plattform nicht erreichbar (oder antwortet nicht innerhalb von 1,5 s), gilt das bisherige Verhalten.
 
 Die Altbefehle sind deshalb in Discord für alle sichtbar; wer sie nicht nutzen darf, bekommt eine Absage.
-Noch nicht im Dashboard (folgt): Bewerbungen, Level, Rollenpanel und Ticketpanel ansehen/bearbeiten sowie die
-`/einstellungen` der Altmodule. Buttons der Altmodule (z. B. Ticket übernehmen) prüfen weiterhin nur die alten Rollen.
+
+### Buttons der Altmodule
+
+Auch die Staff-Aktionen hinter Buttons, Menüs und Formularen hängen am Rechtesystem
+(`LEGACY_COMPONENT_PERMISSIONS`). Wer das Plattform-Recht hat, gilt bei dieser Aktion als Staff – zusätzlich zu
+den bisherigen Staff-/Support-/Manager-Rollen, von denen niemand etwas verliert:
+
+| Buttons | Plattform-Recht |
+|---|---|
+| Ticket übernehmen, freigeben, schließen (inkl. Rückfrage, Formular, Schließungs-Anfrage), Personen-Anfrage bestätigen/ablehnen | `tickets:edit` |
+| Bewerbung annehmen/ablehnen (mit Grund), Prüfschritt weiter, Ticket mit dem Bewerber öffnen | `applications:edit` |
+| Verlauf eines Bewerbers ansehen | `applications:view` |
+
+Ticket öffnen, bewerben und das Rollenpanel bleiben für alle. Der Bot fragt die Plattform höchstens 1,5 s lang und
+merkt sich das Ergebnis 30 s; ist sie nicht erreichbar, gelten nur die bisherigen Rollen.
+
+### Altmodule im Dashboard
+
+Unter **Discord-Module** lassen sich die Altmodule des Haupt-Discords im Dashboard ansehen und bearbeiten:
+
+| Seite | Inhalt | Rechte |
+|---|---|---|
+| Bewerbungen | Liste mit Filter und Suche, Antworten, Verlauf, interne Notizen, annehmen/ablehnen mit Grund, Prüfschritte, löschen · „In Bearbeitung“ · Sperren anlegen/aufheben · Statistik · Einrichtung: Panels, Team-Kanäle, je Bewerbungsart Rollen, Kanäle, Texte und Fragen, Panel posten | `applications:view` · `edit` · `delete` · `configure` |
+| Ticketpanel | offene Tickets, Aussehen, Kategorien, Verhalten, Automatik, Öffnungszeiten, Panel posten/aktualisieren | `tickets:view`, `settings:view` · `settings:edit` |
+| Level-System | Rangliste, XP setzen/löschen, Einstellungen, Rollen-Belohnungen | `community:view` · `community:edit`/`delete` · `settings:edit` |
+| Rollenpanel | neues Panel mit bis zu 10 Rollen posten | `community:view` · `community:create` |
+| Kanäle & Rollen | Log-Kanäle, Support-/Staff-/Auto-Rolle, Zeitzone, Roblox-Spiel, bisherige Begrüßung, alles zurücksetzen | `settings:view` · `settings:edit` · `settings:configure` |
+
+Es sind dieselben Werte wie bei `/einstellungen`; Änderungen gelten sofort und landen im Audit-Log
+(`legacy.*`). Neue Ticket-Kategorien und Bewerbungsarten werden weiterhin in `apps/bot/legacy/config.json` angelegt.
+
+So funktioniert es: Die Daten der Altmodule liegen beim Bot (`data/db.json`). Das Dashboard stellt eine Anfrage an
+die API (`/api/v1/legacy/…`), die das Recht prüft und sie in `legacy_requests` ablegt. Der Bot holt Anfragen per
+Long-Polling ab (`GET /api/v1/bot/legacy/requests`), führt sie mit den Altmodulen aus
+(`apps/bot/legacy/src/lib/platformBridge.js`) und meldet das Ergebnis zurück; die Anfrage des Dashboards wartet
+darauf. Aktionen laufen im Namen der angemeldeten Person – sie muss Mitglied des Haupt-Discords sein. Läuft der Bot
+nicht (oder mit `LEGACY_MODULES=false`), zeigt das Dashboard nach etwa 12 s „Der Bot antwortet nicht“ und führt die
+Anfrage später nicht mehr aus.
 
 Die Begrüßung neuer Mitglieder kommt aus dem Dashboard (*Community-Tools → Begrüßung*); ist sie dort
 deaktiviert, gilt die bisherige Begrüßung aus der `config.json`.

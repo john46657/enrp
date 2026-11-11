@@ -276,7 +276,7 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `GET` | `/api/v1/permissions/commands` | Befehls-Overrides |
 | `POST` | `/api/v1/permissions/commands/override` | /permissions grant|revoke |
 | `POST` | `/api/v1/permissions/commands/reset` | /permissions reset – Overrides entfernen |
-| `POST` | `/api/v1/permissions/check` | Befehlszugriff der handelnden Person prüfen |
+| `POST` | `/api/v1/permissions/check` | Befehlszugriff (oder ein einzelnes Recht, für Buttons der Altmodule) der handelnden Person prüfen |
 | `POST` | `/api/v1/permissions/test` | /permissions test – Zugriff einer anderen Person prüfen |
 
 ## Konfiguration
@@ -416,3 +416,14 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/bot/guilds` | Bot ist einem weiteren Discord beigetreten (nur Service-Token) |
 | `POST` | `/api/v1/bot/guilds/{id}/left` | Bot hat einen Discord verlassen |
 | `GET` | `/api/v1/bot/config` | Bot-Konfiguration (nur Service-Token) |
+| `GET` | `/api/v1/bot/legacy/requests` | Offene Anfragen an die Altmodule abholen (Long-Polling, nur Service-Token) |
+| `POST` | `/api/v1/bot/legacy/requests/{id}/result` | Ergebnis einer Anfrage an die Altmodule melden (nur Service-Token) |
+
+## Altmodule
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/legacy/live/{name}` | Daten der Altmodule lesen (beantwortet der Bot) |
+| `POST` | `/api/v1/legacy/actions/{name}` | Aktion in den Altmodulen ausführen (z. B. Bewerbung entscheiden, Panel posten) |
+| `PUT` | `/api/v1/legacy/settings` | Einstellungen der Altmodule ändern (alle Änderungen oder keine) |
+| `POST` | `/api/v1/legacy/settings/reset` | Einstellungen der Altmodule auf die config.json zurücksetzen |

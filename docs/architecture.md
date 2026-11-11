@@ -47,6 +47,7 @@
 | 11 | Dashboard leitet `/api` per Laufzeit-Proxy weiter | Eine Origin (Cookies, CSRF, OAuth), API-Adresse zur Laufzeit konfigurierbar |
 | 12 | Releases nur über CI/CD (`workflow_dispatch`) | Discord/Dashboard können niemals Shell-Befehle ausführen |
 | 13 | Bisheriger JS-Bot als Altmodule weiterbetrieben | Funktionierende Bewerbungs-/Ticket-/Levelsysteme bleiben erhalten; Ticketpanel spiegelt in die Datenbank |
+| 14 | Dashboard erreicht die Altmodule über Anfragen, die der Bot per Long-Polling bei der API abholt | Der Bot bleibt reiner API-Client (kein eigener Port, kein Redis); Rechte und Audit bleiben in der API |
 
 ## Ablauf: Verifizierung
 

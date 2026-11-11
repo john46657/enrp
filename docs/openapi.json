@@ -7842,7 +7842,7 @@
     },
     "/api/v1/permissions/check": {
       "post": {
-        "summary": "Befehlszugriff der handelnden Person prüfen",
+        "summary": "Befehlszugriff (oder ein einzelnes Recht, für Buttons der Altmodule) der handelnden Person prüfen",
         "tags": [
           "Berechtigungen"
         ],
@@ -7851,15 +7851,31 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "command": {
-                    "type": "string",
-                    "maxLength": 60
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "maxLength": 60
+                      }
+                    },
+                    "required": [
+                      "command"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "permission": {
+                        "type": "string",
+                        "maxLength": 60
+                      }
+                    },
+                    "required": [
+                      "permission"
+                    ]
                   }
-                },
-                "required": [
-                  "command"
                 ]
               }
             }
@@ -10134,6 +10150,201 @@
         "summary": "Bot-Konfiguration (nur Service-Token)",
         "tags": [
           "Bot"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/live/{name}": {
+      "get": {
+        "summary": "Daten der Altmodule lesen (beantwortet der Bot)",
+        "tags": [
+          "Altmodule"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z-]{1,40}$"
+            },
+            "in": "path",
+            "name": "name",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/actions/{name}": {
+      "post": {
+        "summary": "Aktion in den Altmodulen ausführen (z. B. Bewerbung entscheiden, Panel posten)",
+        "tags": [
+          "Altmodule"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z-]{1,40}$"
+            },
+            "in": "path",
+            "name": "name",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/settings": {
+      "put": {
+        "summary": "Einstellungen der Altmodule ändern (alle Änderungen oder keine)",
+        "tags": [
+          "Altmodule"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "^[\\w-]+(\\.[\\w-]+)*$"
+                        },
+                        "value": {}
+                      },
+                      "required": [
+                        "path",
+                        "value"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "changes"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/settings/reset": {
+      "post": {
+        "summary": "Einstellungen der Altmodule auf die config.json zurücksetzen",
+        "tags": [
+          "Altmodule"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/bot/legacy/requests": {
+      "get": {
+        "summary": "Offene Anfragen an die Altmodule abholen (Long-Polling, nur Service-Token)",
+        "tags": [
+          "Bot"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25
+            },
+            "in": "query",
+            "name": "wait",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/bot/legacy/requests/{id}/result": {
+      "post": {
+        "summary": "Ergebnis einer Anfrage an die Altmodule melden (nur Service-Token)",
+        "tags": [
+          "Bot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "result": {},
+                  "error": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "ok"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
         ],
         "responses": {
           "200": {

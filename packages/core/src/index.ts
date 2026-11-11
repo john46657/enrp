@@ -26,6 +26,7 @@ export * as actions from './modules/actions';
 export * as gamelogs from './modules/gamelogs';
 export * as privateservers from './modules/privateservers';
 export * as guilds from './modules/guilds';
+export * as legacy from './modules/legacy';
 export * as incidents from './modules/incidents';
 export * as releases from './modules/releases';
 export * as backups from './modules/backups';

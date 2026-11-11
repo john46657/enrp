@@ -14,12 +14,14 @@ import {
   type Interaction,
 } from 'discord.js';
 import { createLogger } from '@enrp/config';
+import { legacyComponentPermission } from '@enrp/permissions';
 import { createApiFactory, describeError } from './api';
 import { type BotCommand } from './command';
 import { COMMANDS } from './commands/index';
 import { loadBotEnv } from './env';
 import { loadLegacy, type LegacyBridge, type LegacyCommand } from './legacy';
 import { legacyAccess } from './legacy-access';
+import { startLegacyBridge } from './legacy-bridge';
 import { COLORS } from './ui';
 
 const env = loadBotEnv();
@@ -97,27 +99,45 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
   return command.execute(interaction, { api, apis });
 }
 
+type AccessCheck = { allowed: boolean; source: string; permission: string | null };
+
+/** Kurze Rechteprüfung bei der Plattform (höchstens 1,5 s). null = nicht erreichbar → bisheriges Verhalten. */
+function quickCheck(interaction: Interaction, body: { command: string } | { permission: string }) {
+  return Promise.race([
+    apis
+      .forInteraction(interaction)
+      .post<AccessCheck>('/api/v1/permissions/check', body)
+      .catch((err: unknown) => {
+        logger.warn(
+          { err: describeError(err), ...body },
+          'Rechteprüfung für Altmodul nicht möglich – bisheriges Verhalten',
+        );
+        return null;
+      }),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref()),
+  ]);
+}
+
+/** Ergebnisse für Buttons kurz merken, damit Klickfolgen (Schließen → Bestätigen) nicht jedes Mal warten. */
+const componentGrants = new Map<string, { allowed: boolean; at: number }>();
+async function hasComponentGrant(interaction: Interaction, permission: string) {
+  const key = `${interaction.guildId}:${interaction.user.id}:${permission}`;
+  const hit = componentGrants.get(key);
+  if (hit && Date.now() - hit.at < 30_000) return hit.allowed;
+  const access = await quickCheck(interaction, { permission });
+  if (!access) return false;
+  if (componentGrants.size > 2000) componentGrants.clear();
+  componentGrants.set(key, { allowed: access.allowed, at: Date.now() });
+  return access.allowed;
+}
+
 /** Altbefehle: kurze Rechteprüfung bei der Plattform (Altbefehle antworten selbst, ohne Aufschub). */
 async function handleLegacyCommand(interaction: ChatInputCommandInteraction, legacyCommand: LegacyCommand) {
   const key = commandKey(interaction);
   const disabled = Boolean(
     botConfig?.bot.disabledCommands.includes(interaction.commandName) || botConfig?.bot.disabledCommands.includes(key),
   );
-  const access = await Promise.race([
-    apis
-      .forInteraction(interaction)
-      .post<{ allowed: boolean; source: string; permission: string | null }>('/api/v1/permissions/check', {
-        command: key,
-      })
-      .catch((err: unknown) => {
-        logger.warn(
-          { err: describeError(err), key },
-          'Rechteprüfung für Altbefehl nicht möglich – bisheriges Verhalten',
-        );
-        return null;
-      }),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref()),
-  ]);
+  const access = await quickCheck(interaction, { command: key });
   const required = legacyCommand.discordPermission ?? null;
   const decision = legacyAccess({
     disabled,
@@ -141,7 +161,12 @@ async function handleComponent(interaction: Interaction) {
   const handler = components.get(prefix!);
   if (handler) return handler(interaction, args, { api: apis.forInteraction(interaction), apis });
   const legacyHandler = legacyComponents.get(prefix!);
-  if (legacyHandler) return legacyHandler(interaction, args);
+  if (!legacyHandler) return;
+  // Staff-Aktionen der Altmodule (Ticket übernehmen, Bewerbung entscheiden …): Plattform-Recht gilt als Staff.
+  const permission = legacyComponentPermission(interaction.customId);
+  if (permission && (await hasComponentGrant(interaction, permission)))
+    return legacy!.runWithGrant(interaction.user.id, () => legacyHandler(interaction, args));
+  return legacyHandler(interaction, args);
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -269,6 +294,15 @@ client.once(Events.ClientReady, async (ready) => {
       }),
   });
   await legacy?.onReady(ready);
+  // Altmodule im Dashboard: Anfragen der Plattform abholen und mit den Altmodulen ausführen.
+  if (legacy)
+    startLegacyBridge({
+      client: ready,
+      api: apis.longPoll,
+      handle: (guild, request) => legacy.handleRequest(guild, request),
+      guildId: env.guildId,
+      logger,
+    });
   await refreshConfig();
   setInterval(refreshConfig, 60_000).unref();
 
