@@ -45,6 +45,28 @@ Discord-Moderation beachtet die Rollenhierarchie (niemand sanktioniert gleich- o
 Owner und Bot sind geschützt) und Discord-Grenzen (Timeout max. 28 Tage). Teammitglieder mit
 Moderationsrechten können nur mit `moderation:approve` sanktioniert werden; permanente Banns ebenso.
 
+## Mehrere Discord-Server
+
+Der Bot kann in mehreren Discords gleichzeitig sein:
+
+- **Haupt-Discord** (`DISCORD_GUILD_ID`): alles wie bisher – alle Befehle inklusive Altmodule, Begrüßung,
+  Kanäle unter *Bot-Verwaltung → Konfiguration*.
+- **Weitere Discords** (Discords der Privat-Server und andere): Sobald der Bot eingeladen wird, meldet er den
+  Discord bei der Plattform und registriert dort die Plattform-Befehle (ohne Altmodule). Er erscheint dann im
+  Dashboard unter *Bot-Verwaltung → Discord-Server*. Dort stellt das Team (`settings:edit`) ein:
+  - **Zugeordneter Privat-Server**: dessen Notrufe, Mod-Calls, Fahndungstreffer und Spiel-Logs landen in diesem
+    Discord. Ist dort kein Kanal eingestellt, geht es wie bisher in den Haupt-Discord. Ein Privat-Server kann nur
+    einem Discord zugeordnet sein.
+  - **Eigene Kanäle/Rollen**: Leitstellen-Kanal und -Rolle (Ping), Mod-Call-Kanal, Spiel-Logs je Kategorie,
+    Live-Panel (zeigt beim Privat-Server-Discord nur dessen Server). Leer = aus.
+  - **Globale Banns übernehmen**: Discord-Banns mit der Option `global` (z. B. `/mod ban … global:true`, nur aus
+    dem Haupt-Discord oder Dashboard) gelten dann auch hier – inklusive Aufheben und Ablauf.
+- **Rechte je Discord getrennt**: Unter *Rollen & Rechte* kann eine Zuweisung auf einen Discord-Server beschränkt
+  werden. Sie gilt dann nur bei Befehlen aus genau diesem Discord, nicht im Haupt-Discord und nicht im Dashboard.
+  Discord-Aktionen (Kick, Timeout, Bann) aus einem weiteren Discord wirken nur dort. Roblox-Sanktionen wirken im
+  ganzen Spiel und brauchen deshalb Rechte, die auch außerhalb dieses Discords gelten.
+- Verlässt der Bot einen Discord, wird er als „Bot nicht mehr drin“ markiert (Einstellungen bleiben erhalten).
+
 ## Altmodule (bisheriger Bot)
 
 Unverändert weiter in Betrieb (`apps/bot/legacy`, eigene `config.json`): `/bewerbung`, `/bewerbungen`,

@@ -15,6 +15,7 @@ import { type Actor, actorId } from '../actor';
 import { type CoreContext } from '../context';
 import { getSetting } from '../settings';
 import { onDutyCounts } from './duty';
+import { guildForJobId } from './guilds';
 import { onlineServers } from './live';
 
 /**
@@ -53,6 +54,22 @@ async function enqueueEntries(
   }
 }
 
+type LogChannels = Partial<Record<(typeof LOG_CATEGORY)[keyof typeof LOG_CATEGORY] | 'actionChannelId', string | null>>;
+
+/**
+ * Log-Kanäle für einen Server: immer der Haupt-Discord (alle Server), zusätzlich der Discord des Privat-Servers,
+ * wenn einer zugeordnet ist und dort Log-Kanäle eingestellt sind.
+ */
+async function logTargets(ctx: CoreContext, jobId: string): Promise<LogChannels[]> {
+  const out: LogChannels[] = [];
+  const main = await getSetting(ctx.db, 'game_logs');
+  if (Object.values(main).some(Boolean)) out.push(main);
+  const guild = await guildForJobId(ctx.db, jobId);
+  if (guild?.channels.gameLogs && Object.values(guild.channels.gameLogs).some(Boolean))
+    out.push(guild.channels.gameLogs);
+  return out;
+}
+
 function withName(data: Record<string, unknown>, names: Map<number, string>) {
   const id = typeof data.userId === 'number' ? data.userId : null;
   return id && !data.username && names.has(id) ? { ...data, username: names.get(id) } : data;
@@ -66,8 +83,8 @@ export async function queueGameLogs(
 ) {
   const relevant = events.filter((e) => e.type in LOG_CATEGORY);
   if (!relevant.length) return 0;
-  const settings = await getSetting(ctx.db, 'game_logs');
-  if (!Object.values(settings).some(Boolean)) return 0;
+  const targets = await logTargets(ctx, server.jobId);
+  if (!targets.length) return 0;
   // Namen ergänzen, wo das Spiel nur die ID schickt (z. B. player_left)
   const missing = [
     ...new Set(
@@ -89,15 +106,18 @@ export async function queueGameLogs(
   );
   const byChannel = new Map<string, LogEntry[]>();
   for (const event of relevant) {
-    const channelId = settings[LOG_CATEGORY[event.type as keyof typeof LOG_CATEGORY]];
-    if (!channelId) continue;
-    const list = byChannel.get(channelId) ?? [];
-    list.push({
+    const entry = {
       type: event.type,
       at: event.occurredAt ?? ctx.now().toISOString(),
       data: withName((event.data ?? {}) as Record<string, unknown>, names),
-    });
-    byChannel.set(channelId, list);
+    };
+    for (const channels of targets) {
+      const channelId = channels[LOG_CATEGORY[event.type as keyof typeof LOG_CATEGORY]];
+      if (!channelId) continue;
+      const list = byChannel.get(channelId) ?? [];
+      list.push(entry);
+      byChannel.set(channelId, list);
+    }
   }
   for (const [channelId, entries] of byChannel) await enqueueEntries(ctx, channelId, server, entries);
   return relevant.length;
@@ -110,22 +130,22 @@ export async function queueActionLog(
   entry: { action: string; robloxUserId: number; username: string; reason: string; details?: Record<string, unknown> },
   server: { jobId: string; serverType: string },
 ) {
-  const settings = await getSetting(ctx.db, 'game_logs');
-  if (!settings.actionChannelId) return;
-  await enqueueEntries(ctx, settings.actionChannelId, server, [
-    {
-      type: 'player_action',
-      at: ctx.now().toISOString(),
-      data: {
-        ...entry.details,
-        action: entry.action,
-        userId: entry.robloxUserId,
-        username: entry.username,
-        reason: entry.reason,
-        by: actorId(actor),
+  const channels = [...new Set((await logTargets(ctx, server.jobId)).map((t) => t.actionChannelId).filter(Boolean))];
+  for (const channelId of channels)
+    await enqueueEntries(ctx, channelId!, server, [
+      {
+        type: 'player_action',
+        at: ctx.now().toISOString(),
+        data: {
+          ...entry.details,
+          action: entry.action,
+          userId: entry.robloxUserId,
+          username: entry.username,
+          reason: entry.reason,
+          by: actorId(actor),
+        },
       },
-    },
-  ]);
+    ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -133,8 +153,10 @@ export async function queueActionLog(
 // ---------------------------------------------------------------------------
 
 /** Zahlen für das Live-Panel (ohne Rechteprüfung – nur Worker). */
-export async function livePanelData(db: DbExecutor, now: Date) {
-  const servers = await onlineServers(db, now);
+export async function livePanelData(db: DbExecutor, now: Date, onlyJobIds?: string[]) {
+  const all = await onlineServers(db, now);
+  // Discord eines Privat-Servers: nur dessen Server zeigen
+  const servers = onlyJobIds ? all.filter((s) => onlyJobIds.includes(s.server.jobId)) : all;
   const players = servers.flatMap((s) => s.live.players.map((p) => ({ ...p, serverType: s.server.serverType })));
   const teams = new Map<string, number>();
   for (const p of players) teams.set(p.team ?? 'Ohne Team', (teams.get(p.team ?? 'Ohne Team') ?? 0) + 1);

@@ -5,6 +5,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  isNull,
   lt,
   moderationActions,
   or,
@@ -19,6 +20,7 @@ import { writeAudit } from '../audit';
 import { type CoreContext } from '../context';
 import { assertNotKilled } from '../flags';
 import { getSetting } from '../settings';
+import { syncBanGuildIds, isMainGuild } from './guilds';
 import { addRecordEvent } from './support';
 import { getActiveLinkByDiscord, getActiveLinkByRoblox } from './verification';
 
@@ -33,6 +35,29 @@ export interface ModerationInput {
   reason: string;
   durationSeconds?: number | null;
   relatedReportId?: string | null;
+  /** Discord-Aktion zusätzlich in allen Discords mit „Banns übernehmen“ (nur aus Haupt-Discord/Dashboard). */
+  global?: boolean;
+}
+
+/** Discord, aus dem die Aktion kommt: weiterer Discord oder null (Haupt-Discord/Dashboard). */
+function actorGuild(ctx: CoreContext, actor: Actor): string | null {
+  return actor.kind === 'user' && !isMainGuild(ctx.config, actor.guildId) ? actor.guildId! : null;
+}
+
+/** Discords, in denen eine Discord-Aktion ausgeführt wird: ihr eigener, bei „global“ zusätzlich die mit syncBans. */
+async function guildsForAction(ctx: CoreContext, action: { guildId: string | null; global: boolean }) {
+  const primary = action.guildId ?? ctx.config.guildId ?? null;
+  const extra = action.global ? await syncBanGuildIds(ctx.db) : [];
+  return { primary, extra: extra.filter((g) => g !== primary) };
+}
+
+/** In weiteren Discords ausführen; Fehler dort (z. B. Person nicht Mitglied) halten die Aktion nicht auf. */
+async function bestEffort(ctx: CoreContext, guildIds: string[], fn: (guildId: string) => Promise<unknown>) {
+  for (const guildId of guildIds) {
+    await fn(guildId).catch((err: Error) =>
+      ctx.logger.warn({ guildId, err: err.message }, 'Discord-Aktion in weiterem Discord fehlgeschlagen'),
+    );
+  }
 }
 
 const LABEL: Record<ModerationType, string> = {
@@ -65,6 +90,7 @@ async function assertMayModerate(
   targetDiscordId: string | null,
   type: ModerationType,
   durationSeconds: number | null,
+  guildId: string | null = null,
 ) {
   const user = requireUser(actor);
   if (targetDiscordId === user.discordUserId)
@@ -74,10 +100,11 @@ async function assertMayModerate(
     throw errors.forbidden('Owner können nicht sanktioniert werden.');
   if (type === 'note') return;
   let targetRoles: string[] = [];
-  if (ctx.discord.configured && ctx.config.guildId) {
-    targetRoles = (await ctx.discord.getMember(ctx.config.guildId, targetDiscordId).catch(() => null))?.roleIds ?? [];
+  const memberGuild = guildId ?? ctx.config.guildId;
+  if (ctx.discord.configured && memberGuild) {
+    targetRoles = (await ctx.discord.getMember(memberGuild, targetDiscordId).catch(() => null))?.roleIds ?? [];
   }
-  const targetSubject = await loadSubject(ctx.db, ctx.config, targetDiscordId, targetRoles);
+  const targetSubject = await loadSubject(ctx.db, ctx.config, targetDiscordId, targetRoles, guildId);
   if (can(targetSubject, 'moderation:create') && !hasPermission(actor, 'moderation:approve')) {
     throw errors.forbidden(
       'Teammitglieder mit Moderationsrechten können nur mit „moderation:approve“ sanktioniert werden.',
@@ -96,20 +123,25 @@ async function executeDiscord(
   discordId: string,
   reason: string,
   expiresAt: Date | null,
+  target: { guildId: string | null; global: boolean },
 ) {
-  const guildId = ctx.config.guildId;
-  if (!guildId || !ctx.discord.configured) throw new Error('Discord-Integration nicht konfiguriert');
+  const { primary, extra } = await guildsForAction(ctx, target);
+  if (!primary || !ctx.discord.configured) throw new Error('Discord-Integration nicht konfiguriert');
   const auditReason = reason.slice(0, 400);
-  switch (type) {
-    case 'timeout':
-      return ctx.discord.timeout(guildId, discordId, expiresAt, auditReason);
-    case 'kick':
-      return ctx.discord.kick(guildId, discordId, auditReason);
-    case 'ban':
-      return ctx.discord.ban(guildId, discordId, auditReason);
-    default:
-      return undefined;
-  }
+  const run = (guildId: string) => {
+    switch (type) {
+      case 'timeout':
+        return ctx.discord.timeout(guildId, discordId, expiresAt, auditReason);
+      case 'kick':
+        return ctx.discord.kick(guildId, discordId, auditReason);
+      case 'ban':
+        return ctx.discord.ban(guildId, discordId, auditReason);
+      default:
+        return Promise.resolve(undefined);
+    }
+  };
+  await run(primary);
+  await bestEffort(ctx, extra, run);
 }
 
 export async function createModerationAction(ctx: CoreContext, actor: Actor, input: ModerationInput) {
@@ -133,7 +165,18 @@ export async function createModerationAction(ctx: CoreContext, actor: Actor, inp
     if (ownLink?.link.robloxUserId === targets.robloxId)
       throw new AppError('SELF_ACTION_FORBIDDEN', 'Du kannst dich nicht selbst sanktionieren.');
   }
-  await assertMayModerate(ctx, actor, targets.discordId, input.type, duration);
+  // Rechte je Discord getrennt: aus einem weiteren Discord gelten Discord-Aktionen nur dort; Roblox-Aktionen
+  // (wirken im ganzen Spiel) brauchen Rechte, die auch außerhalb dieses Discords gelten.
+  const guildId = input.platform === 'discord' ? actorGuild(ctx, actor) : null;
+  const global = input.platform === 'discord' && input.global === true;
+  if (global && actorGuild(ctx, actor))
+    throw errors.forbidden('Globale Discord-Banns gehen nur aus dem Haupt-Discord oder dem Dashboard.');
+  if (input.platform === 'roblox' && actorGuild(ctx, actor) && actor.kind === 'user') {
+    const outside = await loadSubject(ctx.db, ctx.config, actor.discordUserId, actor.roleIds, null);
+    if (!can(outside, 'moderation:create'))
+      throw errors.forbidden('Roblox-Sanktionen gelten im ganzen Spiel – deine Rechte gelten nur in diesem Discord.');
+  }
+  await assertMayModerate(ctx, actor, targets.discordId, input.type, duration, guildId);
 
   const expiresAt = duration ? new Date(now.getTime() + duration * 1000) : null;
   const needsExecution = input.type === 'timeout' || input.type === 'kick' || input.type === 'ban';
@@ -152,6 +195,8 @@ export async function createModerationAction(ctx: CoreContext, actor: Actor, inp
         expiresAt,
         status: initialStatus,
         relatedReportId: input.relatedReportId ?? null,
+        guildId,
+        global,
       })
       .returning();
     await writeAudit(
@@ -184,7 +229,7 @@ export async function createModerationAction(ctx: CoreContext, actor: Actor, inp
     // DM vor Kick/Bann, danach ist der Nutzer ggf. nicht mehr erreichbar.
     await notifyTarget(ctx, action.targetDiscordId, input.type, input.reason, expiresAt);
     try {
-      await executeDiscord(ctx, input.type, targets.discordId!, input.reason, expiresAt);
+      await executeDiscord(ctx, input.type, targets.discordId!, input.reason, expiresAt, { guildId, global });
       [final] = (await ctx.db
         .update(moderationActions)
         .set({ status: input.type === 'kick' ? 'completed' : 'active', executedAt: ctx.now() })
@@ -266,11 +311,17 @@ export async function revokeModerationAction(
   if (!['active', 'pending_execution', 'failed'].includes(action.status))
     throw errors.invalidState(`Die Aktion ist bereits ${action.status}.`);
   const now = ctx.now();
-  if (action.platform === 'discord' && action.status === 'active' && action.targetDiscordId && ctx.config.guildId) {
-    if (action.type === 'ban')
-      await ctx.discord.unban(ctx.config.guildId, action.targetDiscordId, reason.slice(0, 400));
-    if (action.type === 'timeout')
-      await ctx.discord.timeout(ctx.config.guildId, action.targetDiscordId, null, reason.slice(0, 400));
+  if (action.platform === 'discord' && action.status === 'active' && action.targetDiscordId) {
+    const { primary, extra } = await guildsForAction(ctx, action);
+    const target = action.targetDiscordId;
+    const undo = (guildId: string) =>
+      action.type === 'ban'
+        ? ctx.discord.unban(guildId, target, reason.slice(0, 400))
+        : action.type === 'timeout'
+          ? ctx.discord.timeout(guildId, target, null, reason.slice(0, 400))
+          : Promise.resolve();
+    if (primary) await undo(primary);
+    await bestEffort(ctx, extra, undo);
   }
   return ctx.db.transaction(async (tx) => {
     const [row] = await tx
@@ -295,6 +346,8 @@ export async function revokeModerationAction(
         // Roblox-Entbannungen führt der nächste Spielserver mit Players:UnbanAsync aus.
         status: action.platform === 'roblox' ? 'pending_execution' : 'completed',
         executedAt: action.platform === 'discord' ? now : null,
+        guildId: action.guildId,
+        global: action.global,
       });
     }
     await writeAudit(
@@ -332,16 +385,22 @@ export async function unbanTarget(
         eq(moderationActions.platform, input.platform),
         inArray(moderationActions.status, ['active', 'pending_execution']),
         input.platform === 'discord'
-          ? eq(moderationActions.targetDiscordId, targets.discordId ?? '')
+          ? and(
+              eq(moderationActions.targetDiscordId, targets.discordId ?? ''),
+              actorGuild(ctx, actor)
+                ? eq(moderationActions.guildId, actorGuild(ctx, actor)!)
+                : isNull(moderationActions.guildId),
+            )
           : eq(moderationActions.targetRobloxId, targets.robloxId ?? 0),
       ),
     )
     .orderBy(desc(moderationActions.createdAt))
     .limit(1);
   if (!ban) {
-    if (input.platform === 'discord' && targets.discordId && ctx.config.guildId && ctx.discord.configured) {
+    const unbanGuild = actorGuild(ctx, actor) ?? ctx.config.guildId;
+    if (input.platform === 'discord' && targets.discordId && unbanGuild && ctx.discord.configured) {
       // Bann außerhalb des Systems (z. B. direkt in Discord) – trotzdem aufheben und protokollieren.
-      await ctx.discord.unban(ctx.config.guildId, targets.discordId, input.reason.slice(0, 400));
+      await ctx.discord.unban(unbanGuild, targets.discordId, input.reason.slice(0, 400));
       return ctx.db.transaction(async (tx) => {
         const [row] = await tx
           .insert(moderationActions)
@@ -353,6 +412,7 @@ export async function unbanTarget(
             reason: input.reason,
             status: 'completed',
             executedAt: ctx.now(),
+            guildId: actorGuild(ctx, actor),
           })
           .returning();
         await writeAudit(
@@ -440,14 +500,11 @@ export async function expireModerationActions(ctx: CoreContext): Promise<{ expir
   let failed = 0;
   for (const action of due) {
     try {
-      if (
-        action.type === 'ban' &&
-        action.platform === 'discord' &&
-        action.targetDiscordId &&
-        ctx.config.guildId &&
-        ctx.discord.configured
-      ) {
-        await ctx.discord.unban(ctx.config.guildId, action.targetDiscordId, 'Befristeter Bann abgelaufen');
+      if (action.type === 'ban' && action.platform === 'discord' && action.targetDiscordId && ctx.discord.configured) {
+        const { primary, extra } = await guildsForAction(ctx, action);
+        const target = action.targetDiscordId;
+        if (primary) await ctx.discord.unban(primary, target, 'Befristeter Bann abgelaufen');
+        await bestEffort(ctx, extra, (g) => ctx.discord.unban(g, target, 'Befristeter Bann abgelaufen'));
       }
       await ctx.db.transaction(async (tx) => {
         await tx

@@ -106,6 +106,46 @@ export const privateServers = pgTable(
   (t) => [index('private_servers_owner_idx').on(t.ownerRobloxId)],
 );
 
+export const discordGuildKind = pgEnum('discord_guild_kind', ['private_server', 'other']);
+
+/** Kanäle und Rollen eines weiteren Discord-Servers (leer = aus). */
+export interface DiscordGuildChannels {
+  dispatchChannelId?: string | null;
+  dispatchPingRoleId?: string | null;
+  modCallChannelId?: string | null;
+  livePanelChannelId?: string | null;
+  livePanelShowPlayers?: boolean;
+  gameLogs?: Partial<
+    Record<
+      'killChannelId' | 'teamChannelId' | 'vehicleChannelId' | 'joinChannelId' | 'dutyChannelId' | 'actionChannelId',
+      string | null
+    >
+  >;
+}
+
+/**
+ * Weitere Discord-Server neben dem Haupt-Discord (DISCORD_GUILD_ID): Discords der Privat-Server und andere.
+ * Der Bot meldet jeden Server beim Beitritt; das Team ordnet ihn im Dashboard zu und stellt Kanäle ein.
+ */
+export const discordGuilds = pgTable('discord_guilds', {
+  /** Discord-Server-ID (Snowflake). */
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: discordGuildKind('kind').notNull().default('other'),
+  /** Zugeordneter Privat-Server: dessen Notrufe, Mod-Calls, Alarme und Logs landen hier. */
+  privateServerId: uuid('private_server_id')
+    .unique()
+    .references(() => privateServers.id, { onDelete: 'set null' }),
+  active: boolean('active').notNull().default(true),
+  /** Globale Discord-Banns (Haupt-Discord, Option „global“) auch hier ausführen. */
+  syncBans: boolean('sync_bans').notNull().default(false),
+  channels: jsonb('channels').$type<DiscordGuildChannels>().notNull().default({}),
+  /** Bot ist (noch) Mitglied dieses Servers. */
+  botPresent: boolean('bot_present').notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const serverCommandType = pgEnum('server_command_type', [
   'message_server',
   'message_player',

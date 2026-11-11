@@ -17,6 +17,7 @@ import {
   commandOverrides,
   eq,
   roleBindings,
+  discordGuilds,
   rolePermissions,
   type DbExecutor,
 } from '@enrp/database';
@@ -184,13 +185,18 @@ export async function createRole(
 export async function bindRole(
   ctx: CoreContext,
   actor: Actor,
-  input: { roleId: string; discordRoleId?: string; discordUserId?: string },
+  input: { roleId: string; discordRoleId?: string; discordUserId?: string; guildId?: string | null },
   reason: string,
 ) {
   const user = requireUser(actor);
   requirePermission(actor, 'permissions:edit');
   if (!input.discordRoleId === !input.discordUserId)
     throw errors.badRequest('Genau eine Discord-Rolle oder ein Nutzer angeben.');
+  const guildId = input.guildId ?? null;
+  if (guildId) {
+    const [guild] = await ctx.db.select().from(discordGuilds).where(eq(discordGuilds.id, guildId));
+    if (!guild) throw errors.badRequest('Unbekannter Discord-Server (zuerst den Bot einladen).');
+  }
   const role = await getRole(ctx.db, input.roleId);
   const grants = await loadGrantsForRoles(ctx.db, [role.id]);
   const exceeding = grants.filter((g) => !covers(user.subject, g));
@@ -200,18 +206,27 @@ export async function bindRole(
   if (critical && !user.subject.isOwner) {
     const approval = await createApproval(ctx, actor, {
       actionType: 'permissions.role.bind',
-      summary: `Rolle „${role.name}“ ${input.discordRoleId ? `der Discord-Rolle ${input.discordRoleId}` : `dem Nutzer ${input.discordUserId}`} zuweisen`,
+      summary: `Rolle „${role.name}“ ${input.discordRoleId ? `der Discord-Rolle ${input.discordRoleId}` : `dem Nutzer ${input.discordUserId}`} zuweisen${guildId ? ` (nur Discord ${guildId})` : ''}`,
       payload: {
         roleId: role.id,
         discordRoleId: input.discordRoleId ?? null,
         discordUserId: input.discordUserId ?? null,
+        guildId,
       },
       reason,
     });
     return { status: 'approval_required' as const, approval };
   }
   const binding = await ctx.db.transaction((tx) =>
-    applyBinding({ ...ctx, db: tx }, actor, role.id, input.discordRoleId ?? null, input.discordUserId ?? null, reason),
+    applyBinding(
+      { ...ctx, db: tx },
+      actor,
+      role.id,
+      input.discordRoleId ?? null,
+      input.discordUserId ?? null,
+      reason,
+      guildId,
+    ),
   );
   return { status: 'applied' as const, binding };
 }
@@ -223,10 +238,11 @@ async function applyBinding(
   discordRoleId: string | null,
   discordUserId: string | null,
   reason: string,
+  guildId: string | null = null,
 ) {
   const [binding] = await ctx.db
     .insert(roleBindings)
-    .values({ roleId, discordRoleId, discordUserId, createdBy: actorId(actor) })
+    .values({ roleId, discordRoleId, discordUserId, guildId, createdBy: actorId(actor) })
     .onConflictDoNothing()
     .returning();
   if (!binding) throw errors.conflict('Diese Zuweisung existiert bereits.');
@@ -250,6 +266,7 @@ registerApprovalExecutor('permissions.role.bind', {
       (payload.discordRoleId as string | null) ?? null,
       (payload.discordUserId as string | null) ?? null,
       approval.reason,
+      (payload.guildId as string | null) ?? null,
     );
     return { bindingId: binding.id };
   },

@@ -296,6 +296,13 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `PUT` | `/api/v1/flags/{key}` | Flag setzen (auch kill_switch, maintenance_mode) |
 | `GET` | `/api/v1/flags/{key}/history` | Änderungshistorie |
 
+## Discord-Server
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/discord-guilds` | Haupt-Discord und weitere Discords |
+| `PUT` | `/api/v1/discord-guilds/{id}` | Weiteren Discord einstellen (Art, Privat-Server, Kanäle, Banns übernehmen) |
+
 ## Monitoring
 
 | Methode | Pfad | Zweck |
@@ -406,4 +413,6 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 
 | Methode | Pfad | Zweck |
 |---|---|---|
+| `POST` | `/api/v1/bot/guilds` | Bot ist einem weiteren Discord beigetreten (nur Service-Token) |
+| `POST` | `/api/v1/bot/guilds/{id}/left` | Bot hat einen Discord verlassen |
 | `GET` | `/api/v1/bot/config` | Bot-Konfiguration (nur Service-Token) |

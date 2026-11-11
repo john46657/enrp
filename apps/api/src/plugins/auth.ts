@@ -63,11 +63,21 @@ async function resolveBotActor(app: FastifyInstance, request: FastifyRequest): P
     .split(',')
     .filter((r) => SNOWFLAKE.test(r))
     .slice(0, 250);
-  const key = `${actorIdHeader}|${roleIds.sort().join(',')}`;
+  const guildHeader = request.headers['x-actor-guild'];
+  if (guildHeader !== undefined && (typeof guildHeader !== 'string' || !SNOWFLAKE.test(guildHeader)))
+    throw new AppError('BAD_REQUEST', 'Ungültiger X-Actor-Guild-Header.');
+  // Haupt-Discord verhält sich wie bisher (ohne Discord-Bezug); weitere Discords bekommen ihre eigenen Rechte.
+  const guildId = guildHeader && guildHeader !== core.config.guildId ? guildHeader : undefined;
+  const key = `${actorIdHeader}|${guildId ?? ''}|${roleIds.sort().join(',')}`;
   const now = Date.now();
   const hit = actorCache.get(key);
   if (hit && now - hit.at < 5_000) return hit.actor;
-  const actor = await buildUserActor(core.db, core.config, { discordUserId: actorIdHeader, roleIds, via: 'bot' });
+  const actor = await buildUserActor(core.db, core.config, {
+    discordUserId: actorIdHeader,
+    roleIds,
+    via: 'bot',
+    guildId,
+  });
   actorCache.set(key, { at: now, actor });
   if (actorCache.size > 5000) actorCache.clear();
   // Anzeigenamen für das Dashboard aktuell halten (höchstens alle 10 Minuten je Person).

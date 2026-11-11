@@ -105,6 +105,10 @@ export const mod = defineCommand({
         durationOpt(
           platformOpt(target(s.setName('ban').setDescription('Bannen (ohne Dauer = permanent, Freigaberecht nötig)'))),
         ),
+      ).addBooleanOption((o) =>
+        o
+          .setName('global')
+          .setDescription('Discord-Bann auch in allen Discords mit „Banns übernehmen“ (nur Haupt-Discord)'),
       ),
     )
     .addSubcommand((s) => reasonOpt(platformOpt(target(s.setName('unban').setDescription('Bann aufheben')))))
@@ -184,6 +188,7 @@ export const mod = defineCommand({
         targetRobloxId: robloxId,
         reason,
         durationSeconds: durationSeconds ?? undefined,
+        ...(sub === 'ban' && interaction.options.getBoolean('global') ? { global: true } : {}),
       },
       { idempotencyKey: `mod-${interaction.id}` },
     );

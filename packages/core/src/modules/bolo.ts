@@ -5,6 +5,7 @@ import { type Actor, actorId, requirePermission } from '../actor';
 import { writeAudit } from '../audit';
 import { type CoreContext } from '../context';
 import { getSetting } from '../settings';
+import { guildForServer } from './guilds';
 import { queuePlayerMessage } from './game';
 import { type LiveState, normalizePlate, onlineServers } from './live';
 import { addRecordEvent, listRecordEvents } from './support';
@@ -270,6 +271,14 @@ export async function checkBolos(ctx: CoreContext, serverId: string, live: LiveS
     });
     publish(ctx, 'bolo.hit', row, { hit });
     await postDiscord(ctx, 'bolo.hit', row.id);
+    // Treffer auf einem Privat-Server mit eigenem Discord: zusätzlich dort melden
+    const guild = await guildForServer(ctx.db, serverId);
+    if (guild?.channels.dispatchChannelId)
+      await ctx.queue.enqueue('discord', 'bolo.hit', {
+        boloId: row.id,
+        channelId: guild.channels.dispatchChannelId,
+        pingRoleId: guild.channels.dispatchPingRoleId ?? null,
+      });
     await alertPolice(ctx, serverId, live, row, summary);
     hits.push(row);
   }

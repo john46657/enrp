@@ -2936,6 +2936,9 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "global": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -7649,6 +7652,11 @@
                     "type": "string",
                     "pattern": "^\\d{15,22}$"
                   },
+                  "guildId": {
+                    "nullable": true,
+                    "type": "string",
+                    "pattern": "^\\d{15,22}$"
+                  },
                   "reason": {
                     "type": "string",
                     "minLength": 3,
@@ -8116,6 +8124,142 @@
             },
             "in": "path",
             "name": "key",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/discord-guilds": {
+      "get": {
+        "summary": "Haupt-Discord und weitere Discords",
+        "tags": [
+          "Discord-Server"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/discord-guilds/{id}": {
+      "put": {
+        "summary": "Weiteren Discord einstellen (Art, Privat-Server, Kanäle, Banns übernehmen)",
+        "tags": [
+          "Discord-Server"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "private_server",
+                      "other"
+                    ]
+                  },
+                  "privateServerId": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "syncBans": {
+                    "type": "boolean"
+                  },
+                  "channels": {
+                    "type": "object",
+                    "properties": {
+                      "dispatchChannelId": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^\\d{15,22}$"
+                      },
+                      "dispatchPingRoleId": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^\\d{15,22}$"
+                      },
+                      "modCallChannelId": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^\\d{15,22}$"
+                      },
+                      "livePanelChannelId": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^\\d{15,22}$"
+                      },
+                      "livePanelShowPlayers": {
+                        "type": "boolean"
+                      },
+                      "gameLogs": {
+                        "type": "object",
+                        "properties": {
+                          "killChannelId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          },
+                          "teamChannelId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          },
+                          "vehicleChannelId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          },
+                          "joinChannelId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          },
+                          "dutyChannelId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          },
+                          "actionChannelId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^\\d{15,22}$"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{15,22}$"
+            },
+            "in": "path",
+            "name": "id",
             "required": true
           }
         ],
@@ -9914,6 +10058,68 @@
             "in": "query",
             "name": "topics",
             "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/bot/guilds": {
+      "post": {
+        "summary": "Bot ist einem weiteren Discord beigetreten (nur Service-Token)",
+        "tags": [
+          "Bot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^\\d{15,22}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/bot/guilds/{id}/left": {
+      "post": {
+        "summary": "Bot hat einen Discord verlassen",
+        "tags": [
+          "Bot"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{15,22}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
           }
         ],
         "responses": {
