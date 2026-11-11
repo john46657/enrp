@@ -60,6 +60,7 @@ export const DEFAULT_ROLES: DefaultRole[] = [
       'announcements:*',
       'rules:*',
       'codes:*',
+      'applications:*',
       'tickets:view',
       'reports:view',
       'approvals:view',

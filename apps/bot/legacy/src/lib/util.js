@@ -1,3 +1,4 @@
+const { hasPlatformGrant } = require('./platformGrant');
 const { EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { base: config, forGuild } = require('./settings');
 
@@ -39,9 +40,11 @@ function hasRole(member, roleKey) {
   return Boolean(id && member.roles.cache.has(id));
 }
 
-// Staff = Staff-Rolle oder "Server verwalten".
+// Staff = Staff-Rolle, "Server verwalten" oder Freigabe durch das Rechtesystem der Plattform (siehe platformGrant.js).
 function isStaff(member) {
-  return hasRole(member, 'staff') || member.permissions.has(PermissionFlagsBits.ManageGuild);
+  return (
+    hasRole(member, 'staff') || member.permissions.has(PermissionFlagsBits.ManageGuild) || hasPlatformGrant(member)
+  );
 }
 
 function isSupport(member) {

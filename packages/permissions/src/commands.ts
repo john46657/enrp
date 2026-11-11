@@ -2,6 +2,54 @@ import { type PermissionKey } from './catalog';
 import { can, type Subject } from './evaluate';
 
 /**
+ * Altmodule (apps/bot/legacy). Plattform-Rechte und Rollen-Overrides gelten zusätzlich zu den bisherigen
+ * Discord-Rechten bzw. Staff-/Support-Rollen der Altmodule: wer bisher durfte, darf weiterhin.
+ */
+export const LEGACY_COMMAND_PERMISSIONS: Record<string, PermissionKey | null> = {
+  bewerbung: null,
+  'bewerbungen offen': 'applications:view',
+  'bewerbungen in-bearbeitung': 'applications:view',
+  'bewerbungen anzeigen': 'applications:view',
+  'bewerbungen verlauf': 'applications:view',
+  'bewerbungen statistik': 'applications:view',
+  'bewerbungen loeschen': 'applications:delete',
+  'bewerbungssperre hinzufuegen': 'applications:edit',
+  'bewerbungssperre aufheben': 'applications:edit',
+  'bewerbungssperre liste': 'applications:view',
+  bewerbungspanel: 'applications:configure',
+  qualipanel: 'applications:configure',
+  bestenliste: null,
+  rang: null,
+  rollenpanel: 'community:create',
+  clear: 'moderation:delete',
+  'ticket panel': 'settings:edit',
+  'ticket schliessen': 'tickets:edit',
+  'ticket fuer': 'tickets:create',
+  'ticket hinzufuegen': 'tickets:edit',
+  'ticket entfernen': 'tickets:edit',
+  ...Object.fromEntries(
+    [
+      'anzeigen',
+      'kanal',
+      'rolle',
+      'tickets',
+      'ticket-panel',
+      'ticket-kategorie',
+      'ticket-formular',
+      'oeffnungszeiten',
+      'bewerbung',
+      'bewerbungs-kanaele',
+      'willkommen',
+      'level',
+      'roblox',
+      'statistik',
+      'zeitzone',
+      'zuruecksetzen',
+    ].map((sub) => [`einstellungen ${sub}`, sub === 'anzeigen' ? 'settings:view' : 'settings:edit'] as const),
+  ),
+};
+
+/**
  * Standard-Berechtigung je Slash-Command (Befehl + Unterbefehl, getrennt durch Leerzeichen).
  * "null" = für alle Mitglieder verfügbar. Rollen-Overrides (/permissions grant|revoke)
  * gelten pro Hauptbefehl oder pro Unterbefehl.
@@ -129,6 +177,7 @@ export const COMMAND_PERMISSIONS: Record<string, PermissionKey | null> = {
   'live plate': 'roblox_servers:view',
   status: null,
   hilfe: null,
+  ...LEGACY_COMMAND_PERMISSIONS,
 };
 
 /** Befehle, die nicht per Rollen-Override für weitere Rollen geöffnet werden dürfen. */

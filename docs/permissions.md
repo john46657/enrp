@@ -23,6 +23,12 @@ Rollen werden Discord-Rollen oder einzelnen Personen zugewiesen. Dashboard-Nutze
 `factions:*`, `duty:*`, `vehicles:*` können auf Fraktionen beschränkt werden (`factionIds`). Eine Versetzung
 erfordert Rechte für die alte **und** die neue Fraktion.
 
+## Altbefehle
+
+Die Befehle der Altmodule (Bewerbungen, Ticketpanel, Level, Rollenpanel, `/einstellungen`, `/clear`) stehen im
+Katalog (`LEGACY_COMMAND_PERMISSIONS`). Plattform-Rechte kommen zu den bisherigen Discord-Rechten hinzu; Details
+und Ablauf: [bot.md](bot.md#altbefehle-im-rechtesystem).
+
 ## Rechte je Discord-Server
 
 Zuweisungen (Discord-Rolle oder Person) können auf einen weiteren Discord-Server beschränkt werden (`guildId`).
