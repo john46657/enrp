@@ -68,6 +68,8 @@ export const gameServers = pgTable(
     /** Öffentlich, privat (VIP-Server eines Spielers) oder reserviert (per TeleportService erstellt). */
     serverType: gameServerType('server_type').notNull().default('public'),
     privateServerOwnerId: robloxId('private_server_owner_id'),
+    /** Roblox-PrivateServerId (nur bei privaten Servern) – stabil über Neustarts, siehe private_servers. */
+    privateServerId: text('private_server_id'),
     startedAt: ts('started_at').notNull().defaultNow(),
     lastHeartbeatAt: ts('last_heartbeat_at').notNull().defaultNow(),
     endedAt: ts('ended_at'),
@@ -78,6 +80,30 @@ export const gameServers = pgTable(
     live: jsonb('live'),
   },
   (t) => [index('game_servers_status_idx').on(t.status, t.lastHeartbeatAt)],
+);
+
+/**
+ * Privat-Server (VIP-Server) des Spiels. Wird beim ersten Heartbeat automatisch angelegt. Besitzer und von ihm
+ * ernannte Admins haben Spielrechte NUR auf diesem Privat-Server; die Teamsperre ist eine Extra-Funktion nur hier.
+ */
+export const privateServers = pgTable(
+  'private_servers',
+  {
+    id: id(),
+    privateServerId: text('private_server_id').notNull().unique(),
+    ownerRobloxId: robloxId('owner_roblox_id').notNull(),
+    name: text('name'),
+    /** Teamsperre an: Teams aus teamFactions nur für Mitglieder der zugeordneten Fraktion. */
+    teamLock: boolean('team_lock').notNull().default(false),
+    /** Team-Name → Fraktionsschlüssel, z. B. { "Polizei": "polizei" }. */
+    teamFactions: jsonb('team_factions').$type<Record<string, string>>().notNull().default({}),
+    /** Roblox-IDs der vom Besitzer ernannten Admins (höchstens 25). */
+    admins: jsonb('admins').$type<number[]>().notNull().default([]),
+    lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('private_servers_owner_idx').on(t.ownerRobloxId)],
 );
 
 export const serverCommandType = pgEnum('server_command_type', [

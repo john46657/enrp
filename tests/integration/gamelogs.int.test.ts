@@ -119,6 +119,17 @@ describe('Spiel-Logs nach Discord', () => {
     expect(line).toContain('\\*\\*x\\*\\*');
   });
 
+  it('Privat-Server-Admins erscheinen mit (entschärftem) Roblox-Namen statt Discord-Erwähnung', () => {
+    const line = formatLogEntry({
+      type: 'player_action',
+      at: new Date().toISOString(),
+      data: { action: 'kick', username: 'Ziel', userId: 1, by: 'x', issuerName: '@everyone', reason: 'Test' },
+    });
+    expect(line).toContain('(Privat-Server)');
+    expect(line).not.toContain('@everyone');
+    expect(line).not.toContain('<@');
+  });
+
   it('Aktionen an Spielern landen im Aktions-Log', async () => {
     const ctx = createTestContext();
     const { admin } = await setup(ctx);

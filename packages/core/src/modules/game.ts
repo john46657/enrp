@@ -26,6 +26,7 @@ import { isUniqueViolation } from '../util';
 import { confirmRedemptionDelivered, currentMaintenance, inGameAnnouncements, redeemCode } from './community';
 import { endActiveDuty, endDuty, startDuty } from './duty';
 import { getActiveMembership } from './factions';
+import { gameConfig as privateServerGameConfig, registerPrivateServer } from './privateservers';
 import { activeRobloxBan, pendingRobloxSanctions } from './moderation';
 import { upsertRobloxUser } from './verification';
 import { vehiclesForPlayer } from './vehicles';
@@ -223,6 +224,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
   const now = ctx.now();
   const serverType = classifyServerType(input);
   const privateServerOwnerId = serverType === 'private' ? input.privateServerOwnerId! : null;
+  const privateServerId = serverType === 'private' ? input.privateServerId! : null;
   // Live-Zustand (überschreibt den vorherigen; keine Historie)
   const live = {
     at: now.toISOString(),
@@ -242,6 +244,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
         maxPlayers: input.maxPlayers ?? null,
         serverType,
         privateServerOwnerId,
+        privateServerId,
         status: 'online',
         startedAt: now,
         lastHeartbeatAt: now,
@@ -255,6 +258,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
           placeVersion: input.placeVersion ?? null,
           serverType,
           privateServerOwnerId,
+          privateServerId,
           status: 'online',
           lastHeartbeatAt: now,
           endedAt: null,
@@ -278,7 +282,12 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
       await closePlaySession(tx, s.robloxUserId, now);
       await endActiveDuty(txCtx, s.robloxUserId, 'player_missing', now);
     }
-    return server!;
+    // Privat-Server: anlegen bzw. aktualisieren (Besitzerrechte, Teamsperre)
+    const privateServer =
+      privateServerId && privateServerOwnerId
+        ? await registerPrivateServer(tx, privateServerId, privateServerOwnerId, now)
+        : null;
+    return { ...server!, privateServer };
   });
   ctx.realtime.publish('servers', 'server.heartbeat', { jobId: input.jobId, playerCount: input.players.length });
   // Fahndungen gegen die neue Live-Lage prüfen (Fehler dürfen den Heartbeat nicht scheitern lassen)
@@ -291,6 +300,8 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
   return {
     serverId: result.id,
     serverTime: now.toISOString(),
+    /** Nur bei Privat-Servern: Teamsperre (Extra-Funktion) – null im Hauptspiel. */
+    privateServer: result.privateServer ? privateServerGameConfig(result.privateServer) : null,
     killSwitch: await isFlagEnabled(ctx.db, 'kill_switch'),
     maintenance: { active: maintenance.active, message: maintenance.window?.message ?? null },
     dutyTracking: await isFlagEnabled(ctx.db, 'duty_tracking'),

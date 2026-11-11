@@ -11,6 +11,7 @@ import {
   verification,
   writeAudit,
   hashIp,
+  privateservers,
 } from '@enrp/core';
 import { adminSessions, and, desc, discordUsers, eq, gt, isNull } from '@enrp/database';
 import { type AppError } from '@enrp/shared';
@@ -117,7 +118,10 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       const roles = await memberRoles(app, user.id, true);
       const subject = await loadSubject(core.db, core.config, user.id, roles.roleIds);
-      if (!subject.isOwner && subject.grants.length === 0) {
+      // Ohne Team-Rechte dürfen nur Besitzer eines Privat-Servers ins Dashboard (Seite „Privat-Server“).
+      const privateOnly =
+        !subject.isOwner && subject.grants.length === 0 && (await privateservers.ownsPrivateServer(core.db, user.id));
+      if (!subject.isOwner && subject.grants.length === 0 && !privateOnly) {
         await recordSecurityEvent(core.db, core.config.hashSecret, {
           type: 'auth.login_denied',
           actorId: user.id,
@@ -147,7 +151,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         now,
       );
       reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, secure, sameSite: 'lax', path: '/', maxAge: 7 * 86400 });
-      return reply.redirect(dashboard(row.redirectPath ?? '/'));
+      return reply.redirect(dashboard(privateOnly ? '/private-servers' : (row.redirectPath ?? '/')));
     },
   );
 

@@ -44,6 +44,9 @@ local Config = {
 	ReleaseTag = "ENRPEntlassung",
 	-- Team-Befehle im Chat (:jail, :kick …). Rechte prüft die Plattform über die Discord-Verknüpfung.
 	StaffCommandPrefix = ":",
+	-- Teamsperre (nur Privat-Server, im Dashboard einstellbar): Team, in das gesetzt wird, wenn das vorherige
+	-- Team nicht erlaubt ist. Gibt es das Team nicht, wird der Spieler neutral.
+	TeamLockFallbackTeam = "Zivilisten",
 }
 
 return Config

@@ -1,7 +1,15 @@
 import { type FastifyInstance } from 'fastify';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { actions, game, hasPermission, moderation, requirePermission, type RobloxServerActor } from '@enrp/core';
+import {
+  actions,
+  game,
+  hasPermission,
+  moderation,
+  privateservers,
+  requirePermission,
+  type RobloxServerActor,
+} from '@enrp/core';
 import { AppError } from '@enrp/shared';
 import { idParam, reason, robloxUserId } from './schemas';
 
@@ -226,5 +234,28 @@ export async function gameRoutes(fastify: FastifyInstance) {
       requirePermission(request.actor, 'roblox_servers:view');
       return { items: await game.recentGameEvents(core.db, request.query) };
     },
+  );
+
+  // Privat-Server: Besitzer sehen und verwalten ihre eigenen, das Team (roblox_servers:view/configure) alle.
+  const ptags = ['Privat-Server'];
+  app.get('/private-servers', { schema: { tags: ptags, summary: 'Eigene bzw. alle Privat-Server' } }, async (request) =>
+    privateservers.listPrivateServers(core.db, request.actor),
+  );
+  app.get(
+    '/private-servers/:id',
+    { schema: { tags: ptags, summary: 'Privat-Server mit Einstellungen und Admins', params: idParam } },
+    async (request) => privateservers.getPrivateServer(core.db, request.actor, request.params.id),
+  );
+  app.put(
+    '/private-servers/:id',
+    {
+      schema: {
+        tags: ptags,
+        summary: 'Name, Teamsperre, Team→Fraktion und Admins ändern (Besitzer oder Team)',
+        params: idParam,
+        body: privateservers.updatePrivateServerSchema,
+      },
+    },
+    async (request) => privateservers.updatePrivateServer(core, request.actor, request.params.id, request.body),
   );
 }

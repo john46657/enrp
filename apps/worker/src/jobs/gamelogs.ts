@@ -55,7 +55,7 @@ export function formatLogEntry(e: Entry): string {
           : d.team
             ? ` · ${s(d.team)}`
             : '';
-      return `${ACTION[String(d.action)] ?? s(d.action)}: ${who(d.username, d.userId)}${extra} · von <@${s(d.by).replace(/\D/g, '') || '0'}> · Grund: ${s(d.reason)}`;
+      return `${ACTION[String(d.action)] ?? s(d.action)}: ${who(d.username, d.userId)}${extra} · von ${d.issuerName ? `**${s(d.issuerName)}** (Privat-Server)` : `<@${s(d.by).replace(/\D/g, '') || '0'}>`} · Grund: ${s(d.reason)}`;
     }
     default:
       return `${s(e.type)}`;
