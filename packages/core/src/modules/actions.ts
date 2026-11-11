@@ -1,13 +1,14 @@
 import { z } from 'zod';
-import { accountLinks, and, eq, memberRoleCache, serverCommands } from '@enrp/database';
+import { accountLinks, and, eq, memberRoleCache, robloxUsers, serverCommands } from '@enrp/database';
 import { AppError, PLAYER_ACTIONS, errors, type PlayerAction } from '@enrp/shared';
 import { buildUserActor } from '../access';
-import { type Actor, type RobloxServerActor, actorId, requirePermission } from '../actor';
+import { type Actor, type RobloxServerActor, actorId, hasPermission, requirePermission } from '../actor';
 import { writeAudit } from '../audit';
 import { type CoreContext } from '../context';
 import { SERVER_COMMAND_TTL_SECONDS, getServerByJobId } from './game';
 import { queueActionLog } from './gamelogs';
 import { findOnlinePlayer, onlineServers } from './live';
+import { getByPrivateServerId, isPrivateServerStaff } from './privateservers';
 
 /**
  * Aktionen an einzelnen Spielern im Spiel (Gefängnis, Fahndungsstufe, Heilen, Töten, Respawn, Team, Nachricht,
@@ -29,6 +30,8 @@ export const ACTION_LABEL: Record<PlayerAction, string> = {
 
 /** Töten und Kicken greifen stärker ein und brauchen player_actions:delete. */
 const HEAVY = new Set<PlayerAction>(['kill', 'kick']);
+export const requiredPermission = (action: PlayerAction) =>
+  HEAVY.has(action) ? ('player_actions:delete' as const) : ('player_actions:edit' as const);
 
 export const playerActionSchema = z
   .object({
@@ -56,9 +59,14 @@ export async function createPlayerAction(
   robloxUserId: number,
   input: PlayerActionInput,
   /** Bekannter Server (Team-Befehl im Spiel): keine Suche in der Live-Lage nötig. */
-  known?: { server: { id: string; jobId: string; serverType: string }; username: string },
+  known?: {
+    server: { id: string; jobId: string; serverType: string };
+    username: string;
+    /** Besitzer/Admin eines Privat-Servers handelt auf seinem eigenen Server (Rechte dort statt Plattform-Rechte). */
+    privateServerStaff?: { robloxUserId: number; username: string | null };
+  },
 ) {
-  requirePermission(actor, HEAVY.has(input.action) ? 'player_actions:delete' : 'player_actions:edit');
+  if (!known?.privateServerStaff) requirePermission(actor, requiredPermission(input.action));
   const now = ctx.now();
   const online = known
     ? { server: known.server, player: { username: known.username } }
@@ -99,7 +107,13 @@ export async function createPlayerAction(
         resourceType: 'roblox_user',
         resourceId: String(robloxUserId),
         reason: input.reason,
-        after: { commandId: row!.id, serverId: online.server.id, ...payload, message },
+        after: {
+          commandId: row!.id,
+          serverId: online.server.id,
+          ...payload,
+          message,
+          ...(known?.privateServerStaff ? { privateServerStaff: known.privateServerStaff } : {}),
+        },
       },
       now,
     );
@@ -109,7 +123,15 @@ export async function createPlayerAction(
   await queueActionLog(
     ctx,
     actor,
-    { action: input.action, robloxUserId, username: online.player.username, reason: input.reason, details: payload },
+    {
+      action: input.action,
+      robloxUserId,
+      username: online.player.username,
+      reason: input.reason,
+      details: known?.privateServerStaff
+        ? { ...payload, issuerName: known.privateServerStaff.username ?? String(known.privateServerStaff.robloxUserId) }
+        : payload,
+    },
     { jobId: online.server.jobId, serverType: online.server.serverType },
   );
   return {
@@ -190,8 +212,6 @@ export async function staffCommandFromGame(
 ) {
   const row = await getServerByJobId(ctx.db, input.jobId);
   if (!row || row.apiKeyId !== server.apiKeyId) throw errors.badRequest('Unbekannter Server.');
-  const actor = await actorFromRoblox(ctx, input.issuerId);
-  if (!actor) return { ok: false as const, error: 'Dein Roblox-Konto ist nicht mit Discord verknüpft (/verify).' };
   const parsed = playerActionSchema.safeParse({
     action: input.action,
     reason: input.reason && input.reason.length >= 3 ? input.reason : `Team-Befehl im Spiel (${input.action})`,
@@ -201,11 +221,37 @@ export async function staffCommandFromGame(
     message: input.message,
   });
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? 'Ungültiger Befehl.' };
+  const actor = await actorFromRoblox(ctx, input.issuerId);
+  // Privat-Server: Besitzer und ernannte Admins dürfen dort (und nur dort) auch ohne Plattform-Rechte handeln.
+  let privateStaff = false;
+  if (row.serverType === 'private' && row.privateServerId) {
+    const ps = await getByPrivateServerId(ctx.db, row.privateServerId);
+    privateStaff = Boolean(ps && isPrivateServerStaff(ps, input.issuerId));
+  }
+  const platformAllowed = actor ? hasPermission(actor, requiredPermission(parsed.data.action)) : false;
+  if (!platformAllowed && !privateStaff) {
+    return {
+      ok: false as const,
+      error: actor
+        ? 'Dafür fehlt dir die Berechtigung.'
+        : 'Dein Roblox-Konto ist nicht mit Discord verknüpft (/verify).',
+    };
+  }
+  const known = { server: { id: row.id, jobId: row.jobId, serverType: row.serverType }, username: input.targetName };
   try {
-    const result = await createPlayerAction(ctx, actor, input.targetId, parsed.data, {
-      server: { id: row.id, jobId: row.jobId, serverType: row.serverType },
-      username: input.targetName,
-    });
+    let result;
+    if (platformAllowed) {
+      result = await createPlayerAction(ctx, actor!, input.targetId, parsed.data, known);
+    } else {
+      const [issuer] = await ctx.db
+        .select({ username: robloxUsers.username })
+        .from(robloxUsers)
+        .where(eq(robloxUsers.id, input.issuerId));
+      result = await createPlayerAction(ctx, server, input.targetId, parsed.data, {
+        ...known,
+        privateServerStaff: { robloxUserId: input.issuerId, username: issuer?.username ?? null },
+      });
+    }
     return { ok: true as const, command: result.command };
   } catch (err) {
     if (err instanceof AppError && err.code === 'FORBIDDEN')
