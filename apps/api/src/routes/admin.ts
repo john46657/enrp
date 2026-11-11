@@ -8,10 +8,12 @@ import {
   LOCKED_COMMANDS,
   RESOURCES,
   isCriticalPattern,
+  isPermissionKey,
 } from '@enrp/permissions';
 import {
   guilds,
   getConfigVersion,
+  hasPermission,
   getSetting,
   isSettingKey,
   listConfigVersions,
@@ -187,13 +189,24 @@ export async function adminRoutes(fastify: FastifyInstance) {
     {
       schema: {
         tags: ptags,
-        summary: 'Befehlszugriff der handelnden Person prüfen',
-        body: z.object({ command: z.string().max(60) }),
+        summary: 'Befehlszugriff (oder ein einzelnes Recht, für Buttons der Altmodule) der handelnden Person prüfen',
+        body: z.union([
+          z.object({ command: z.string().max(60) }),
+          z.object({ permission: z.string().max(60).refine(isPermissionKey, 'Unbekannte Berechtigung') }),
+        ]),
       },
     },
     async (request) => {
       const actor = request.actor;
       if (actor.kind !== 'user') throw errors.unauthenticated();
+      if ('permission' in request.body) {
+        const { permission } = request.body;
+        return {
+          allowed: hasPermission(actor, permission),
+          source: actor.subject.isOwner ? ('owner' as const) : ('permission' as const),
+          permission,
+        };
+      }
       return permissionsAdmin.checkCommandAccess(core.db, core.config.ownerDiscordIds, {
         command: request.body.command,
         discordUserId: actor.discordUserId,

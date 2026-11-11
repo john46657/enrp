@@ -50,6 +50,87 @@ export const LEGACY_COMMAND_PERMISSIONS: Record<string, PermissionKey | null> = 
 };
 
 /**
+ * Buttons, Menüs und Formulare der Altmodule, die bisher nur die Staff-/Support-Rollen der Altmodule geprüft haben
+ * (customId "präfix:aktion:…"). Wer das Plattform-Recht hat, gilt bei dieser Aktion als Staff – zusätzlich zu den
+ * bisherigen Rollen. Nicht aufgeführte Aktionen (Ticket öffnen, bewerben, Rollenpanel) sind für alle.
+ */
+export const LEGACY_COMPONENT_PERMISSIONS: Record<string, PermissionKey> = {
+  ...Object.fromEntries(
+    [
+      'claim',
+      'unclaim',
+      'addok',
+      'addno',
+      'close',
+      'closeyes',
+      'closereason',
+      'closemodal',
+      'closeform',
+      'closeformmodal',
+      'closeaccept',
+      'closedeny',
+      'closeno',
+    ].map((action) => [`ticket:${action}`, 'tickets:edit'] as const),
+  ),
+  'quali:decide': 'applications:edit',
+  'quali:reason': 'applications:edit',
+  'quali:reasonsubmit': 'applications:edit',
+  'quali:status': 'applications:edit',
+  'quali:ticket': 'applications:edit',
+  'quali:history': 'applications:view',
+};
+
+/** Plattform-Recht für eine Komponente der Altmodule (null = keine Staff-Aktion). */
+export function legacyComponentPermission(customId: string): PermissionKey | null {
+  const [prefix, action] = customId.split(':');
+  return LEGACY_COMPONENT_PERMISSIONS[`${prefix}:${action}`] ?? null;
+}
+
+/**
+ * Altmodule im Dashboard (Anfragen an den Bot, siehe packages/core legacy.ts).
+ * Daten lesen: Name → benötigtes Recht (eines davon genügt).
+ */
+export const LEGACY_LIVE: Record<string, readonly PermissionKey[]> = {
+  // Einstellungen der Altmodule samt Kanälen und Rollen des Haupt-Discords (für Auswahlfelder)
+  guild: ['settings:view', 'applications:view', 'community:view', 'tickets:view'],
+  applications: ['applications:view'],
+  'app-progress': ['applications:view'],
+  'app-bans': ['applications:view'],
+  'app-stats': ['applications:view'],
+  levels: ['community:view'],
+  tickets: ['tickets:view'],
+};
+
+/** Aktionen: Name → benötigtes Recht. */
+export const LEGACY_ACTIONS: Record<string, PermissionKey> = {
+  'app-decide': 'applications:edit',
+  'app-status': 'applications:edit',
+  'app-note': 'applications:edit',
+  'app-ban-add': 'applications:edit',
+  'app-ban-lift': 'applications:edit',
+  'app-delete': 'applications:delete',
+  'app-panel-post': 'applications:configure',
+  'ticket-panel-post': 'settings:edit',
+  'ticket-panels-refresh': 'settings:edit',
+  'role-panel-post': 'community:create',
+  'level-set': 'community:edit',
+  'level-reset': 'community:delete',
+};
+
+/** Bereiche der Einstellungen, die das Dashboard ändern darf, mit dem jeweils nötigen Recht. */
+export const LEGACY_SETTING_ROOTS: Record<string, PermissionKey> = {
+  timezone: 'settings:edit',
+  channels: 'settings:edit',
+  roles: 'settings:edit',
+  welcome: 'settings:edit',
+  tickets: 'settings:edit',
+  leveling: 'settings:edit',
+  roblox: 'settings:edit',
+  stats: 'settings:edit',
+  applications: 'applications:configure',
+};
+
+/**
  * Standard-Berechtigung je Slash-Command (Befehl + Unterbefehl, getrennt durch Leerzeichen).
  * "null" = für alle Mitglieder verfügbar. Rollen-Overrides (/permissions grant|revoke)
  * gelten pro Hauptbefehl oder pro Unterbefehl.

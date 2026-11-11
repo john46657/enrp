@@ -57,6 +57,13 @@
       "when": 1794386803547,
       "tag": "0007_discord_guilds",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794408544384,
+      "tag": "0008_legacy_requests",
+      "breakpoints": true
     }
   ]
 }

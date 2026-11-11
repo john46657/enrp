@@ -19,6 +19,7 @@ import { authRoutes } from './routes/auth';
 import { botRoutes } from './routes/bot';
 import { communityRoutes } from './routes/community';
 import { gameRoutes } from './routes/game';
+import { legacyRoutes } from './routes/legacy';
 import { dispatchRoutes } from './routes/dispatch';
 import { opsRoutes } from './routes/ops';
 import { realtimeRoutes } from './routes/realtime';
@@ -164,6 +165,7 @@ export async function buildApp(deps: ApiDeps, options: { logger?: boolean } = {}
       await v1.register(opsRoutes);
       await v1.register(realtimeRoutes);
       await v1.register(botRoutes);
+      await v1.register(legacyRoutes);
       v1.get('/status', { schema: { tags: ['Monitoring'], summary: 'Öffentlicher Status (aggregiert)' } }, async () => {
         const report = await healthReport(deps);
         return {

@@ -15,8 +15,15 @@ export function createApiFactory(env: BotEnv) {
     baseUrl: env.API_URL,
     headers: () => ({ authorization: `Bearer ${env.BOT_API_TOKEN}` }),
   });
+  /** Long-Polling (Anfragen an die Altmodule): die API hält die Verbindung bis zu 25 s offen. */
+  const longPoll = createApiClient({
+    baseUrl: env.API_URL,
+    timeoutMs: 35_000,
+    headers: () => ({ authorization: `Bearer ${env.BOT_API_TOKEN}` }),
+  });
   return {
     service,
+    longPoll,
     forInteraction(interaction: Interaction): ApiClient {
       return createApiClient({
         baseUrl: env.API_URL,

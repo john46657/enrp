@@ -29,6 +29,11 @@ Die Befehle der Altmodule (Bewerbungen, Ticketpanel, Level, Rollenpanel, `/einst
 Katalog (`LEGACY_COMMAND_PERMISSIONS`). Plattform-Rechte kommen zu den bisherigen Discord-Rechten hinzu; Details
 und Ablauf: [bot.md](bot.md#altbefehle-im-rechtesystem).
 
+Auch die Staff-Buttons der Altmodule (`LEGACY_COMPONENT_PERMISSIONS`, z. B. Ticket übernehmen → `tickets:edit`,
+Bewerbung entscheiden → `applications:edit`) und die Dashboard-Seiten der Altmodule (`LEGACY_LIVE`,
+`LEGACY_ACTIONS`, `LEGACY_SETTING_ROOTS`) stehen im Katalog; siehe
+[bot.md](bot.md#altmodule-im-dashboard).
+
 ## Rechte je Discord-Server
 
 Zuweisungen (Discord-Rolle oder Person) können auf einen weiteren Discord-Server beschränkt werden (`guildId`).
