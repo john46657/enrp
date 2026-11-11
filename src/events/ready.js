@@ -3,7 +3,9 @@ const settings = require('../lib/settings');
 const { fetchFivemStatus } = require('../lib/fivem');
 const { startTicketWatcher } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
-const { sweep } = require('../lib/applications/flow');
+const { sweep, restore } = require('../lib/applications/flow');
+const { watchPhases } = require('../lib/applications/messages');
+const web = require('../lib/web');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
 
@@ -22,13 +24,19 @@ module.exports = {
     // Früher global registrierte Befehle entfernen, sonst erscheinen sie doppelt. Jetzt wird je Server registriert.
     await client.application.commands.set([]).catch((err) => console.error('[commands] Globale Befehle entfernen:', err.message));
 
-    // Bewerbungen: laufende DM-Bewerbungen gehen bei einem Neustart verloren
-    appStore.resetProgress();
     for (const problem of appStore.baseTypes().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
 
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
     startTicketWatcher(client);
-    setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
+    // Bewerbungen: laufende DM-Bewerbungen nach dem Neustart fortsetzen, Zeitlimits und Bewerbungsphasen überwachen
+    await restore(client);
+    setInterval(() => {
+      sweep(client).catch((err) => console.error('[bewerbung]', err));
+      watchPhases(client).catch((err) => console.error('[bewerbungsphase]', err));
+    }, 60_000);
+
+    // Optionaler Web-Teil (Browser-Formular, Dashboard) – nur wenn WEB_URL gesetzt ist
+    if (web.enabled()) require('../web/server').start(client);
 
     // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.
     const updatePresence = async () => {

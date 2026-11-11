@@ -43,6 +43,12 @@ function validateType(type) {
   if (!['apply', 'quali'].includes(type.panel)) problems.push(`${type.id}: panel muss "apply" oder "quali" sein`);
   if (!['police', 'simple'].includes(type.workflow)) problems.push(`${type.id}: workflow muss "police" oder "simple" sein`);
   if (!['NONE', 'DENY', 'WITHDRAW'].includes(type.onLeave)) problems.push(`${type.id}: onLeave muss NONE, DENY oder WITHDRAW sein`);
+  if (!['DM', 'WEB'].includes(type.mode ?? 'DM')) problems.push(`${type.id}: mode muss "DM" oder "WEB" sein`);
+  if (!/^[A-Za-z0-9]{1,8}$/.test(type.numberPrefix ?? '')) problems.push(`${type.id}: numberPrefix braucht 1–8 Buchstaben oder Zahlen`);
+  for (const key of ['opensAt', 'closesAt']) {
+    const value = type.phase?.[key];
+    if (value && !Number.isFinite(typeof value === 'number' ? value : Date.parse(value))) problems.push(`${type.id}: phase.${key} ist kein gültiges Datum`);
+  }
   if (type.timeLimitMinutes < 5 || type.timeLimitMinutes > 10_080) problems.push(`${type.id}: timeLimitMinutes muss zwischen 5 und 10080 liegen`);
   if (!type.questions.length) problems.push(`${type.id}: keine Fragen`);
   if (type.questions.length > 50) problems.push(`${type.id}: höchstens 50 Fragen`);
@@ -55,6 +61,9 @@ function validateType(type) {
     if (['CHOICE', 'ROLE'].includes(q.type)) {
       if (!q.options?.length || q.options.length > 25) problems.push(`${type.id}/${q.key}: 1–25 Optionen nötig`);
       if (q.type === 'ROLE' && q.options?.some((o) => !o.roleId)) problems.push(`${type.id}/${q.key}: jede Option braucht eine roleId`);
+      const values = (q.options ?? []).map(optionValue);
+      if (new Set(values).size !== values.length) problems.push(`${type.id}/${q.key}: Optionen dürfen nicht doppelt vorkommen`);
+      if (values.some((v) => !v || v.length > 100)) problems.push(`${type.id}/${q.key}: Optionen brauchen einen Text mit höchstens 100 Zeichen`);
     }
   }
   return problems;

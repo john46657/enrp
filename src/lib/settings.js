@@ -72,9 +72,15 @@ function get(guildId, path) {
 }
 
 // value === undefined entfernt den Schlüssel (z. B. eine Level-Belohnung).
+// Die Änderungen werden beim Start in der Reihenfolge der letzten Änderung wieder angewendet. Wird ein ganzer
+// Bereich ersetzt (z. B. die Liste "applications.types"), entfallen die älteren Einzelwerte darunter.
 function set(guildId, path, value) {
   if (!apply(forGuild(guildId), path, value)) throw new Error(`Unbekannte Einstellung: ${path}`);
-  (overrides[guildId] ??= {})[path] = value === undefined ? null : value;
+  const own = (overrides[guildId] ??= {});
+  for (const key of Object.keys(own)) {
+    if (key === path || key.startsWith(`${path}.`)) delete own[key];
+  }
+  own[path] = value === undefined ? null : structuredClone(value);
   db.save();
 }
 

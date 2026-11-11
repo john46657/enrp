@@ -5,22 +5,21 @@ const store = require('../../lib/applications/store');
 const flow = require('../../lib/applications/flow');
 const decisions = require('../../lib/applications/decide');
 const { buildPanel } = require('../../lib/applications/messages');
+const { respondTypes, findType } = require('../../lib/applications/choices');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('bewerbung')
     .setDescription('Startet eine Bewerbung (Fragen kommen per Direktnachricht).')
-    .addStringOption((o) =>
-      o
-        .setName('art')
-        .setDescription('Wofür? (Standard: Polizei-Bewerbung)')
-        .addChoices(...store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
-    ),
+    .addStringOption((o) => o.setName('art').setDescription('Wofür? (ohne Angabe: die Bewerbung aus dem Bewerbungs-Panel)').setAutocomplete(true)),
+
+  autocomplete: (interaction) => respondTypes(interaction),
 
   async execute(interaction) {
     const types = store.types(interaction.guildId);
-    const typeId = interaction.options.getString('art') ?? (types.find((t) => t.panel === 'apply') ?? types[0])?.id;
-    return flow.offer(interaction, typeId);
+    const wanted = interaction.options.getString('art');
+    const type = wanted ? findType(interaction.guildId, wanted) : (types.find((t) => t.panel === 'apply') ?? types[0]);
+    return flow.offer(interaction, type?.id);
   },
 
   // Alle Buttons, Menüs und Formulare des Bewerbungssystems (customId "quali:<aktion>:…")

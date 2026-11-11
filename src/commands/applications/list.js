@@ -4,8 +4,8 @@ const { save } = require('../../lib/db');
 const store = require('../../lib/applications/store');
 const { buildTeamMessage, answersFile } = require('../../lib/applications/messages');
 const { buildStats } = require('../../lib/applications/stats');
+const { respondTypes, findType } = require('../../lib/applications/choices');
 
-const typeChoices = () => store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }));
 const link = (r) => (r.messageId ? `https://discord.com/channels/${r.guildId}/${r.channelId}/${r.messageId}` : null);
 
 module.exports = {
@@ -16,7 +16,7 @@ module.exports = {
       s
         .setName('offen')
         .setDescription('Alle offenen Bewerbungen.')
-        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').addChoices(...typeChoices())),
+        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').setAutocomplete(true)),
     )
     .addSubcommand((s) => s.setName('in-bearbeitung').setDescription('Bewerbungen, die gerade per DM ausgefüllt werden.'))
     .addSubcommand((s) =>
@@ -42,7 +42,7 @@ module.exports = {
         .setName('statistik')
         .setDescription('Kennzahlen, Verlauf, Prüfer und Heatmap.')
         .addIntegerOption((o) => o.setName('tage').setDescription('Zeitraum (7–365, Standard 30)').setMinValue(7).setMaxValue(365))
-        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').addChoices(...typeChoices()))
+        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').setAutocomplete(true))
         .addStringOption((o) =>
           o
             .setName('status')
@@ -57,14 +57,18 @@ module.exports = {
         .addUserOption((o) => o.setName('pruefer').setDescription('Nur Entscheidungen dieser Person')),
     ),
 
+  autocomplete: (interaction) => respondTypes(interaction),
+
   async execute(interaction) {
     if (!store.managesAny(interaction.member)) return replyPrivate(interaction, 'Nur das Bewerbungsteam kann das sehen.');
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
+    const wantedType = interaction.options.getString('art');
+    if (wantedType && !findType(guildId, wantedType)) return replyPrivate(interaction, `Die Bewerbungsart „${wantedType}“ gibt es auf diesem Server nicht.`);
+    const typeFilter = wantedType ? findType(guildId, wantedType).id : null;
 
     if (sub === 'offen') {
-      const typeId = interaction.options.getString('art');
-      const open = store.openOf(guildId, (r) => !typeId || r.type === typeId).sort((a, b) => a.createdAt - b.createdAt);
+      const open = store.openOf(guildId, (r) => !typeFilter || r.type === typeFilter).sort((a, b) => a.createdAt - b.createdAt);
       if (!open.length) return replyPrivate(interaction, 'Keine offenen Bewerbungen. 🎉');
       const lines = open.map((r) => {
         const type = store.typeById(guildId, r.type);
@@ -78,7 +82,8 @@ module.exports = {
       const list = Object.values(store.progressOf(guildId)).filter((p) => p.expiresAt > Date.now());
       if (!list.length) return replyPrivate(interaction, 'Gerade füllt niemand eine Bewerbung aus.');
       const lines = list.map(
-        (p) => `<@${p.userId}> – ${store.typeById(guildId, p.typeId)?.name ?? p.typeId} · Frage ${p.step + 1}/${p.total} · gestartet <t:${Math.floor(p.startedAt / 1000)}:R>`,
+        (p) =>
+          `<@${p.userId}> – ${store.typeById(guildId, p.typeId)?.name ?? p.typeId} · ${p.web ? 'Web-Formular' : `Frage ${p.step + 1}/${p.total}`} · gestartet <t:${Math.floor(p.startedAt / 1000)}:R>`,
       );
       return replyPrivate(interaction, { embeds: [embed().setTitle(`✍️ In Bearbeitung (${list.length})`).setDescription(lines.join('\n'))] });
     }
@@ -95,7 +100,7 @@ module.exports = {
       return replyPrivate(interaction, {
         embeds: [
           buildStats(guildId, interaction.options.getInteger('tage') ?? 30, {
-            typeId: interaction.options.getString('art'),
+            typeId: typeFilter,
             status: interaction.options.getString('status'),
             reviewerId: interaction.options.getUser('pruefer')?.id,
           }),

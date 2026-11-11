@@ -71,6 +71,21 @@
       "cooldownMinutes": 1440,
       "timeLimitMinutes": 180,
       "onLeave": "WITHDRAW",
+      "mode": "DM",
+      "phase": {
+        "opensAt": null,
+        "closesAt": null,
+        "maxApplications": 0
+      },
+      "serviceNumber": {
+        "enabled": false,
+        "format": "{n}",
+        "digits": 2,
+        "start": 1,
+        "end": 0,
+        "nickname": "",
+        "releaseOnLeave": true
+      },
       "questions": []
     },
     "types": [

@@ -9,12 +9,12 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 
 | Bereich | Befehle / Features |
 |---|---|
-| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
+| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Bewerbungsphasen · Dienstnummern · Sperren · KI-Checker · Statistik · optional Browser-Formular und Dashboard – **ausführlich in [docs/applications.md](docs/applications.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
 | 🎉 **Community** | Willkommensnachricht + Auto-Rolle · `/rollenpanel` (Rollen per Button) · `/umfrage` (native Discord-Umfragen) · Level-System mit `/rang`, `/bestenliste` und Rollen-Belohnungen |
-| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt |
+| ⚙️ **Verwaltung** | `/einstellungen`: Kanäle, Rollen, Tickets, Öffnungszeiten, Level und FiveM direkt in Discord ändern, ohne Neustart – je Server getrennt · `/bewerbungsart`: Bewerbungsarten, Fragen, Texte, Phasen und Dienstnummern |
 | 📖 | `/hilfe` zeigt alle Befehle |
 
 ## 1. Bot bei Discord anlegen
@@ -107,14 +107,41 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
 | `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert, Auto-Unclaim |
 | `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
-| `ticket-kategorie` | Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
+| `ticket-kategorie` | Name, Emoji, Präfix, Kapazität, eigene Team-Rolle, eigene Discord-Kategorie und Beschreibung je Kategorie |
+| `ticket-kategorie-neu` / `ticket-kategorie-loeschen` | Ticket-Kategorie anlegen oder löschen |
 | `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
 | `level` | An/aus, Cooldown, Rollen-Belohnungen (Level + Rolle; ohne Rolle = Belohnung entfernen) |
 | `fivem` | Server-Adresse und Verbinden-Link |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
-Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
+Bewerbungsarten, Fragen, Texte, Rollen-Listen, Bewerbungsphasen und Dienstnummern bearbeitest du mit `/bewerbungsart`
+(siehe [docs/applications.md](docs/applications.md#65-in-discord-bearbeiten-bewerbungsart)). Auch das gilt nur für den jeweiligen Server.
+
+> Legst du auf einem Server eine Bewerbungsart oder Ticket-Kategorie an oder löschst eine, verwendet dieser Server ab dann
+> seine eigene Liste. Spätere Änderungen an der Liste in der `config.json` kommen dort nicht mehr an
+> (`/einstellungen zuruecksetzen` stellt die Vorlage wieder her).
+
+### Web-Teil (optional): Browser-Formular und Dashboard
+
+Der Bot bringt einen kleinen Webserver mit, der ohne zusätzliche Pakete auskommt. Er startet nur, wenn in der `.env`
+`WEB_URL` steht:
+
+```env
+WEB_URL=https://bewerbung.deine-domain.de
+WEB_PORT=8080
+```
+
+- `WEB_URL` ist die Adresse, unter der der Bot **von außen** erreichbar ist. Bei einem Bot-Hoster ist das meist
+  `http://IP:PORT` mit dem zugewiesenen Port. Besser ist eine Domain mit HTTPS davor (z. B. Cloudflare oder ein
+  Reverse-Proxy), weil sonst der Zugang unverschlüsselt übertragen wird.
+- Der Bot muss direkt unter der Adresse liegen (eigene Domain oder Subdomain, kein Unterordner wie `/bot`).
+- **Browser-Formular:** `/bewerbungsart bearbeiten art:… formular:Im Browser`. Bewerber bekommen in Discord einen
+  persönlichen, signierten Link und füllen alle Fragen auf einer Seite aus.
+- **Dashboard:** `/dashboard` gibt Team-Mitgliedern einen persönlichen Link (10 Minuten gültig, danach 12 Stunden
+  angemeldet). Dort: Bewerbungen filtern und lesen, annehmen/ablehnen, Statistik, Sperren, Dienstnummern, Protokoll,
+  Bewerbungsarten öffnen/schließen. Es gelten dieselben Rechte wie in Discord und sie werden bei jedem Aufruf geprüft.
+- Es gibt kein eigenes Login und keine Passwörter: Der Zugang kommt immer aus Discord.
 
 ## 3. Starten
 
@@ -131,9 +158,9 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 21 Slash-Commands auf „…“ registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 24 Slash-Commands auf „…“ registriert` stehen.
 
-Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
+Die Daten (Verwarnungen, Level, Tickets, Bewerbungen, Dienstnummern, Einstellungen) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.
 
 ## 4. Einrichten auf dem Server
@@ -153,5 +180,7 @@ config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
 src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
+src/web/…             Optionaler Web-Teil: Browser-Formular und Dashboard
 scripts/check.js      Offline-Prüfung: npm run check
+test/…                Abläufe mit nachgebauten Discord-Objekten: npm test
 ```

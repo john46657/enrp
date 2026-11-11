@@ -3,6 +3,7 @@ const settings = require('../../lib/settings');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
+const { respondTypes, findType, suggest } = require('../../lib/applications/choices');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -203,7 +204,7 @@ const builder = new SlashCommandBuilder()
           .setName('kategorie')
           .setDescription('Welche Kategorie?')
           .setRequired(true)
-          .addChoices(...settings.base.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
+          .setAutocomplete(true),
       )
       .addIntegerOption((o) => o.setName('kapazitaet').setDescription('Plätze für die Auslastung (0 = ausblenden)').setMinValue(0).setMaxValue(1000))
       .addRoleOption((o) => o.setName('team_rolle').setDescription('Nur diese Rolle bearbeitet die Kategorie'))
@@ -211,7 +212,29 @@ const builder = new SlashCommandBuilder()
       .addChannelOption((o) =>
         o.setName('discord_kategorie').setDescription('Eigene Discord-Kategorie für diese Tickets').addChannelTypes(ChannelType.GuildCategory),
       )
-      .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel').setMaxLength(500)),
+      .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel').setMaxLength(500))
+      .addStringOption((o) => o.setName('name').setDescription('Anzeigename').setMaxLength(80))
+      .addStringOption((o) => o.setName('emoji').setDescription('Emoji im Panel'))
+      .addStringOption((o) => o.setName('praefix').setDescription('Präfix für Kanalnamen (%PREFIX%)').setMaxLength(20)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('ticket-kategorie-neu')
+      .setDescription('Legt eine neue Ticket-Kategorie an.')
+      .addStringOption((o) => o.setName('schluessel').setDescription('Kurzer Schlüssel, z. B. bug (a-z, 0-9, _ -)').setRequired(true).setMinLength(2).setMaxLength(24))
+      .addStringOption((o) => o.setName('name').setDescription('Anzeigename, z. B. Bug melden').setRequired(true).setMaxLength(80))
+      .addStringOption((o) => o.setName('emoji').setDescription('Emoji im Panel').setRequired(true))
+      .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel').setRequired(true).setMaxLength(500))
+      .addIntegerOption((o) => o.setName('kapazitaet').setDescription('Plätze für die Auslastung (0 = ausblenden, Standard 20)').setMinValue(0).setMaxValue(1000))
+      .addRoleOption((o) => o.setName('team_rolle').setDescription('Nur diese Rolle bearbeitet die Kategorie'))
+      .addStringOption((o) => o.setName('praefix').setDescription('Präfix für Kanalnamen (Standard: Schlüssel)').setMaxLength(20)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('ticket-kategorie-loeschen')
+      .setDescription('Löscht eine Ticket-Kategorie (offene Tickets bleiben bestehen).')
+      .addStringOption((o) => o.setName('kategorie').setDescription('Welche Kategorie?').setRequired(true).setAutocomplete(true))
+      .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich löschen?').setRequired(true)),
   )
   .addSubcommand((s) =>
     s
@@ -230,7 +253,7 @@ const builder = new SlashCommandBuilder()
           .setName('art')
           .setDescription('Welche Bewerbung?')
           .setRequired(true)
-          .addChoices(...settings.base.applications.types.slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+          .setAutocomplete(true),
       )
       .addBooleanOption((o) => o.setName('aktiv').setDescription('Bewerbungen annehmen?'))
       .addStringOption((o) =>
@@ -337,15 +360,43 @@ function changesFor(interaction, sub) {
       ]);
     }
     case 'ticket-kategorie': {
-      const base = `tickets.types.${o.getString('kategorie')}`;
+      const base = `tickets.types.${ticketType(interaction).id}`;
       const changes = collect(interaction, [
         ['kapazitaet', `${base}.capacity`, 'getInteger'],
         ['team_rolle', `${base}.roles`, 'getRole', (r) => [r.id]],
         ['discord_kategorie', `${base}.categoryId`, 'getChannel', (c) => c.id],
         ['beschreibung', `${base}.description`, 'getString'],
+        ['name', `${base}.label`, 'getString', (v) => v.trim()],
+        ['emoji', `${base}.emoji`, 'getString', checkEmoji],
+        ['praefix', `${base}.prefix`, 'getString', (v) => v.trim()],
       ]);
       if (o.getBoolean('standard_team')) changes.push([`${base}.roles`, []]);
       return changes;
+    }
+    case 'ticket-kategorie-neu': {
+      const types = settings.forGuild(interaction.guildId).tickets.types;
+      const id = o.getString('schluessel').trim().toLowerCase();
+      if (!/^[a-z0-9_-]{2,24}$/.test(id)) throw new Error('Der Schlüssel darf nur a-z, 0-9, _ und - enthalten (2–24 Zeichen).');
+      if (id === 'bewerbung' || types.some((t) => t.id === id)) throw new Error(`Den Schlüssel \`${id}\` gibt es schon.`);
+      if (types.length >= 25) throw new Error('Mehr als 25 Ticket-Kategorien gehen nicht.');
+      const role = o.getRole('team_rolle');
+      const type = {
+        id,
+        prefix: o.getString('praefix')?.trim() || id,
+        label: o.getString('name').trim(),
+        emoji: checkEmoji(o.getString('emoji')),
+        capacity: o.getInteger('kapazitaet') ?? 20,
+        roles: role ? [role.id] : [],
+        description: o.getString('beschreibung').trim(),
+      };
+      return [['tickets.types', [...types, type]]];
+    }
+    case 'ticket-kategorie-loeschen': {
+      if (!o.getBoolean('bestaetigen')) throw new Error('Abgebrochen – es wurde nichts gelöscht.');
+      const types = settings.forGuild(interaction.guildId).tickets.types;
+      const type = ticketType(interaction);
+      if (types.length === 1) throw new Error('Die letzte Ticket-Kategorie kann nicht gelöscht werden.');
+      return [['tickets.types', types.filter((t) => t.id !== type.id)]];
     }
     case 'oeffnungszeiten': {
       const zone = o.getString('zeitzone')?.trim();
@@ -363,7 +414,9 @@ function changesFor(interaction, sub) {
       ]);
     }
     case 'bewerbung': {
-      const base = `applications.types.${o.getString('art')}`;
+      const type = findType(interaction.guildId, o.getString('art'));
+      if (!type) throw new Error(`Die Bewerbungsart „${o.getString('art')}“ gibt es auf diesem Server nicht.`);
+      const base = `applications.types.${type.id}`;
       const asList = (r) => [r.id];
       const changes = [];
       if (o.getBoolean('rollen_leeren')) {
@@ -416,9 +469,31 @@ function changesFor(interaction, sub) {
   }
 }
 
+const EMOJI = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2}|<a?:\w+:\d+>)/u;
+function checkEmoji(value) {
+  if (!EMOJI.test(value.trim())) throw new Error('Das Emoji muss ein normales Emoji (z. B. 🐛) oder ein Server-Emoji sein.');
+  return value.trim();
+}
+
+// Ticket-Kategorie aus der Option „kategorie“ (Schlüssel oder Name); wirft, wenn es sie nicht gibt.
+function ticketType(interaction) {
+  const input = interaction.options.getString('kategorie').trim().toLowerCase();
+  const types = settings.forGuild(interaction.guildId).tickets.types;
+  const found = types.find((t) => t.id === input) ?? types.find((t) => t.label.toLowerCase() === input);
+  if (!found) throw new Error(`Die Ticket-Kategorie „${input}“ gibt es auf diesem Server nicht.`);
+  return found;
+}
+
 module.exports = {
   data: builder,
   parsePeriods,
+
+  autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'art') return respondTypes(interaction);
+    const types = settings.forGuild(interaction.guildId).tickets.types.map((t) => ({ name: t.label.slice(0, 100), value: t.id }));
+    return interaction.respond(suggest(types, focused.value));
+  },
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();

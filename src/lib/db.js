@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DIR = path.join(__dirname, '..', '..', 'data');
+const DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, '..', '..', 'data');
 const FILE = path.join(DIR, 'db.json');
 const DEFAULTS = { warnings: {}, levels: {}, tickets: {}, applications: {}, counters: {} };
 

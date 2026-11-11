@@ -107,6 +107,23 @@ if (reset.tickets.types[0].capacity !== before.cap || reset.channels.ticketLog !
 }
 console.log('✅ Einstellungen je Server setzen/zurücksetzen');
 
+// Ganze Listen je Server ersetzen (neue Bewerbungsart) und danach Einzelwerte ändern
+const custom = { ...structuredClone(config.applications.types[0]), id: 'check-art', name: 'Check' };
+settings.set(a, 'applications.types', [...settings.forGuild(a).applications.types, custom]);
+settings.set(a, 'applications.types.check-art.enabled', false);
+if (appStore.typeById(a, 'check-art')?.enabled !== false || appStore.typeById(b, 'check-art')) fail('Neue Bewerbungsarten sind nicht je Server getrennt');
+settings.reset(a);
+console.log('✅ Bewerbungsarten je Server anlegen');
+
+// Bewerbungsphasen und signierte Web-Links
+const phaseType = { ...structuredClone(config.applications.types[0]), phase: { opensAt: Date.now() + 60_000, closesAt: null, maxApplications: 0 } };
+if (appStore.phaseOf('check', phaseType).state !== 'before') fail('Bewerbungsphase „öffnet später“ wird nicht erkannt');
+process.env.WEB_SECRET ??= 'check';
+const web = require('../src/lib/web');
+const token = web.sign({ k: 'apply', exp: Date.now() + 1000 });
+if (!web.verify(token, 'apply') || web.verify(`${token}x`, 'apply') || web.verify(token, 'dash')) fail('Signierte Links werden nicht richtig geprüft');
+console.log('✅ Bewerbungsphasen und signierte Links');
+
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');
 process.exit(0);

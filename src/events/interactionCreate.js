@@ -4,6 +4,13 @@ const { replyPrivate } = require('../lib/util');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
+    // Vorschläge für Optionen (z. B. Bewerbungsarten dieses Servers)
+    if (interaction.isAutocomplete()) {
+      const command = client.commands.get(interaction.commandName);
+      await Promise.resolve(command?.autocomplete?.(interaction) ?? interaction.respond([])).catch((err) => console.error(`[autocomplete:${interaction.commandName}]`, err.message));
+      return;
+    }
+
     let handler;
     let label;
     if (interaction.isChatInputCommand()) {

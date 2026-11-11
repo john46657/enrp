@@ -29,6 +29,62 @@ const baseTypes = () => base.applications.types;
 const isOpenStatus = (status) => !FINAL.includes(status);
 const initialStatus = (type) => (type.workflow === 'police' ? 'SUBMITTED' : 'OPEN');
 
+// ---------- Bewerbungsphasen ----------
+
+// Zeitpunkte stehen als Millisekunden (aus Discord) oder als ISO-Text (config.json) in den Einstellungen.
+const toMs = (value) => {
+  if (!value) return null;
+  const ms = typeof value === 'number' ? value : Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+};
+
+// Zustand einer Bewerbungsart: { open, state: 'open'|'disabled'|'before'|'after'|'full', opensAt, closesAt, used, max }
+function phaseOf(guildId, type, now = Date.now()) {
+  const phase = type.phase ?? {};
+  const opensAt = toMs(phase.opensAt);
+  const closesAt = toMs(phase.closesAt);
+  const max = phase.maxApplications || 0;
+  const used = max ? Object.values(recordsOf(guildId)).filter((r) => r.type === type.id && r.createdAt >= (opensAt ?? 0)).length : 0;
+  let state = 'open';
+  if (!type.enabled) state = 'disabled';
+  else if (opensAt && now < opensAt) state = 'before';
+  else if (closesAt && now >= closesAt) state = 'after';
+  else if (max && used >= max) state = 'full';
+  return { open: state === 'open', state, opensAt, closesAt, used, max };
+}
+
+function phaseError(type, phase) {
+  switch (phase.state) {
+    case 'disabled':
+    case 'after':
+      return `Bewerbungen für **${type.name}** sind derzeit geschlossen.`;
+    case 'before':
+      return `Bewerbungen für **${type.name}** öffnen <t:${Math.floor(phase.opensAt / 1000)}:R> (<t:${Math.floor(phase.opensAt / 1000)}:f>).`;
+    case 'full':
+      return `Für **${type.name}** sind in dieser Bewerbungsphase alle ${phase.max} Plätze vergeben.`;
+    default:
+      return null;
+  }
+}
+
+// Kurzer Hinweis fürs Panel, z. B. „(öffnet in 2 Tagen)“; leer, wenn ohne Einschränkung offen.
+function phaseLabel(phase) {
+  const unix = (ms) => Math.floor(ms / 1000);
+  switch (phase.state) {
+    case 'disabled':
+    case 'after':
+      return '*(geschlossen)*';
+    case 'before':
+      return `*(öffnet <t:${unix(phase.opensAt)}:R>)*`;
+    case 'full':
+      return '*(alle Plätze vergeben)*';
+    default: {
+      const parts = [phase.closesAt && `offen bis <t:${unix(phase.closesAt)}:f>`, phase.max && `${phase.max - phase.used} von ${phase.max} Plätzen frei`].filter(Boolean);
+      return parts.length ? `*(${parts.join(' · ')})*` : '';
+    }
+  }
+}
+
 const recordsOf = (guildId) => bucket('apps', guildId);
 const bansOf = (guildId) => bucket('appBans', guildId);
 const progressOf = (guildId) => bucket('appProgress', guildId);
@@ -99,6 +155,38 @@ function activeBan(guildId, typeId, { discordId, robloxId }) {
   );
 }
 
+// Legt eine Sperre an. scope: '*', 'police' oder der Schlüssel einer Bewerbungsart.
+function addBan(guildId, { discordId = null, roblox = null, scope = '*', reason, days = null, createdBy }) {
+  const id = `B-${String(nextNumber('appBan', guildId)).padStart(4, '0')}`;
+  const ban = {
+    id,
+    discordId,
+    robloxId: roblox?.id ?? null,
+    robloxName: roblox?.name ?? null,
+    scopes: [scope],
+    reason,
+    expiresAt: days ? Date.now() + days * 86_400_000 : null,
+    createdBy,
+    createdAt: Date.now(),
+  };
+  bansOf(guildId)[id] = ban;
+  save();
+  return ban;
+}
+
+// Hebt eine Sperre auf; gibt sie zurück oder null, wenn es sie nicht (mehr) gibt.
+function liftBan(guildId, id, by) {
+  const ban = bansOf(guildId)[id];
+  if (!ban || ban.liftedAt) return null;
+  ban.liftedAt = Date.now();
+  ban.liftedBy = by;
+  save();
+  return ban;
+}
+
+const activeBans = (guildId, now = Date.now()) => Object.values(bansOf(guildId)).filter((b) => !b.liftedAt && (!b.expiresAt || b.expiresAt > now));
+const scopeName = (guildId, scope) => (scope === '*' ? 'Alle Bewerbungen' : scope === 'police' ? 'Polizei-Bewerbung' : (typeById(guildId, scope)?.name ?? scope));
+
 function banMessage(ban) {
   return `🚫 Du bist für diese Bewerbung gesperrt.\n**Grund:** ${ban.reason}${ban.expiresAt ? `\n**Bis:** <t:${Math.floor(ban.expiresAt / 1000)}:f>` : ''}`;
 }
@@ -119,7 +207,8 @@ function roleCheck(member, type) {
 
 // Gibt eine Fehlermeldung zurück oder null.
 function eligibility(member, type, { robloxId } = {}) {
-  if (!type.enabled) return `Bewerbungen für **${type.name}** sind derzeit geschlossen.`;
+  const closed = phaseError(type, phaseOf(member.guild.id, type));
+  if (closed) return closed;
   const roles = roleCheck(member, type);
   if (roles) return roles;
   const ban = activeBan(member.guild.id, type.id, { discordId: member.id, robloxId });
@@ -146,9 +235,18 @@ function clearProgress(guildId, userId, typeId) {
   save();
 }
 
-// Nach einem Neustart sind laufende DM-Bewerbungen verloren – Anzeige aufräumen.
-function resetProgress() {
-  data.appProgress = {};
+// Laufende DM-Bewerbungen ({ userId: Sitzung }). Sie liegen in der Datenbank, damit sie einen Neustart überstehen.
+const sessions = () => (data.appSessions ??= {});
+
+// Nach dem Start: Anzeige „in Bearbeitung“ auf die Sitzungen und Web-Formulare beschränken, die es noch gibt.
+function cleanProgress(now = Date.now()) {
+  for (const [guildId, entries] of Object.entries((data.appProgress ??= {}))) {
+    for (const [key, entry] of Object.entries(entries)) {
+      const session = sessions()[entry.userId];
+      const alive = entry.web ? entry.expiresAt > now : session?.guildId === guildId && session.typeId === entry.typeId;
+      if (!alive) delete entries[key];
+    }
+  }
   save();
 }
 
@@ -171,9 +269,18 @@ module.exports = {
   isManager,
   managesAny,
   activeBan,
+  activeBans,
+  addBan,
+  liftBan,
+  scopeName,
   banMessage,
   eligibility,
   setProgress,
   clearProgress,
-  resetProgress,
+  cleanProgress,
+  sessions,
+  toMs,
+  phaseOf,
+  phaseError,
+  phaseLabel,
 };

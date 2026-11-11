@@ -6,6 +6,8 @@ const { renderMessage } = require('./forms');
 const { buildTeamMessage } = require('./messages');
 const { applyRoles } = require('./roles');
 const { cancelForMember } = require('./flow');
+const serviceNumbers = require('./serviceNumbers');
+const { save } = require('../db');
 
 const LEFT_REASON = 'Hat den Discord-Server verlassen.';
 
@@ -53,9 +55,22 @@ async function afterDecision(guild, record, type, decider) {
     WITHDRAWN: ['warning', 'Deine **{applicationName}** (**{number}**) wurde zurückgezogen.'],
   };
   const [color, template] = texts[record.status];
-  await user?.send({ embeds: [embed(color).setDescription(renderMessage(template, vars)).setFooter({ text: guild.name })] }).catch(() => {});
-
   const member = await guild.members.fetch(record.userId).catch(() => null);
+
+  // Dienstnummer-Automatik: bei Annahme die nächste freie Nummer vergeben (und den Nickname setzen)
+  let text = renderMessage(template, { ...vars, serviceNumber: '—' });
+  if (record.status === 'ACCEPTED' && member) {
+    const entry = await serviceNumbers.assign(guild, record.userId, member, type, record);
+    if (entry) {
+      record.serviceNumber = entry.value;
+      save();
+      text = renderMessage(template, { ...vars, serviceNumber: entry.value });
+      if (!template.includes('{serviceNumber}')) text += `\n**Dienstnummer:** ${entry.value}`;
+      await updateTeamMessage(guild, record, type);
+    }
+  }
+  await user?.send({ embeds: [embed(color).setDescription(text).setFooter({ text: guild.name })] }).catch(() => {});
+
   const reason = `Bewerbung ${record.number}: ${store.STATUS[record.status]}`;
   if (record.status === 'ACCEPTED') {
     await applyRoles(member, { add: [...type.roles.acceptAdd, ...(record.roleSelections ?? [])], remove: [...type.roles.acceptRemove, ...type.roles.pending] }, reason);
@@ -94,6 +109,23 @@ async function decide(interaction, number, action, reason = null) {
   await interaction.update(buildTeamMessage(record, type));
   if (interaction.message.id !== record.messageId) await updateTeamMessage(interaction.guild, record, type);
   await afterDecision(interaction.guild, record, type, interaction.user);
+}
+
+// Entscheidung ohne Discord-Interaktion (Dashboard). status: ACCEPTED, REJECTED, WITHDRAWN oder ein Polizei-Zwischenschritt.
+// Gibt eine Fehlermeldung zurück oder null.
+async function decideAs(guild, record, type, decider, status, reason = null) {
+  if (record.userId === decider.id) return 'Über deine eigene Bewerbung kannst du nicht entscheiden.';
+  const final = store.FINAL.includes(status);
+  if (!final && !(store.POLICE_TRANSITIONS[record.status] ?? []).includes(status)) {
+    return `Von „${store.STATUS[record.status]}“ geht es nicht nach „${store.STATUS[status] ?? status}“.`;
+  }
+  const why = status === 'WITHDRAWN' ? reason || 'Vom Team zurückgezogen.' : reason || undefined;
+  if (!store.setStatus(record, status, decider.id, { reason: why })) {
+    return `Diese Bewerbung wurde bereits entschieden: ${store.STATUS[record.status]}.`;
+  }
+  await updateTeamMessage(guild, record, type);
+  if (final) await afterDecision(guild, record, type, decider);
+  return null;
 }
 
 async function askReason(interaction, number, action) {
@@ -176,6 +208,9 @@ async function openTicket(interaction, number) {
 // Bewerber verlässt den Server: je nach onLeave nichts tun, ablehnen oder zurückziehen.
 async function handleMemberLeave(member) {
   cancelForMember(member.guild.id, member.id);
+  // Dienstnummer wieder freigeben (abschaltbar mit serviceNumber.releaseOnLeave: false)
+  const held = serviceNumbers.getNumber(member.guild.id, member.id);
+  if (held && store.typeById(member.guild.id, held.typeId)?.serviceNumber?.releaseOnLeave !== false) serviceNumbers.release(member.guild.id, member.id);
   for (const record of store.openOf(member.guild.id, (r) => r.userId === member.id)) {
     const type = store.typeById(member.guild.id, record.type);
     if (!type || type.onLeave === 'NONE') continue;
@@ -186,4 +221,4 @@ async function handleMemberLeave(member) {
   }
 }
 
-module.exports = { decide, askReason, changeStatus, withdraw, showHistory, openTicket, handleMemberLeave, updateTeamMessage };
+module.exports = { decide, decideAs, askReason, changeStatus, withdraw, showHistory, openTicket, handleMemberLeave, updateTeamMessage };

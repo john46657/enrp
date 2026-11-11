@@ -14,3 +14,4 @@ module.exports = function normalize(config) {
   if (!apps) return;
   apps.types = apps.types.map((type) => merge(apps.defaults, type));
 };
+module.exports.merge = merge;

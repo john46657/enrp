@@ -124,4 +124,4 @@ function buildStats(guildId, days, { typeId, status, reviewerId } = {}) {
   return result;
 }
 
-module.exports = { buildStats };
+module.exports = { buildStats, metrics, percent, hours };
