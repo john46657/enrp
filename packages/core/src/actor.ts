@@ -5,7 +5,8 @@ export interface UserActor {
   kind: 'user';
   discordUserId: string;
   roleIds: string[];
-  via: 'dashboard' | 'bot';
+  /** dashboard, Discord-Bot oder Team-Befehl im Spiel-Chat (verknüpftes Roblox-Konto). */
+  via: 'dashboard' | 'bot' | 'game';
   subject: Subject;
   sessionId?: string;
 }

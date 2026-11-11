@@ -1,7 +1,7 @@
 import { type FastifyInstance } from 'fastify';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { game, hasPermission, moderation, requirePermission, type RobloxServerActor } from '@enrp/core';
+import { actions, game, hasPermission, moderation, requirePermission, type RobloxServerActor } from '@enrp/core';
 import { AppError } from '@enrp/shared';
 import { idParam, reason, robloxUserId } from './schemas';
 
@@ -104,6 +104,19 @@ export async function gameRoutes(fastify: FastifyInstance) {
       config: { roblox: true, rateLimit: robloxRate },
     },
     async (request) => game.acknowledgeServerCommand(core, asServer(request.actor), request.params.id, request.body),
+  );
+
+  app.post(
+    '/game/staff-commands',
+    {
+      schema: {
+        tags,
+        summary: 'Team-Befehl aus dem Spiel-Chat (:jail, :kick …) – Rechte über das verknüpfte Discord-Konto',
+        body: actions.staffCommandSchema,
+      },
+      config: { roblox: true, rateLimit: robloxRate },
+    },
+    async (request) => actions.staffCommandFromGame(core, asServer(request.actor), request.body),
   );
 
   // Verwaltung

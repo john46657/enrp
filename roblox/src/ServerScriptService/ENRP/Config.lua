@@ -42,6 +42,8 @@ local Config = {
 	-- Aktionen aus Dashboard/Discord: Parts für Gefängnis und Entlassung (CollectionService-Tags).
 	JailTag = "ENRPGefaengnis",
 	ReleaseTag = "ENRPEntlassung",
+	-- Team-Befehle im Chat (:jail, :kick …). Rechte prüft die Plattform über die Discord-Verknüpfung.
+	StaffCommandPrefix = ":",
 }
 
 return Config

@@ -14,6 +14,7 @@ local Dispatch = require(script.Parent.Dispatch)
 local Duty = require(script.Parent.Duty)
 local EventQueue = require(script.Parent.EventQueue)
 local Rewards = require(script.Parent.Rewards)
+local StaffCommands = require(script.Parent.StaffCommands)
 
 -- Remotes für Clients (keine Geheimnisse, jede Anfrage wird serverseitig geprüft).
 local remotes = Instance.new("Folder")
@@ -237,6 +238,7 @@ end
 -- Notrufe, Mod-Calls und Protokoll-Ereignisse (Chat-Befehle siehe Config.CallCommands)
 Dispatch.init(announce)
 Actions.init(announce)
+StaffCommands.init(announce, applyCommand)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()

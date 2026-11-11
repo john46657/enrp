@@ -199,6 +199,7 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/game/sanctions/{id}/ack` | Ausführung einer Roblox-Sanktion bestätigen |
 | `POST` | `/api/v1/game/commands/poll` | Offene Server-Befehle abholen |
 | `POST` | `/api/v1/game/commands/{id}/ack` | Ausführung eines Server-Befehls bestätigen |
+| `POST` | `/api/v1/game/staff-commands` | Team-Befehl aus dem Spiel-Chat (:jail, :kick …) – Rechte über das verknüpfte Discord-Konto |
 
 ## Roblox-Verwaltung
 

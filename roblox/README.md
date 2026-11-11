@@ -21,6 +21,7 @@ Serverseitige Skripte, die einen Roblox-Spielserver mit der ENRP-API verbinden.
 | Notrufe & Mod-Calls (`Dispatch.lua`) | Chat: `/notruf`, `/110` → Polizei, `/112` → Rettungsdienst, `/feuerwehr`, `/modcall` (anpassbar in `Config.CallCommands`). Position und nächster Ort (Parts mit Tag `ENRPOrt`, Attribut `Name`) werden mitgeschickt und sofort gesendet. Eigene Skripte: `ServerStorage.ENRP.Notruf:Fire(player, "Polizei", text)`, `ModCall:Fire(player, text)`, `Kill:Fire(opfer, täter, waffe)`. |
 | Protokoll | `player_killed` (über `creator`-Tag oder Attribut `ENRP_LastDamager`), `team_changed`, `vehicle_spawned`, `vehicle_despawned`. |
 | Spieler-Aktionen (`Actions.lua`) | Server-Befehl `player_action` aus Dashboard/Discord: Gefängnis (Attribut `ENRP_Jail` = Entlassungszeit, Teleport zu Part mit Tag `ENRPGefaengnis`, auch nach Respawn, automatische Entlassung an `ENRPEntlassung`), Entlassen, Fahndungsstufe (`ENRP_Wanted`), Heilen, Töten, Respawn, Team, private Nachricht, Kick. Eigene Systeme hören auf `ServerStorage.ENRP.Aktion`. Fehler (Spieler weg, Team unbekannt) werden als „fehlgeschlagen“ bestätigt. |
+| Team-Befehle im Chat (`StaffCommands.lua`) | `:jail Name Minuten [Grund]`, `:unjail`, `:wanted Name Stufe`, `:heal`, `:kill`, `:respawn`, `:team Name Team`, `:pm Name Text`, `:kick Name [Grund]`, `:cmds`. Name = Roblox-/Anzeigename oder eindeutiger Anfang. Das Spiel fragt bei jeder Eingabe die Plattform (`/game/staff-commands`): nur wer sein Roblox-Konto mit Discord verknüpft hat (/verify) und die Rechte `player_actions:edit` bzw. `:delete` hat, darf – alles im Audit-Log. Präfix anpassbar (`Config.StaffCommandPrefix`). |
 | Ankündigungen/Wartung | RemoteEvents `Announcement`, `Maintenance` → einfache Banner im Client. |
 
 ## Sicherheit
@@ -81,6 +82,7 @@ eigene Kennung `studio-…`; Testspieler mit negativer ID (lokaler Mehrspieler-T
 - [ ] `/notruf Test` im Chat → Banner „Notruf abgesetzt“, Einsatz erscheint im Dashboard unter *Leitstelle → Einsätze* und im Leitstellen-Kanal; „Übernehmen“ → Anrufer bekommt im Spiel eine Rückmeldung.
 - [ ] `/modcall Hilfe` → Mod-Call im Dashboard; „Übernehmen“ → Spieler bekommt den Namen des Teammitglieds angezeigt.
 - [ ] Live-Lage → „Aktion“ → Gefängnis 1 Minute → Spieler landet am `ENRPGefaengnis`-Part, nach 1 Minute frei; Befehl steht unter Roblox-Server auf „Ausgeführt“.
+- [ ] Teammitglied (verknüpft, Rolle Moderation) schreibt `:heal Name` → Spieler wird geheilt, Banner „Erledigt“; ein normaler Spieler bekommt „Dafür fehlt dir die Berechtigung“.
 - [ ] Fahndung nach dem Kennzeichen eines gespawnten Fahrzeugs → innerhalb von 30 s Alarm im Leitstellen-Kanal und unter *Fahndungen*.
 - [ ] Dashboard → *Leitstelle → Live-Lage* zeigt Teams; Fahrzeug mit Tag `ENRPFahrzeug` erscheint mit Kennzeichen.
 
