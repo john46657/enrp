@@ -15,7 +15,7 @@ interface Role {
   priority: number;
   isSystem: boolean;
   grants: Array<{ permission: string; factionIds: string[] | null }>;
-  bindings: Array<{ id: string; discordRoleId: string | null; discordUserId: string | null }>;
+  bindings: Array<{ id: string; discordRoleId: string | null; discordUserId: string | null; guildId: string | null }>;
 }
 interface Catalog {
   actions: Record<string, string>;
@@ -91,6 +91,7 @@ export default function PermissionsPage() {
                   <span key={b.id} className="inline-flex items-center gap-1">
                     <Badge tone="info">
                       {b.discordRoleId ? `Discord-Rolle ${b.discordRoleId}` : `Person ${b.discordUserId}`}
+                      {b.guildId ? ` · nur Discord ${b.guildId}` : ''}
                     </Badge>
                     {can('permissions:edit') && (
                       <ActionDialog
@@ -116,12 +117,17 @@ export default function PermissionsPage() {
                 <div className="flex gap-2">
                   <ActionDialog
                     title={`„${role.name}“ zuweisen`}
-                    description="Entweder Discord-Rollen-ID oder Discord-Nutzer-ID angeben."
+                    description="Entweder Discord-Rollen-ID oder Discord-Nutzer-ID angeben. Mit Discord-Server-ID gilt die Zuweisung nur in diesem Discord (z. B. Discord eines Privat-Servers)."
                     submitLabel="Zuweisen"
                     requireReason
                     fields={[
                       { name: 'discordRoleId', label: 'Discord-Rollen-ID' },
                       { name: 'discordUserId', label: 'oder Discord-Nutzer-ID' },
+                      {
+                        name: 'guildId',
+                        label: 'Nur in Discord-Server (ID, optional)',
+                        hint: 'Leer = Haupt-Discord und Dashboard. Weitere Discords: Bot-Verwaltung → Discord-Server.',
+                      },
                     ]}
                     onSubmit={(v, k) => post('/permissions/bindings', { roleId: role.id, ...v }, k)}
                     successMessage={resultText}

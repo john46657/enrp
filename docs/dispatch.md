@@ -79,6 +79,9 @@ ohne Team-Rechte (sie dürfen sich dafür im Dashboard anmelden und landen direk
 
 Jede Änderung (Name, Teamsperre, Zuordnung, Admins) steht im Audit-Log (`private_server.update`).
 
+Hat der Privat-Server einen eigenen Discord (Dashboard → *Bot-Verwaltung → Discord-Server*), landen seine
+Notrufe, Mod-Calls, Fahndungstreffer und Spiel-Logs dort – siehe [bot.md](bot.md#mehrere-discord-server).
+
 ## Fahndungsalarm im Spiel
 
 Bei einem Treffer bekommen alle Spieler der Polizei-Teams (`policeTeams`, Standard „Polizei“) auf demselben Server

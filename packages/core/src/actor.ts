@@ -9,6 +9,8 @@ export interface UserActor {
   via: 'dashboard' | 'bot' | 'game';
   subject: Subject;
   sessionId?: string;
+  /** Discord-Server, aus dem die Aktion kommt (Bot). Leer = Dashboard bzw. Haupt-Discord. */
+  guildId?: string;
 }
 
 export interface ServiceActor {

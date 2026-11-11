@@ -268,6 +268,8 @@ export async function supportRoutes(fastify: FastifyInstance) {
             .max(365 * 86400)
             .optional(),
           relatedReportId: z.uuid().optional(),
+          /** Discord: zusätzlich in allen weiteren Discords mit „Banns übernehmen“. */
+          global: z.boolean().optional(),
         }),
       },
       config: { idempotent: true },

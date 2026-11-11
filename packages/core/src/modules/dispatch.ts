@@ -22,6 +22,7 @@ import { type Actor, type UserActor, actorId, requirePermission, requireUser } f
 import { writeAudit } from '../audit';
 import { type CoreContext, type TxContext } from '../context';
 import { getSetting } from '../settings';
+import { dispatchTarget } from './guilds';
 import { likePattern } from '../util';
 import { queuePlayerMessage } from './game';
 import { findOnlinePlayer } from './live';
@@ -95,8 +96,14 @@ async function syncDiscord(ctx: CoreContext, incident: Incident) {
     await ctx.queue.enqueue('discord', 'dispatch.refresh', { incidentId: incident.id });
     return;
   }
-  const settings = await getSetting(ctx.db, 'dispatch');
-  if (settings.channelId) await ctx.queue.enqueue('discord', 'dispatch.post', { incidentId: incident.id });
+  // Notrufe eines Privat-Servers mit eigenem Discord gehen dorthin, sonst in den Haupt-Discord.
+  const target = await dispatchTarget(ctx, incident.serverId);
+  if (target.channelId)
+    await ctx.queue.enqueue('discord', 'dispatch.post', {
+      incidentId: incident.id,
+      channelId: target.channelId,
+      pingRoleId: target.pingRoleId,
+    });
 }
 
 /** Eigener Einsatz der Leitstelle (Discord oder Dashboard). */
@@ -213,8 +220,9 @@ export async function afterGameEvent(ctx: CoreContext, type: string, result: unk
   if (type === 'mod_call' && r.modCallId) {
     const call = await getModCall(ctx.db, r.modCallId);
     ctx.realtime.publish('mod_calls', 'mod_call.created', { id: call.id, number: call.number });
-    const settings = await getSetting(ctx.db, 'dispatch');
-    if (settings.modCallChannelId) await ctx.queue.enqueue('discord', 'modcall.post', { modCallId: call.id });
+    const target = await dispatchTarget(ctx, call.serverId);
+    if (target.modCallChannelId)
+      await ctx.queue.enqueue('discord', 'modcall.post', { modCallId: call.id, channelId: target.modCallChannelId });
   }
 }
 

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { APPEAL_STATUS, MODERATION_PLATFORMS, MODERATION_STATUS, MODERATION_TYPES } from '@enrp/shared';
 import { createdAt, id, robloxId, ts, updatedAt } from './_helpers';
 
@@ -26,6 +26,10 @@ export const moderationActions = pgTable(
     revokedAt: ts('revoked_at'),
     revokeReason: text('revoke_reason'),
     relatedReportId: uuid('related_report_id'),
+    /** Discord-Server, in dem die Discord-Aktion gilt (leer = Haupt-Discord). */
+    guildId: text('guild_id'),
+    /** Discord-Bann/Kick/Timeout zusätzlich in allen Discords mit „Banns übernehmen“. */
+    global: boolean('global').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

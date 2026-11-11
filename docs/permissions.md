@@ -23,6 +23,13 @@ Rollen werden Discord-Rollen oder einzelnen Personen zugewiesen. Dashboard-Nutze
 `factions:*`, `duty:*`, `vehicles:*` können auf Fraktionen beschränkt werden (`factionIds`). Eine Versetzung
 erfordert Rechte für die alte **und** die neue Fraktion.
 
+## Rechte je Discord-Server
+
+Zuweisungen (Discord-Rolle oder Person) können auf einen weiteren Discord-Server beschränkt werden (`guildId`).
+Sie gelten dann nur für Befehle aus diesem Discord – nicht im Haupt-Discord und nicht im Dashboard. Zuweisungen
+ohne Discord-Server gelten wie bisher. Der Bot übergibt den Discord in der Kopfzeile `X-Actor-Guild`. Details:
+[bot.md](bot.md#mehrere-discord-server).
+
 ## Schutz gegen Rechteausweitung
 
 - Wer Rechte vergibt, braucht `permissions:edit` und muss **jedes neu vergebene Recht selbst besitzen**

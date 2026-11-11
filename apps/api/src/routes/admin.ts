@@ -10,6 +10,7 @@ import {
   isCriticalPattern,
 } from '@enrp/permissions';
 import {
+  guilds,
   getConfigVersion,
   getSetting,
   isSettingKey,
@@ -111,6 +112,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
           roleId: z.string().max(64),
           discordRoleId: snowflake.optional(),
           discordUserId: snowflake.optional(),
+          /** Nur in diesem Discord-Server gültig (leer = überall/Haupt-Discord). */
+          guildId: snowflake.nullable().optional(),
           reason,
         }),
       },
@@ -315,6 +318,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request) => {
       requirePermission(request.actor, 'feature_flags:view');
       return { items: await listConfigVersions(core.db, `feature_flag:${request.params.key}`, 50) };
+    },
+  );
+
+  // Weitere Discord-Server (Privat-Server-Discords, andere): Zuordnung, Kanäle, Banns übernehmen
+  const gtags = ['Discord-Server'];
+  app.get(
+    '/discord-guilds',
+    { schema: { tags: gtags, summary: 'Haupt-Discord und weitere Discords' } },
+    async (request) => guilds.listGuilds(core, request.actor),
+  );
+  app.put(
+    '/discord-guilds/:id',
+    {
+      schema: {
+        tags: gtags,
+        summary: 'Weiteren Discord einstellen (Art, Privat-Server, Kanäle, Banns übernehmen)',
+        params: z.object({ id: snowflake }),
+        body: guilds.updateGuildSchema.extend({ reason: reason.optional() }),
+      },
+    },
+    async (request) => {
+      const { reason: r, ...input } = request.body;
+      return guilds.updateGuild(core, request.actor, request.params.id, input, r);
     },
   );
 }

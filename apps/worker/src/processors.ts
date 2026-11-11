@@ -35,16 +35,19 @@ export function createProcessors(
       'role.add': (d) => ctx.discord.addRole(str(d.guildId), str(d.userId), str(d.roleId), str(d.reason)),
       'role.remove': (d) => ctx.discord.removeRole(str(d.guildId), str(d.userId), str(d.roleId), str(d.reason)),
       // Leitstelle: Einsatz posten (mit Ping der Leitstellen-Rolle bei Ingame-Notrufen) bzw. aktualisieren
+      // Ziel-Kanal kommt aus dem Job (Haupt-Discord oder Discord des Privat-Servers); ältere Jobs ohne Kanal → Haupt
       'dispatch.post': async (d) => {
         const settings = await getSetting(ctx.db, 'dispatch');
+        const channelId = d.channelId ? str(d.channelId) : settings.channelId;
+        const pingRoleId = d.channelId ? ((d.pingRoleId as string | null) ?? null) : settings.pingRoleId;
         const { incident, message } = await dispatchMessage(ctx, str(d.incidentId));
-        if (!settings.channelId || incident.discordMessageId) return;
-        const ping = incident.source === 'ingame' ? settings.pingRoleId : null;
-        const sent = await ctx.discord.sendMessage(settings.channelId, {
+        if (!channelId || incident.discordMessageId) return;
+        const ping = incident.source === 'ingame' ? pingRoleId : null;
+        const sent = await ctx.discord.sendMessage(channelId, {
           ...message,
           ...(ping ? { content: `<@&${ping}>`, allowRoleMentions: [ping] } : {}),
         });
-        await dispatch.attachIncidentMessage(ctx.db, incident.id, settings.channelId, sent.id);
+        await dispatch.attachIncidentMessage(ctx.db, incident.id, channelId, sent.id);
       },
       'dispatch.refresh': async (d) => {
         const { incident, message } = await dispatchMessage(ctx, str(d.incidentId));
@@ -65,20 +68,22 @@ export function createProcessors(
       },
       'bolo.hit': async (d) => {
         const settings = await getSetting(ctx.db, 'dispatch');
-        if (!settings.channelId) return;
+        const channelId = d.channelId ? str(d.channelId) : settings.channelId;
+        if (!channelId) return;
         const { message } = await boloMessage(ctx, str(d.boloId), 'hit');
-        const ping = settings.pingRoleId;
-        await ctx.discord.sendMessage(settings.channelId, {
+        const ping = d.channelId ? ((d.pingRoleId as string | null) ?? null) : settings.pingRoleId;
+        await ctx.discord.sendMessage(channelId, {
           ...message,
           ...(ping ? { content: `<@&${ping}>`, allowRoleMentions: [ping] } : {}),
         });
       },
       'modcall.post': async (d) => {
         const settings = await getSetting(ctx.db, 'dispatch');
+        const channelId = d.channelId ? str(d.channelId) : settings.modCallChannelId;
         const { call, message } = await modCallMessage(ctx, str(d.modCallId));
-        if (!settings.modCallChannelId || call.discordMessageId) return;
-        const sent = await ctx.discord.sendMessage(settings.modCallChannelId, message);
-        await dispatch.attachModCallMessage(ctx.db, call.id, settings.modCallChannelId, sent.id);
+        if (!channelId || call.discordMessageId) return;
+        const sent = await ctx.discord.sendMessage(channelId, message);
+        await dispatch.attachModCallMessage(ctx.db, call.id, channelId, sent.id);
       },
       'modcall.refresh': async (d) => {
         const { call, message } = await modCallMessage(ctx, str(d.modCallId));

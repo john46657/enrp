@@ -26,6 +26,8 @@ export function createApiFactory(env: BotEnv) {
           'x-actor-id': interaction.user.id,
           'x-actor-roles': memberRoleIds(interaction).join(','),
           'x-actor-name': encodeURIComponent(interaction.user.username),
+          // Rechte je Discord getrennt: die API wertet Zuweisungen dieses Discords aus.
+          ...(interaction.guildId ? { 'x-actor-guild': interaction.guildId } : {}),
         }),
       });
     },

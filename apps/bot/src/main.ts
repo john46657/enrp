@@ -9,6 +9,7 @@ import {
   MessageFlags,
   Partials,
   type ChatInputCommandInteraction,
+  type Guild,
   type GuildMember,
   type Interaction,
 } from 'discord.js';
@@ -126,11 +127,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+/** Altmodule, Begrüßung und Auto-Rolle gelten nur im Haupt-Discord. */
+const isMain = (guildId: string | null | undefined) => !env.guildId || guildId === env.guildId;
+
 client.on(Events.MessageCreate, (message) => {
+  if (!isMain(message.guildId) && message.guildId) return;
   if (legacy) legacy.onMessage(message).catch((err) => logger.error({ err }, 'messageCreate'));
 });
 
 client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+  if (!isMain(member.guild.id)) return;
   try {
     const welcome = botConfig?.welcome;
     if (welcome?.enabled && welcome.channelId) {
@@ -164,7 +170,30 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
 });
 
 client.on(Events.GuildMemberRemove, (member) => {
+  if (!isMain(member.guild.id)) return;
   if (legacy) legacy.onMemberRemove(member).catch((err) => logger.error({ err }, 'guildMemberRemove'));
+});
+
+const platformCommands = () => COMMANDS.map((c) => c.data.toJSON());
+
+async function setupOtherGuild(guild: Guild) {
+  try {
+    await guild.commands.set(platformCommands() as never);
+    await apis.service.post('/api/v1/bot/guilds', { id: guild.id, name: guild.name });
+    logger.info({ guildId: guild.id }, 'Weiterer Discord eingerichtet');
+  } catch (err) {
+    logger.warn({ err, guildId: guild.id }, 'Weiteren Discord einrichten fehlgeschlagen');
+  }
+}
+
+client.on(Events.GuildCreate, (guild) => {
+  if (env.guildId && guild.id !== env.guildId) void setupOtherGuild(guild);
+});
+client.on(Events.GuildDelete, (guild) => {
+  if (env.guildId && guild.id !== env.guildId)
+    void apis.service
+      .post(`/api/v1/bot/guilds/${guild.id}/left`, {})
+      .catch((err) => logger.warn({ err, guildId: guild.id }, 'Abmelden des Discords fehlgeschlagen'));
 });
 
 client.once(Events.ClientReady, async (ready) => {
@@ -173,6 +202,12 @@ client.once(Events.ClientReady, async (ready) => {
   if (env.guildId) await ready.application.commands.set(body as never, env.guildId);
   else await ready.application.commands.set(body as never);
   logger.info({ count: body.length, scope: env.guildId ?? 'global' }, 'Slash-Commands registriert');
+  // Weitere Discords (Privat-Server, andere): Plattform-Befehle ohne Altmodule, Server bei der Plattform melden.
+  if (env.guildId) {
+    for (const guild of ready.guilds.cache.values()) {
+      if (guild.id !== env.guildId) await setupOtherGuild(guild);
+    }
+  }
 
   // Ticketpanel-Ereignisse in die Datenbank spiegeln (Dashboard).
   legacy?.setTicketHooks({

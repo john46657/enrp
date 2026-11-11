@@ -1,4 +1,4 @@
-import { gamelogs, getSetting, type CoreContext } from '@enrp/core';
+import { gamelogs, getSetting, guilds, type CoreContext } from '@enrp/core';
 import { plain } from './dispatch-messages';
 
 /** Spiel-Logs und Live-Panel als Discord-Nachrichten. Spielertexte werden immer entschärft. */
@@ -82,8 +82,8 @@ export function gameLogMessage(server: { jobId: string; serverType: string } | n
 
 const TYPE: Record<string, string> = { public: '🌐', private: '🔒', reserved: '🔐' };
 
-export async function livePanelMessage(ctx: CoreContext, showPlayers: boolean) {
-  const data = await gamelogs.livePanelData(ctx.db, ctx.now());
+export async function livePanelMessage(ctx: CoreContext, showPlayers: boolean, onlyJobIds?: string[]) {
+  const data = await gamelogs.livePanelData(ctx.db, ctx.now(), onlyJobIds);
   const fields = [
     { name: '🎮 Server', value: String(data.servers.length), inline: true },
     { name: '👥 Spieler', value: String(data.playerCount), inline: true },
@@ -128,7 +128,7 @@ export async function livePanelMessage(ctx: CoreContext, showPlayers: boolean) {
     });
   return {
     embed: {
-      title: '📡 Live-Lage',
+      title: onlyJobIds ? '📡 Live-Lage · Privat-Server' : '📡 Live-Lage',
       description: `Stand <t:${Math.floor(new Date(data.at).getTime() / 1000)}:R> · aktualisiert sich jede Minute`,
       color: data.servers.length ? '#16a34a' : '#4b5563',
       fields,
@@ -138,20 +138,60 @@ export async function livePanelMessage(ctx: CoreContext, showPlayers: boolean) {
 }
 
 /** Live-Panel anlegen oder bearbeiten; gelöschte Nachricht oder neuer Kanal → neue Nachricht. */
-export async function updateLivePanel(ctx: CoreContext) {
-  const settings = await getSetting(ctx.db, 'live_panel');
-  if (!settings.channelId || !ctx.discord.configured) return { status: 'off' as const };
-  const message = await livePanelMessage(ctx, settings.showPlayers);
-  const panel = await gamelogs.getPanel(ctx.db, 'live');
-  if (panel && panel.channelId === settings.channelId) {
+async function upsertPanel(
+  ctx: CoreContext,
+  key: string,
+  channelId: string,
+  message: Awaited<ReturnType<typeof livePanelMessage>>,
+) {
+  const panel = await gamelogs.getPanel(ctx.db, key);
+  if (panel && panel.channelId === channelId) {
     try {
       await ctx.discord.editMessage(panel.channelId, panel.messageId, message);
-      return { status: 'edited' as const };
+      return 'edited' as const;
     } catch (err) {
-      ctx.logger.warn({ err: (err as Error).message }, 'Live-Panel: Bearbeiten fehlgeschlagen, sende neu');
+      ctx.logger.warn({ err: (err as Error).message, key }, 'Live-Panel: Bearbeiten fehlgeschlagen, sende neu');
     }
   }
-  const sent = await ctx.discord.sendMessage(settings.channelId, message);
-  await gamelogs.savePanel(ctx.db, 'live', settings.channelId, sent.id, ctx.now());
-  return { status: 'sent' as const };
+  const sent = await ctx.discord.sendMessage(channelId, message);
+  await gamelogs.savePanel(ctx.db, key, channelId, sent.id, ctx.now());
+  return 'sent' as const;
+}
+
+/**
+ * Live-Panel im Haupt-Discord (alle Server) und in weiteren Discords mit eigenem Panel-Kanal (beim Discord eines
+ * Privat-Servers nur dessen Server). Ein Fehler in einem Discord hält die anderen nicht auf.
+ */
+export async function updateLivePanel(ctx: CoreContext) {
+  if (!ctx.discord.configured) return { status: 'off' as const };
+  const settings = await getSetting(ctx.db, 'live_panel');
+  const result: { status: 'off' | 'edited' | 'sent'; guilds?: Record<string, string> } = { status: 'off' };
+  if (settings.channelId)
+    result.status = await upsertPanel(
+      ctx,
+      'live',
+      settings.channelId,
+      await livePanelMessage(ctx, settings.showPlayers),
+    );
+  for (const guild of await guilds.livePanelGuilds(ctx.db)) {
+    try {
+      const jobIds = guild.privateServerId
+        ? await guilds.jobIdsForPrivateServer(ctx.db, guild.privateServerId)
+        : undefined;
+      const message = await livePanelMessage(ctx, guild.channels.livePanelShowPlayers === true, jobIds);
+      (result.guilds ??= {})[guild.id] = await upsertPanel(
+        ctx,
+        `live:${guild.id}`,
+        guild.channels.livePanelChannelId!,
+        message,
+      );
+    } catch (err) {
+      (result.guilds ??= {})[guild.id] = 'failed';
+      ctx.logger.warn(
+        { err: (err as Error).message, guildId: guild.id },
+        'Live-Panel im weiteren Discord fehlgeschlagen',
+      );
+    }
+  }
+  return result;
 }

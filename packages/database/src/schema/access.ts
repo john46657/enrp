@@ -53,13 +53,18 @@ export const roleBindings = pgTable(
       .references(() => appRoles.id, { onDelete: 'cascade' }),
     discordRoleId: text('discord_role_id'),
     discordUserId: text('discord_user_id'),
+    /**
+     * Nur in diesem Discord-Server gültig (Discords der Privat-Server, weitere Discords). Leer = überall bzw.
+     * Haupt-Discord und Dashboard. Rollen-IDs sind ohnehin je Discord eindeutig; wichtig ist das für Personen.
+     */
+    guildId: text('guild_id'),
     createdBy: text('created_by'),
     createdAt: createdAt(),
   },
   (t) => [
     check('role_bindings_target_chk', sql`(${t.discordRoleId} is null) <> (${t.discordUserId} is null)`),
     uniqueIndex('role_bindings_role_discord_role_uq').on(t.roleId, t.discordRoleId),
-    uniqueIndex('role_bindings_role_discord_user_uq').on(t.roleId, t.discordUserId),
+    uniqueIndex('role_bindings_role_discord_user_uq').on(t.roleId, t.discordUserId, sql`coalesce(${t.guildId}, '')`),
     index('role_bindings_discord_role_idx').on(t.discordRoleId),
     index('role_bindings_discord_user_idx').on(t.discordUserId),
   ],
