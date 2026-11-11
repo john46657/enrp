@@ -60,6 +60,25 @@ Das Spiel prüft nichts selbst: Die Plattform ordnet das Roblox-Konto über die 
 Person zu und prüft deren Rechte (Rollen auf der Plattform und Discord-Rollen) – wie im Dashboard, mit Audit-Log
 und Eintrag im Aktions-Log. Ohne Grund wird „Team-Befehl im Spiel (…)“ eingetragen.
 
+## Privat-Server
+
+Jeder Privat-Server (VIP-Server) des Spiels wird beim ersten Start automatisch angelegt und erscheint im Dashboard
+unter **Privat-Server**. Besitzer sehen dort ihre eigenen Server (über das mit Discord verknüpfte Roblox-Konto), auch
+ohne Team-Rechte; das Team mit `roblox_servers:view` sieht alle, mit `roblox_servers:configure` darf es sie ändern.
+
+- **Besitzer und Admins**: Der Besitzer kann bis zu 25 Admins (Roblox-IDs) ernennen. Beide dürfen die Team-Befehle
+  im Chat (`:kick`, `:jail` …) **nur auf diesem Privat-Server** nutzen – nicht im Hauptspiel und nicht auf fremden
+  Privat-Servern. Admins brauchen dafür keine Discord-Verknüpfung. Im Audit-Log steht `privateServerStaff`, im
+  Aktions-Log „von *Name* (Privat-Server)“.
+- **Teamsperre** (Extra-Funktion, standardmäßig aus): Zuordnung Team → Fraktion (z. B. `Polizei = polizei`). Ist sie
+  an, kommen Spieler ohne passende Fraktion beim Wechsel in so ein Team zurück in ihr vorheriges Team. Leere
+  Zuordnung = Standard (Polizei, Feuerwehr, Rettungsdienst). Änderungen erreichen den Server mit dem nächsten
+  Heartbeat (≤ 30 s).
+- **Hauptspiel**: Dort gibt es keine Teamsperre – jeder darf in jedes Team, auch Polizei. Gezählter Dienst
+  (Dienstzeiten, Ranglisten) bleibt Fraktionsmitgliedern vorbehalten.
+
+Jede Änderung (Name, Teamsperre, Zuordnung, Admins) steht im Audit-Log (`private_server.update`).
+
 ## Fahndungsalarm im Spiel
 
 Bei einem Treffer bekommen alle Spieler der Polizei-Teams (`policeTeams`, Standard „Polizei“) auf demselben Server

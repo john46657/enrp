@@ -110,6 +110,8 @@ function handlers.team(player, payload)
 	local wanted = string.lower(tostring(payload.team or ""))
 	for _, team in ipairs(Teams:GetTeams()) do
 		if string.lower(team.Name) == wanted then
+			-- Vom Team gesetzt: gilt auch bei aktiver Teamsperre (Privat-Server) als erlaubt.
+			player:SetAttribute("ENRP_TeamOverride", team.Name)
 			player.Team = team
 			player.Neutral = false
 			player:LoadCharacter()

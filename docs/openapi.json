@@ -6402,6 +6402,105 @@
         }
       }
     },
+    "/api/v1/private-servers": {
+      "get": {
+        "summary": "Eigene bzw. alle Privat-Server",
+        "tags": [
+          "Privat-Server"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/private-servers/{id}": {
+      "get": {
+        "summary": "Privat-Server mit Einstellungen und Admins",
+        "tags": [
+          "Privat-Server"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "summary": "Name, Teamsperre, Team→Fraktion und Admins ändern (Besitzer oder Team)",
+        "tags": [
+          "Privat-Server"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "teamLock": {
+                    "type": "boolean"
+                  },
+                  "teamFactions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  },
+                  "admins": {
+                    "maxItems": 25,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/dispatch/incidents": {
       "get": {
         "summary": "Einsätze (offene zuerst, nach Priorität)",

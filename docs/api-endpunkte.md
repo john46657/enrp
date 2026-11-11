@@ -214,6 +214,14 @@ interaktiv unter `/api/docs` (außerhalb der Produktion oder mit `ENABLE_API_DOC
 | `POST` | `/api/v1/roblox/keys/{id}/revoke` | API-Schlüssel widerrufen |
 | `GET` | `/api/v1/roblox/events` | Letzte Spielereignisse |
 
+## Privat-Server
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/v1/private-servers` | Eigene bzw. alle Privat-Server |
+| `GET` | `/api/v1/private-servers/{id}` | Privat-Server mit Einstellungen und Admins |
+| `PUT` | `/api/v1/private-servers/{id}` | Name, Teamsperre, Team→Fraktion und Admins ändern (Besitzer oder Team) |
+
 ## Leitstelle
 
 | Methode | Pfad | Zweck |

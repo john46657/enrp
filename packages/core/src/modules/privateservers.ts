@@ -4,6 +4,7 @@ import {
   and,
   desc,
   eq,
+  factions,
   gameServers,
   inArray,
   privateServers,
@@ -154,8 +155,22 @@ export async function updatePrivateServer(
   if (input.name !== undefined) values.name = input.name || null;
   if (input.teamLock !== undefined) values.teamLock = input.teamLock;
   if (input.teamFactions !== undefined) values.teamFactions = input.teamFactions;
-  if (input.teamLock && !input.teamFactions && !Object.keys(current.teamFactions).length)
-    values.teamFactions = DEFAULT_TEAM_FACTIONS;
+  if (input.teamFactions && Object.keys(input.teamFactions).length) {
+    const keys = [...new Set(Object.values(input.teamFactions))];
+    const known = await ctx.db.select({ key: factions.key }).from(factions).where(inArray(factions.key, keys));
+    const unknown = keys.filter((k) => !known.some((f) => f.key === k));
+    if (unknown.length) throw errors.badRequest(`Unbekannte Fraktion: ${unknown.join(', ')}`);
+  }
+  // Teamsperre zum ersten Mal an, ohne Zuordnung: Standard-Teams (nur Fraktionen, die es gibt)
+  if (input.teamLock && !input.teamFactions && !Object.keys(current.teamFactions).length) {
+    const known = await ctx.db
+      .select({ key: factions.key })
+      .from(factions)
+      .where(inArray(factions.key, Object.values(DEFAULT_TEAM_FACTIONS)));
+    values.teamFactions = Object.fromEntries(
+      Object.entries(DEFAULT_TEAM_FACTIONS).filter(([, key]) => known.some((f) => f.key === key)),
+    );
+  }
   if (input.admins !== undefined) values.admins = [...new Set(input.admins)].filter((a) => a !== current.ownerRobloxId);
   const updated = await ctx.db.transaction(async (tx) => {
     const [row] = await tx.update(privateServers).set(values).where(eq(privateServers.id, id)).returning();

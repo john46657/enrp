@@ -26,6 +26,7 @@ import { isUniqueViolation } from '../util';
 import { confirmRedemptionDelivered, currentMaintenance, inGameAnnouncements, redeemCode } from './community';
 import { endActiveDuty, endDuty, startDuty } from './duty';
 import { getActiveMembership } from './factions';
+import { gameConfig as privateServerGameConfig, registerPrivateServer } from './privateservers';
 import { activeRobloxBan, pendingRobloxSanctions } from './moderation';
 import { upsertRobloxUser } from './verification';
 import { vehiclesForPlayer } from './vehicles';
@@ -284,7 +285,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
     // Privat-Server: anlegen bzw. aktualisieren (Besitzerrechte, Teamsperre)
     const privateServer =
       privateServerId && privateServerOwnerId
-        ? await (await import('./privateservers')).registerPrivateServer(tx, privateServerId, privateServerOwnerId, now)
+        ? await registerPrivateServer(tx, privateServerId, privateServerOwnerId, now)
         : null;
     return { ...server!, privateServer };
   });
@@ -300,7 +301,7 @@ export async function processHeartbeat(ctx: CoreContext, actor: RobloxServerActo
     serverId: result.id,
     serverTime: now.toISOString(),
     /** Nur bei Privat-Servern: Teamsperre (Extra-Funktion) – null im Hauptspiel. */
-    privateServer: result.privateServer ? (await import('./privateservers')).gameConfig(result.privateServer) : null,
+    privateServer: result.privateServer ? privateServerGameConfig(result.privateServer) : null,
     killSwitch: await isFlagEnabled(ctx.db, 'kill_switch'),
     maintenance: { active: maintenance.active, message: maintenance.window?.message ?? null },
     dutyTracking: await isFlagEnabled(ctx.db, 'duty_tracking'),

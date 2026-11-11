@@ -15,6 +15,7 @@ local Duty = require(script.Parent.Duty)
 local EventQueue = require(script.Parent.EventQueue)
 local Rewards = require(script.Parent.Rewards)
 local StaffCommands = require(script.Parent.StaffCommands)
+local TeamLock = require(script.Parent.TeamLock)
 
 -- Remotes für Clients (keine Geheimnisse, jede Anfrage wird serverseitig geprüft).
 local remotes = Instance.new("Folder")
@@ -214,6 +215,8 @@ local function heartbeat()
 	end
 	local data = response.body
 	state.killSwitch = data.killSwitch == true
+	-- Nur Privat-Server: Teamsperre (Extra-Funktion des Besitzers); im Hauptspiel ist privateServer leer.
+	TeamLock.configure(data.privateServer)
 	local wasMaintenance = state.maintenance.active
 	state.maintenance = { active = data.maintenance.active == true, message = data.maintenance.message }
 	if state.maintenance.active and not wasMaintenance then
@@ -239,6 +242,7 @@ end
 Dispatch.init(announce)
 Actions.init(announce)
 StaffCommands.init(announce, applyCommand)
+TeamLock.init(announce)
 
 -- Hintergrundschleifen mit festen Intervallen (Roblox-Server können keine eingehenden Verbindungen annehmen).
 task.spawn(function()

@@ -9,6 +9,7 @@ import {
   Car,
   ClipboardList,
   Cog,
+  Crown,
   DatabaseBackup,
   FileClock,
   FileSearch,
@@ -65,6 +66,8 @@ export const NAV: NavGroup[] = [
       { href: '/vehicles', label: 'Fahrzeuge', icon: Car, permission: 'vehicles:view' },
       { href: '/leaderboards', label: 'Ranglisten', icon: Trophy },
       { href: '/tickets', label: 'Tickets', icon: Ticket },
+      // Ohne Berechtigung sichtbar: Besitzer sehen ihre eigenen Privat-Server, das Team alle.
+      { href: '/private-servers', label: 'Privat-Server', icon: Crown },
       { href: '/reports', label: 'Reports', icon: Flag, permission: 'reports:view' },
       { href: '/cases', label: 'Fallberichte', icon: FileSearch, permission: 'cases:view' },
     ],
