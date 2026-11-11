@@ -27,7 +27,15 @@ export const LEGACY_COMMAND_FILES = [
 ];
 
 export interface LegacyCommand {
-  data: { name: string; toJSON(): unknown; setContexts(...c: unknown[]): unknown };
+  data: {
+    name: string;
+    toJSON(): unknown;
+    setContexts(...c: unknown[]): unknown;
+    setDefaultMemberPermissions(p: bigint | null): unknown;
+    default_member_permissions?: string | null;
+  };
+  /** Discord-Recht, das der Befehl bisher verlangt hat (bleibt als Zugang erhalten). */
+  discordPermission?: bigint | null;
   execute(interaction: unknown): Promise<unknown>;
   components?: Record<string, (interaction: unknown, args: string[]) => Promise<unknown>>;
 }
@@ -42,6 +50,8 @@ export interface LegacyBridge {
   onMemberRemove(member: GuildMember | PartialGuildMember): Promise<void>;
   setTicketHooks(hooks: Record<string, (payload: Record<string, unknown>) => Promise<unknown>>): void;
   flush(): void;
+  /** Altbefehl mit Freigabe durch das Rechtesystem der Plattform ausführen (gilt als Staff). */
+  runWithGrant<T>(userId: string, fn: () => T): T;
 }
 
 export function loadLegacy(logger: Logger): LegacyBridge {
@@ -50,9 +60,14 @@ export function loadLegacy(logger: Logger): LegacyBridge {
   const commands = LEGACY_COMMAND_FILES.map((file) => {
     const command = require(`./src/commands/${file}`) as LegacyCommand;
     command.data.setContexts(InteractionContextType.Guild);
+    // Sichtbar für alle: wer ihn nutzen darf, entscheidet der Bot (bisheriges Discord-Recht ODER Plattform-Recht).
+    const required = command.data.default_member_permissions;
+    command.discordPermission = required ? BigInt(required) : null;
+    command.data.setDefaultMemberPermissions(null);
     return command;
   });
   const db = require('./src/lib/db');
+  const grant = require('./src/lib/platformGrant');
   const tickets = require('./src/lib/tickets');
   const appStore = require('./src/lib/applications/store');
   const appMessages = require('./src/lib/applications/messages');
@@ -93,5 +108,6 @@ export function loadLegacy(logger: Logger): LegacyBridge {
       Object.assign(tickets.hooks, hooks);
     },
     flush: () => db.flush(),
+    runWithGrant: (userId, fn) => grant.runWithGrant(userId, fn),
   };
 }

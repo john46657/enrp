@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { hasPlatformGrant } = require('../../lib/platformGrant');
 const { replyPrivate } = require('../../lib/util');
 const { base } = require('../../lib/settings');
 const tickets = require('../../lib/tickets');
@@ -39,7 +40,7 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'panel') {
-      if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
+      if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild) && !hasPlatformGrant(interaction.member)) {
         return replyPrivate(interaction, 'Dafür brauchst du die Berechtigung „Server verwalten“.');
       }
       await tickets.postPanel(interaction.channel);

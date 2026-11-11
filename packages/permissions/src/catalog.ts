@@ -51,6 +51,11 @@ export const RESOURCES = {
     factionScoped: true,
   },
   tickets: { label: 'Tickets', group: 'Support', actions: ['view', 'create', 'edit', 'delete'] },
+  applications: {
+    label: 'Bewerbungen (inkl. Quali-Panel, Bewerbungssperren)',
+    group: 'Support',
+    actions: ['view', 'edit', 'delete', 'configure'],
+  },
   ticket_internal: { label: 'Interne Ticket-Notizen', group: 'Support', actions: ['view', 'create'] },
   reports: { label: 'Spielerreports', group: 'Support', actions: ['view', 'create', 'edit'] },
   cases: { label: 'Fallberichte', group: 'Support', actions: ['view', 'create', 'edit'] },

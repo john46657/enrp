@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMMAND_PERMISSIONS, isKnownCommand } from '@enrp/permissions';
+import { COMMAND_PERMISSIONS, LEGACY_COMMAND_PERMISSIONS, isKnownCommand } from '@enrp/permissions';
 import { COMMANDS } from './commands/index';
 
 describe('Slash-Commands', () => {
@@ -24,7 +24,10 @@ describe('Slash-Commands', () => {
     const registered = new Set(
       json.flatMap((c) => [c.name, ...(c.options ?? []).filter((o) => o.type === 1).map((o) => `${c.name} ${o.name}`)]),
     );
-    const unknown = Object.keys(COMMAND_PERMISSIONS).filter((k) => !registered.has(k));
+    // Altbefehle prüft legacy-access.test.ts
+    const unknown = Object.keys(COMMAND_PERMISSIONS).filter(
+      (k) => !registered.has(k) && !(k in LEGACY_COMMAND_PERMISSIONS),
+    );
     expect(unknown).toEqual([]);
   });
 });

@@ -78,5 +78,37 @@ Ersetzt und nicht mehr geladen: `/ban`, `/kick`, `/warn`, `/timeout`, `/unban`, 
 mit Datenbank und Audit), `/serverstatus` (FiveM → `/status` für Roblox), `/ankuendigung` (→ `/announce`),
 `/umfrage` (→ `/poll`), `/hilfe` (neu). Alte Verwarnungen aus `db.json` werden nicht automatisch migriert.
 
+### Altbefehle im Rechtesystem
+
+Jeder Altbefehl hat jetzt eine Regel im zentralen Rechtekatalog und erscheint im Dashboard unter
+*Bot-Verwaltung → Befehle & Overrides*. Neues Recht **Bewerbungen** (`applications:view|edit|delete|configure`,
+Startrolle Community-Management):
+
+| Befehl | Plattform-Recht |
+|---|---|
+| `/bewerbung`, `/rang`, `/bestenliste` | für alle |
+| `/bewerbungen offen\|in-bearbeitung\|anzeigen\|verlauf\|statistik`, `/bewerbungssperre liste` | `applications:view` |
+| `/bewerbungssperre hinzufuegen\|aufheben` | `applications:edit` |
+| `/bewerbungen loeschen` | `applications:delete` |
+| `/bewerbungspanel`, `/qualipanel` | `applications:configure` |
+| `/rollenpanel` | `community:create` |
+| `/clear` | `moderation:delete` |
+| `/ticket panel` · `fuer` · `schliessen\|hinzufuegen\|entfernen` | `settings:edit` · `tickets:create` · `tickets:edit` |
+| `/einstellungen anzeigen` · übrige Unterbefehle | `settings:view` · `settings:edit` |
+
+So wird entschieden (es geht keine bisherige Berechtigung verloren):
+
+1. Im Dashboard deaktivierte Befehle (`bot.disabledCommands`) sind gesperrt.
+2. Ein Rollen-Override „verweigern“ sperrt.
+3. Wer das Plattform-Recht hat (oder Override „erlauben“, Owner), darf den Befehl nutzen und gilt dabei in den
+   Altmodulen als Staff – auch ohne die alten Discord-Rechte oder die Staff-Rolle aus `/einstellungen`.
+4. Sonst gilt wie bisher das Discord-Recht des Befehls (z. B. „Server verwalten“ für `/einstellungen`) bzw. die
+   Staff-/Support-Rolle der Altmodule.
+5. Ist die Plattform nicht erreichbar (oder antwortet nicht innerhalb von 1,5 s), gilt das bisherige Verhalten.
+
+Die Altbefehle sind deshalb in Discord für alle sichtbar; wer sie nicht nutzen darf, bekommt eine Absage.
+Noch nicht im Dashboard (folgt): Bewerbungen, Level, Rollenpanel und Ticketpanel ansehen/bearbeiten sowie die
+`/einstellungen` der Altmodule. Buttons der Altmodule (z. B. Ticket übernehmen) prüfen weiterhin nur die alten Rollen.
+
 Die Begrüßung neuer Mitglieder kommt aus dem Dashboard (*Community-Tools → Begrüßung*); ist sie dort
 deaktiviert, gilt die bisherige Begrüßung aus der `config.json`.

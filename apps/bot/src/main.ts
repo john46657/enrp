@@ -18,7 +18,8 @@ import { createApiFactory, describeError } from './api';
 import { type BotCommand } from './command';
 import { COMMANDS } from './commands/index';
 import { loadBotEnv } from './env';
-import { loadLegacy, type LegacyBridge } from './legacy';
+import { loadLegacy, type LegacyBridge, type LegacyCommand } from './legacy';
+import { legacyAccess } from './legacy-access';
 import { COLORS } from './ui';
 
 const env = loadBotEnv();
@@ -71,7 +72,7 @@ function commandKey(interaction: ChatInputCommandInteraction) {
 
 async function handleCommand(interaction: ChatInputCommandInteraction) {
   const legacyCommand = legacyCommands.get(interaction.commandName);
-  if (legacyCommand) return legacyCommand.execute(interaction);
+  if (legacyCommand) return handleLegacyCommand(interaction, legacyCommand);
   const command = commands.get(interaction.commandName);
   if (!command) return;
   const key = commandKey(interaction);
@@ -94,6 +95,44 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
     return defer ? interaction.editReply(text) : interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
   }
   return command.execute(interaction, { api, apis });
+}
+
+/** Altbefehle: kurze Rechteprüfung bei der Plattform (Altbefehle antworten selbst, ohne Aufschub). */
+async function handleLegacyCommand(interaction: ChatInputCommandInteraction, legacyCommand: LegacyCommand) {
+  const key = commandKey(interaction);
+  const disabled = Boolean(
+    botConfig?.bot.disabledCommands.includes(interaction.commandName) || botConfig?.bot.disabledCommands.includes(key),
+  );
+  const access = await Promise.race([
+    apis
+      .forInteraction(interaction)
+      .post<{ allowed: boolean; source: string; permission: string | null }>('/api/v1/permissions/check', {
+        command: key,
+      })
+      .catch((err: unknown) => {
+        logger.warn(
+          { err: describeError(err), key },
+          'Rechteprüfung für Altbefehl nicht möglich – bisheriges Verhalten',
+        );
+        return null;
+      }),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref()),
+  ]);
+  const required = legacyCommand.discordPermission ?? null;
+  const decision = legacyAccess({
+    disabled,
+    access,
+    hasDiscordPermission: required === null || Boolean(interaction.memberPermissions?.has(required)),
+  });
+  if (decision === 'disabled')
+    return interaction.reply({ content: '⏸️ Dieser Befehl ist derzeit deaktiviert.', flags: MessageFlags.Ephemeral });
+  if (decision === 'override-deny' || decision === 'denied')
+    return interaction.reply({
+      content: `⛔ Du darfst \`/${key}\` nicht verwenden${access?.permission ? ` (benötigt \`${access.permission}\`)` : ''}.`,
+      flags: MessageFlags.Ephemeral,
+    });
+  if (decision === 'grant') return legacy!.runWithGrant(interaction.user.id, () => legacyCommand.execute(interaction));
+  return legacyCommand.execute(interaction);
 }
 
 async function handleComponent(interaction: Interaction) {
