@@ -14,7 +14,7 @@ export const workerEnvSchema = baseEnvSchema.extend({
   /** Getrennter Speicherort (eigenes Volume / Mount), nicht im Datenverzeichnis der Datenbank. */
   BACKUP_DIR: z.string().default('./backups'),
   BACKUP_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
-  /** Cron-Ausdruck in UTC für geplante Backups. */
+  /** Cron-Ausdruck in UTC für geplante Backups oder "off" (z. B. ohne pg_dump beim Hoster). */
   BACKUP_CRON: z.string().default('0 2 * * *'),
   PG_DUMP_PATH: z.string().default('pg_dump'),
   PG_RESTORE_PATH: z.string().default('pg_restore'),

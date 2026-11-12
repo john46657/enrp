@@ -67,6 +67,102 @@ eigene Domain.
 Wer bereits einen eigenen Reverse Proxy (Traefik, nginx) betreibt, lässt `--profile caddy` weg und leitet auf
 `127.0.0.1:3000` weiter. Der Deploy-Workflow startet ohne Profil; ein laufender Caddy bleibt dabei unverändert.
 
+## Hosting auf bot-hosting.net (ohne Docker)
+
+Die Plattform läuft auch bei [bot-hosting.net](https://bot-hosting.net) (Pterodactyl-Panel, kein Docker).
+Öffentliche Adresse: **https://2pgwy073wo.apps.bot-hosting.cloud** – Dashboard, API (`/api/v1`), Roblox-Schnittstelle
+(`/api/v1/game/*`), OAuth-Callbacks und Banns laufen alle über diese eine Domain.
+
+### Was läuft wo?
+
+| Teil | Wo | Hinweis |
+|---|---|---|
+| Dashboard (Next.js) | Node.js-Deployment „enrp“, **öffentlicher Port** (`SERVER_PORT`) | einziger Dienst an der Domain; reicht `/api/*` intern an die API weiter |
+| API (Fastify) | dasselbe Deployment, `127.0.0.1:4000` | nur intern erreichbar, führt beim Start Migrationen aus |
+| Worker (BullMQ) | dasselbe Deployment | geplante Backups mit `BACKUP_CRON=off` abschalten (kein `pg_dump` beim Hoster) |
+| Discord-Bot (+ Altmodule) | dasselbe Deployment | altes Express-Dashboard der Altmodule ist abgeschaltet (`LEGACY_DASHBOARD=false`) |
+| PostgreSQL | eigenes Datenbank-Deployment im selben Projekt | alternativ extern (z. B. Neon, Supabase) |
+| Redis | eigenes Datenbank-Deployment im selben Projekt | alternativ extern (z. B. Upstash) |
+
+Der Supervisor `deploy/bot-hosting/start.mjs` startet API, Worker, Bot und Dashboard als Kindprozesse,
+startet abgestürzte Dienste mit Backoff neu und gibt jedem Dienst nur die Geheimnisse, die er braucht
+(das Dashboard bekommt gar keine).
+
+**Plan:** Der Free-Plan (256 MB RAM, 1 Deployment) reicht **nicht** – allein Dashboard + API brauchen mehr
+Arbeitsspeicher, und Datenbank und Redis belegen eigene Deployments. Mindestens **Starter+** (2 GB RAM,
+4 Deployments: enrp + PostgreSQL + Redis, ein Platz frei). Mit externer Datenbank und externem Redis genügt
+ein einzelnes Deployment mit mindestens 1,5 GB RAM (Next.js-Build).
+
+### Schritt für Schritt
+
+1. **Projekt anlegen** im Panel von bot-hosting.net und den Plan wählen (siehe oben).
+2. **PostgreSQL anlegen:** *Neues Deployment → Datenbank → PostgreSQL* (Version 16 oder neuer). Host, Port,
+   Benutzer, Passwort und Datenbankname aus dem Panel notieren und daraus bilden:
+   `DATABASE_URL=postgres://BENUTZER:PASSWORT@HOST:PORT/DATENBANK` (bei Bedarf `?sslmode=require` anhängen).
+3. **Redis anlegen:** *Neues Deployment → Datenbank → Redis* →
+   `REDIS_URL=redis://:PASSWORT@HOST:PORT` (mit `rediss://` bei TLS).
+4. **Node.js-Deployment „enrp“ anlegen:** Quelle *GitHub* → Repository `john46657/enrp`, Branch `main`,
+   „Bei Push neu bereitstellen“ aktivieren. Node.js **22 oder neuer**.
+5. **Startbefehl** (*Start command*):
+   ```bash
+   bash deploy/bot-hosting/boot.sh
+   ```
+   Das Skript installiert Abhängigkeiten und baut nur, wenn sich der Code geändert hat, und startet dann den
+   Supervisor. Erster Start dauert einige Minuten (Next.js-Build).
+6. **Subdomain aktivieren:** *Netzwerk → Subdomain → Aktivieren* (`2pgwy073wo.apps.bot-hosting.cloud`).
+   HTTPS stellt bot-hosting.net automatisch bereit. Der Port ist `SERVER_PORT` – nichts weiter einstellen.
+7. **Umgebungsvariablen** im Panel unter *Variablen* (oder als `.env` im Wurzelverzeichnis per Datei-Manager/SFTP;
+   niemals ins Repository einchecken):
+   ```dotenv
+   APP_ENV=production
+   PUBLIC_URL=https://2pgwy073wo.apps.bot-hosting.cloud
+   DASHBOARD_URL=https://2pgwy073wo.apps.bot-hosting.cloud
+   TRUST_PROXY=true
+   DATABASE_URL=postgres://…          # aus Schritt 2
+   REDIS_URL=redis://…                # aus Schritt 3
+   HASH_SECRET=…                      # openssl rand -base64 48
+   BOT_API_TOKEN=…                    # openssl rand -base64 48
+   OWNER_DISCORD_IDS=123456789012345678
+   DISCORD_BOT_TOKEN=…
+   DISCORD_CLIENT_ID=…
+   DISCORD_CLIENT_SECRET=…
+   DISCORD_GUILD_ID=…                 # Haupt-Discord
+   ROBLOX_CLIENT_ID=…
+   ROBLOX_CLIENT_SECRET=…
+   BACKUP_CRON=off                    # kein pg_dump beim Hoster; Sicherung übernimmt bot-hosting.net
+   ```
+   Alle weiteren Variablen: [.env.example](../.env.example). `SERVER_PORT` setzt der Hoster selbst.
+8. **OAuth-Redirects** in den Entwicklerportalen eintragen:
+   - Discord: `https://2pgwy073wo.apps.bot-hosting.cloud/api/v1/auth/discord/callback` (Login) und
+     `https://2pgwy073wo.apps.bot-hosting.cloud/api/v1/verification/discord/callback` (Verifizierung)
+   - Roblox: `https://2pgwy073wo.apps.bot-hosting.cloud/api/v1/verification/roblox/callback`
+   (siehe auch [setup.md](setup.md))
+9. **Prüfen, ob wirklich die Plattform antwortet** (von jedem Rechner mit Node.js 22):
+   ```bash
+   node deploy/bot-hosting/check-domain.mjs https://2pgwy073wo.apps.bot-hosting.cloud
+   ```
+   Erwartet: drei ✅ (Dashboard, `/api/v1/status`, Roblox-Schnittstelle lehnt Anfragen ohne Schlüssel mit
+   `UNAUTHENTICATED` ab). Meldet die Prüfung „altes Express-Dashboard“, läuft auf dem Deployment noch der alte
+   Bot (Startbefehl `node index.js`) – Startbefehl wie in Schritt 5 ändern.
+10. **Roblox:** `roblox/src/ServerScriptService/ENRP/Config.lua` → `ApiBaseUrl` zeigt bereits auf die Domain.
+    Im Creator Hub beim Secret `ENRP_API_KEY` als Domain `2pgwy073wo.apps.bot-hosting.cloud` eintragen.
+11. **Backups:** bot-hosting.net sichert Dateien und Datenbanken automatisch (je nach Plan stündlich bis
+    minütlich). Zusätzlich empfohlen: regelmäßig einen Export der Datenbank über das Panel herunterladen.
+
+### Aufteilen auf mehrere Deployments (optional)
+
+Wird der Arbeitsspeicher knapp, lassen sich die Dienste verteilen: `ENRP_SERVICES=api,dashboard` im
+öffentlichen Deployment, `ENRP_SERVICES=worker,bot` in einem zweiten. Das zweite Deployment erreicht die API
+dann über `API_URL=https://2pgwy073wo.apps.bot-hosting.cloud` (über das Dashboard-Proxy, gleiche Origin).
+
+### Stand der Domain bei Einrichtung dieser Anleitung
+
+Eine Prüfung am 10.11.2026 ergab: Unter der Domain antwortete das **alte Express-Dashboard** der Altmodule
+(`/api/v1/status` → `{"error":"Nicht angemeldet"}`), nicht die Plattform. Roblox-Server erreichten die
+Schnittstelle `/api/v1/game/*` damit nicht. Ursache: Das alte Dashboard startet automatisch, sobald
+`SERVER_PORT` gesetzt ist. Behoben durch den Supervisor (Schritt 5), der den Port dem Plattform-Dashboard gibt;
+im Brückenbetrieb startet das alte Dashboard nicht mehr.
+
 ## CI/CD
 
 - **CI** (`.github/workflows/ci.yml`): Lint, Format, Typecheck, Prüfung der Altmodule, `pnpm audit`,

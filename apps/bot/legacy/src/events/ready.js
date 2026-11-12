@@ -37,7 +37,11 @@ module.exports = {
     startStatsWatcher(client);
     startTeamWatcher(client);
     // Dashboard erst hier laden: braucht express, das im Brückenbetrieb (apps/bot) nicht installiert ist.
-    if (process.env.DASHBOARD_URL && process.env.DISCORD_CLIENT_SECRET) {
+    // Im Brückenbetrieb (apps/bot) oder mit LEGACY_DASHBOARD=false nie starten: sonst belegt das alte
+    // Dashboard den öffentlichen Port (SERVER_PORT) und verdeckt Plattform-Dashboard und API.
+    if (process.env.LEGACY_DASHBOARD === 'false' || process.env.ENRP_LEGACY_BRIDGE === '1') {
+      console.log('ℹ️  Altes Dashboard aus (Plattform-Dashboard übernimmt)');
+    } else if (process.env.DASHBOARD_URL && process.env.DISCORD_CLIENT_SECRET) {
       require('../dashboard/modules');
       require('../dashboard/server').startDashboard(client);
     } else console.log('ℹ️  Dashboard aus (DASHBOARD_URL und DISCORD_CLIENT_SECRET in der .env setzen)');
