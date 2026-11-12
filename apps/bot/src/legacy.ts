@@ -20,6 +20,7 @@ export const LEGACY_COMMAND_FILES = [
   'applications/bewerbungspanel.js',
   'applications/list.js',
   'applications/manage.js',
+  'applications/servicenumber.js',
   'community/leaderboard.js',
   'community/rank.js',
   'community/rolepanel.js',
@@ -81,7 +82,7 @@ export function loadLegacy(logger: Logger): LegacyBridge {
   const tickets = require('./src/lib/tickets');
   const appStore = require('./src/lib/applications/store');
   const appMessages = require('./src/lib/applications/messages');
-  const { sweep } = require('./src/lib/applications/flow');
+  const { sweep, restore } = require('./src/lib/applications/flow');
   const { validateType } = require('./src/lib/applications/forms');
   const messageEvent = require('./src/events/messageCreate');
   const memberAdd = require('./src/events/guildMemberAdd');
@@ -93,7 +94,6 @@ export function loadLegacy(logger: Logger): LegacyBridge {
       for (const guild of client.guilds.cache.values())
         await tickets.refreshPanels(guild).catch((err: Error) => logger.warn({ err: err.message }, 'Ticketpanel'));
       tickets.startTicketWatcher(client);
-      appStore.resetProgress();
       for (const guild of client.guilds.cache.values())
         for (const problem of appStore.types(guild.id).flatMap((t: unknown) => validateType(t, { allowEmpty: true })))
           logger.warn(`Bewerbung (${guild.name}): ${problem}`);
@@ -101,10 +101,12 @@ export function loadLegacy(logger: Logger): LegacyBridge {
         await appMessages
           .refreshPanels(guild)
           .catch((err: Error) => logger.warn({ err: err.message }, 'Bewerbungspanel'));
-      setInterval(
-        () => sweep(client).catch((err: Error) => logger.error({ err: err.message }, 'Bewerbungen')),
-        60_000,
-      ).unref();
+      // Laufende DM-Bewerbungen nach dem Neustart fortsetzen, danach Zeitlimits und Bewerbungsphasen überwachen.
+      await restore(client).catch((err: Error) => logger.warn({ err: err.message }, 'Bewerbungen fortsetzen'));
+      setInterval(() => {
+        sweep(client).catch((err: Error) => logger.error({ err: err.message }, 'Bewerbungen'));
+        appMessages.watchPhases(client).catch((err: Error) => logger.error({ err: err.message }, 'Bewerbungsphasen'));
+      }, 60_000).unref();
     },
     onMessage: (message) => messageEvent.execute(message),
     onMemberAdd: (member) => memberAdd.execute(member),

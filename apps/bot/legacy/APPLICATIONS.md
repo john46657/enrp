@@ -70,8 +70,8 @@ wählt das Team im Status-Menü unter der Bewerbung.
 6. Nach der letzten Antwort wird eingereicht. Die Person erhält die **Abschlussnachricht** mit Bewerbungsnummer und
    einem Button **Bewerbung zurückziehen**.
 
-> Laufende DM-Bewerbungen liegen im Speicher des Bots. Ein Neustart bricht sie ab, die Anzeige „in Bearbeitung“
-> wird beim Start geleert.
+> Laufende DM-Bewerbungen liegen in `data/db.json` (`appSessions`). Nach einem Neustart schickt der Bot die aktuelle
+> Frage noch einmal und es geht weiter. Ist die Zeit inzwischen abgelaufen, endet die Bewerbung mit einem Hinweis.
 
 ---
 
@@ -179,6 +179,8 @@ Bei `art` schlägt Discord beim Tippen die Bewerbungen des Servers vor.
 | `frage-bearbeiten art nummer …` | Frage ändern (nur angegebene Optionen) |
 | `frage-entfernen art nummer` | Frage entfernen |
 | `frage-verschieben art nummer position` | Reihenfolge ändern |
+| `phase art [oeffnet] [schliesst] [plaetze]` | Bewerbungsphase (siehe [6.6](#66-bewerbungsphasen)) |
+| `dienstnummer art [aktiv] [format] [stellen] [start] [ende] [nickname] [freigeben_bei_verlassen]` | Dienstnummer-Automatik (siehe [6.7](#67-dienstnummern)) |
 
 **Fragetypen** (`typ`):
 
@@ -287,6 +289,32 @@ Rechtesystem der Plattform (`applications:configure`); „Server verwalten“ in
 
 ---
 
+### 6.6 Bewerbungsphasen
+
+`/bewerbung-verwalten phase art:… oeffnet:24.12.2026 18:00 schliesst:31.12.2026 23:59 plaetze:20`
+
+- **oeffnet / schliesst**: Zeitpunkt in der Zeitzone des Servers (`/einstellungen zeitzone`), z. B. `24.12.2026 18:00`,
+  `24.12.2026` oder `2026-12-24 18:00`. `-` leert den Wert.
+- **plaetze**: höchstens so viele Bewerbungen ab Phasenbeginn (0 = unbegrenzt). Die Plätze stehen auch im Dashboard.
+- Vor dem Öffnen, nach dem Schließen oder wenn alle Plätze vergeben sind, kann sich niemand bewerben. Das Panel zeigt den
+  Zustand („öffnet in 2 Tagen“, „3 von 20 Plätzen frei“, „geschlossen“) und aktualisiert sich jede Minute von selbst,
+  wenn sich der Zustand ändert.
+- `enabled` (Bewerbungen annehmen an/aus) gilt weiterhin zusätzlich.
+
+### 6.7 Dienstnummern
+
+`/bewerbung-verwalten dienstnummer art:… aktiv:true format:PD-{n} stellen:2 start:1 ende:99 nickname:[{serviceNumber}] {name}`
+
+- Bei **Annahme** bekommt die Person automatisch die kleinste freie Nummer (z. B. `PD-07`). Wer schon eine hat, behält sie.
+- Die Nummer steht in der Annahme-DM (`{serviceNumber}` im Text, sonst wird sie angehängt) und in der Team-Nachricht.
+- **nickname**: Vorlage mit `{serviceNumber}` `{name}` (Roblox-Name, sonst Discord-Name) `{roblox}` `{username}`, höchstens
+  32 Zeichen. Leer = Nickname nicht ändern.
+- **freigeben_bei_verlassen**: Nummer wieder frei, wenn die Person den Server verlässt (Standard: ja).
+- `/dienstnummer anzeigen [user]` (alle), `/dienstnummer liste`, `/dienstnummer setzen user [nummer] [art]`,
+  `/dienstnummer entfernen user` (Team).
+
+---
+
 ## 7. Bewerbungssperren (`/bewerbungssperre`)
 
 - `hinzufuegen`: Sperrt eine Person per **Discord-Nutzer und/oder Roblox-Name** (wird bei Roblox nachgeschlagen).
@@ -355,6 +383,8 @@ hohem Verdacht. **Nur ein Hinweis, kein Beweis.** Frag im Zweifel im Gespräch n
 | `/bewerbungen loeschen <nummer>` | Staff | Bewerbung und Team-Nachricht löschen (Mod-Log) |
 | `/bewerbungen statistik` | Team | Statistik (siehe 9.) |
 | `/bewerbungssperre …` | Team | Sperren (siehe 7.) |
+| `/dienstnummer anzeigen [user]` | alle | eigene oder fremde Dienstnummer |
+| `/dienstnummer liste` · `setzen` · `entfernen` | Team | Dienstnummern verwalten (siehe 6.7) |
 | `/einstellungen bewerbung` · `bewerbungs-kanaele` | „Server verwalten“ | Einstellungen ohne Neustart |
 
 Interaktions-IDs (Präfix `quali:`): `pick`, `apply`, `start`, `cancel`, `ans`, `skip`, `rb` (Roblox bestätigen),
@@ -371,6 +401,9 @@ Gespeichert wird in `data/db.json` (keine externe Datenbank):
 | `apps[guildId][nummer]` | Bewerbung: Art, Status, Antworten (`[{ key, question, type, answer, ms, cpm }]`), Discord, Roblox, Dauer, Server-Beitritt, gewählte Rollen, KI-Ergebnis, Entscheider/Zeitpunkt/Grund, Verlauf, Team-Nachricht/Thread, Version |
 | `appBans[guildId][id]` | Sperren: Discord-ID, Roblox-ID/-Name, Bereiche, Grund, Ablauf, aufgehoben |
 | `appProgress[guildId]` | angefangene Bewerbungen („in Bearbeitung“) |
+| `appSessions[userId]` | laufende DM-Bewerbungen (überstehen einen Neustart) |
+| `appTypes[guildId]` | selbst erstellte Bewerbungen des Servers |
+| `serviceNumbers[guildId][userId]` | vergebene Dienstnummern |
 | `appPanels[guildId]` | gepostete Panels (zum automatischen Aktualisieren) |
 | `appPanelDefs[guildId]` | Panels: Name, Überschrift, Text, Bild, enthaltene Bewerbungen |
 | `appTypes[guildId]` | selbst erstellte Bewerbungen mit ihren Fragen und Texten (gelöschte mit alten Bewerbungen: `archived`) |
@@ -408,8 +441,8 @@ Diese Teile der Web-Version fehlen oder sind durch Discord-Funktionen ersetzt:
 | Dashboard (Liste, Einrichtung, Statistik, Sperren) | Dashboard der Plattform (Altmodule → Bewerbungen) |
 | Rechte-System mit Konten (`applications.decide` …) | Staff + Manager-Rollen je Bewerbung |
 | Benachrichtigungen und Audit-Log im Dashboard | Team-Kanal, Team-Thread, Mod-Log (Dashboard-Aktionen werden dort auch gemeldet) |
-| Team-Chance (Bewerbungsphasen) | nicht enthalten – `enabled` per `/einstellungen bewerbung` umschalten |
-| Personal-/Dienstnummern-Automatik | nicht enthalten |
+| Team-Chance (Bewerbungsphasen) | enthalten: `/bewerbung-verwalten phase` (siehe 6.6) |
+| Personal-/Dienstnummern-Automatik | enthalten: `/bewerbung-verwalten dienstnummer`, `/dienstnummer` (siehe 6.7) |
 | SEK-Mitgliedschaft über verknüpftes Konto | Rolle per `acceptAdd` |
 | Einstellungen je Discord-Server (`…@guildId`) | enthalten: Bewerbungen, Einstellungen und Daten sind je Server getrennt |
 

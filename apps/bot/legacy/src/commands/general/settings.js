@@ -237,7 +237,7 @@ const builder = new SlashCommandBuilder()
           .setName('kategorie')
           .setDescription('Welche Kategorie?')
           .setRequired(true)
-          .addChoices(...settings.base.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
+          .setAutocomplete(true),
       )
       .addIntegerOption((o) => o.setName('kapazitaet').setDescription('Plätze für die Auslastung (0 = ausblenden)').setMinValue(0).setMaxValue(1000))
       .addRoleOption((o) => o.setName('team_rolle').setDescription('Nur diese Rolle bearbeitet die Kategorie'))
@@ -258,7 +258,29 @@ const builder = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('eroeffnung_titel').setDescription('Titel des Eröffnungs-Embeds (- = Standard)').setMaxLength(200))
       .addStringOption((o) => o.setName('eroeffnung_text').setDescription('Text ({user} {username} {category} {number}, - = Standard)').setMaxLength(1500))
       .addStringOption((o) => o.setName('eroeffnung_bild').setDescription('Bild-URL im Eröffnungs-Embed (- = keins)'))
-      .addBooleanOption((o) => o.setName('allgemein_verwenden').setDescription('Automationen und Schließ-Regeln wieder aus /einstellungen tickets')),
+      .addBooleanOption((o) => o.setName('allgemein_verwenden').setDescription('Automationen und Schließ-Regeln wieder aus /einstellungen tickets'))
+      .addStringOption((o) => o.setName('name').setDescription('Anzeigename').setMaxLength(80))
+      .addStringOption((o) => o.setName('emoji').setDescription('Emoji im Panel'))
+      .addStringOption((o) => o.setName('praefix').setDescription('Präfix für Kanalnamen (%PREFIX%)').setMaxLength(20)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('ticket-kategorie-neu')
+      .setDescription('Legt eine neue Ticket-Kategorie an.')
+      .addStringOption((o) => o.setName('schluessel').setDescription('Kurzer Schlüssel, z. B. bug (a-z, 0-9, _ -)').setRequired(true).setMinLength(2).setMaxLength(24))
+      .addStringOption((o) => o.setName('name').setDescription('Anzeigename, z. B. Bug melden').setRequired(true).setMaxLength(80))
+      .addStringOption((o) => o.setName('emoji').setDescription('Emoji im Panel').setRequired(true))
+      .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel').setRequired(true).setMaxLength(500))
+      .addIntegerOption((o) => o.setName('kapazitaet').setDescription('Plätze für die Auslastung (0 = ausblenden, Standard 20)').setMinValue(0).setMaxValue(1000))
+      .addRoleOption((o) => o.setName('team_rolle').setDescription('Nur diese Rolle bearbeitet die Kategorie'))
+      .addStringOption((o) => o.setName('praefix').setDescription('Präfix für Kanalnamen (Standard: Schlüssel)').setMaxLength(20)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('ticket-kategorie-loeschen')
+      .setDescription('Löscht eine Ticket-Kategorie (offene Tickets bleiben bestehen).')
+      .addStringOption((o) => o.setName('kategorie').setDescription('Welche Kategorie?').setRequired(true).setAutocomplete(true))
+      .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich löschen?').setRequired(true)),
   )
   .addSubcommand((s) =>
     s
@@ -269,7 +291,7 @@ const builder = new SlashCommandBuilder()
           .setName('kategorie')
           .setDescription('Welche Kategorie?')
           .setRequired(true)
-          .addChoices(...settings.base.tickets.types.slice(0, 25).map((t) => ({ name: t.label, value: t.id }))),
+          .setAutocomplete(true),
       )
       .addIntegerOption((o) => o.setName('feld').setDescription('Feld 1–5').setRequired(true).setMinValue(1).setMaxValue(5))
       .addStringOption((o) => o.setName('frage').setDescription('Frage / Label').setMaxLength(45))
@@ -426,9 +448,9 @@ function changesFor(interaction, sub) {
       ]);
     }
     case 'ticket-kategorie': {
-      const base = `tickets.types.${o.getString('kategorie')}`;
       const tickets = settings.forGuild(interaction.guildId).tickets;
-      const type = tickets.types.find((t) => t.id === o.getString('kategorie'));
+      const type = ticketType(interaction);
+      const base = `tickets.types.${type.id}`;
       const image = o.getString('eroeffnung_bild');
       if (image && image.trim() !== '-' && !/^https?:\/\/\S+$/.test(image.trim())) throw new Error('Das Bild muss eine URL sein (https://…).');
 
@@ -449,6 +471,9 @@ function changesFor(interaction, sub) {
           ['nur_team_schliesst', `${base}.onlyTeamCanClose`, 'getBoolean'],
           ['bei_verlassen', `${base}.onCreatorLeave`, 'getString'],
           ['verlassen_text', `${base}.leaveMessage`, 'getString', clearable],
+          ['name', `${base}.label`, 'getString', (v) => v.trim()],
+          ['emoji', `${base}.emoji`, 'getString', checkEmoji],
+          ['praefix', `${base}.prefix`, 'getString', (v) => v.trim()],
         ]),
       );
       if (o.getBoolean('standard_team')) changes.push([`${base}.roles`, []]);
@@ -471,9 +496,34 @@ function changesFor(interaction, sub) {
       }
       return changes;
     }
+    case 'ticket-kategorie-neu': {
+      const types = settings.forGuild(interaction.guildId).tickets.types;
+      const id = o.getString('schluessel').trim().toLowerCase();
+      if (!/^[a-z0-9_-]{2,24}$/.test(id)) throw new Error('Der Schlüssel darf nur a-z, 0-9, _ und - enthalten (2–24 Zeichen).');
+      if (id === 'bewerbung' || types.some((t) => t.id === id)) throw new Error(`Den Schlüssel \`${id}\` gibt es schon.`);
+      if (types.length >= 25) throw new Error('Mehr als 25 Ticket-Kategorien gehen nicht.');
+      const role = o.getRole('team_rolle');
+      const type = {
+        id,
+        prefix: o.getString('praefix')?.trim() || id,
+        label: o.getString('name').trim(),
+        emoji: checkEmoji(o.getString('emoji')),
+        capacity: o.getInteger('kapazitaet') ?? 20,
+        roles: role ? [role.id] : [],
+        description: o.getString('beschreibung').trim(),
+      };
+      return [['tickets.types', [...types, type]]];
+    }
+    case 'ticket-kategorie-loeschen': {
+      if (!o.getBoolean('bestaetigen')) throw new Error('Abgebrochen – es wurde nichts gelöscht.');
+      const types = settings.forGuild(interaction.guildId).tickets.types;
+      const type = ticketType(interaction);
+      if (types.length === 1) throw new Error('Die letzte Ticket-Kategorie kann nicht gelöscht werden.');
+      return [['tickets.types', types.filter((t) => t.id !== type.id)]];
+    }
     case 'ticket-formular': {
-      const id = o.getString('kategorie');
-      const type = settings.forGuild(interaction.guildId).tickets.types.find((t) => t.id === id);
+      const type = ticketType(interaction);
+      const id = type.id;
       const form = structuredClone(type.closeForm ?? []);
       const index = Math.min(o.getInteger('feld') - 1, form.length);
       if (o.getBoolean('entfernen')) {
@@ -592,11 +642,36 @@ function changesFor(interaction, sub) {
   }
 }
 
+const EMOJI = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2}|<a?:\w+:\d+>)/u;
+function checkEmoji(value) {
+  if (!EMOJI.test(value.trim())) throw new Error('Das Emoji muss ein normales Emoji (z. B. 🐛) oder ein Server-Emoji sein.');
+  return value.trim();
+}
+
+// Ticket-Kategorie aus der Option „kategorie“ (Schlüssel oder Name); wirft, wenn es sie nicht gibt.
+function ticketType(interaction) {
+  const input = interaction.options.getString('kategorie').trim().toLowerCase();
+  const types = settings.forGuild(interaction.guildId).tickets.types;
+  const found = types.find((t) => t.id === input) ?? types.find((t) => t.label.toLowerCase() === input);
+  if (!found) throw new Error(`Die Ticket-Kategorie „${input}“ gibt es auf diesem Server nicht.`);
+  return found;
+}
+
 module.exports = {
   data: builder,
   parsePeriods,
 
-  autocomplete: (interaction) => appStore.typeChoices(interaction.guildId, interaction.options.getFocused()),
+  // Vorschläge: Bewerbungen (Option „art“) und Ticket-Kategorien (Option „kategorie“) dieses Servers
+  autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'art') return appStore.typeChoices(interaction.guildId, focused.value);
+    const q = String(focused.value ?? '').trim().toLowerCase();
+    return settings
+      .forGuild(interaction.guildId)
+      .tickets.types.map((t) => ({ name: `${t.emoji ?? ''} ${t.label}`.trim().slice(0, 100), value: t.id }))
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || c.value.includes(q))
+      .slice(0, 25);
+  },
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();

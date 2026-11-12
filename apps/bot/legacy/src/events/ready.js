@@ -3,7 +3,8 @@ const settings = require('../lib/settings');
 const { fetchRobloxStatus } = require('../lib/robloxGame');
 const { startTicketWatcher } = require('../lib/tickets');
 const appStore = require('../lib/applications/store');
-const { sweep } = require('../lib/applications/flow');
+const { sweep, restore } = require('../lib/applications/flow');
+const { watchPhases } = require('../lib/applications/messages');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
 const { startStatsWatcher } = require('../lib/stats');
@@ -28,8 +29,6 @@ module.exports = {
     // Früher global registrierte Befehle entfernen, sonst erscheinen sie doppelt. Jetzt wird je Server registriert.
     await client.application.commands.set([]).catch((err) => console.error('[commands] Globale Befehle entfernen:', err.message));
 
-    // Bewerbungen: laufende DM-Bewerbungen gehen bei einem Neustart verloren
-    appStore.resetProgress();
     for (const guild of client.guilds.cache.values()) {
       for (const problem of appStore.types(guild.id).flatMap((t) => validateType(t, { allowEmpty: true }))) {
         console.warn(`⚠️  „${guild.name}“ → Bewerbung: ${problem}`);
@@ -59,7 +58,12 @@ module.exports = {
         await sweepExpired(guild, 'teamWarnings', config.team.warnings, 'Team-Verwarnung').catch((err) => console.error('[teamWarnings]', err));
       }
     }, 60_000);
-    setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
+    // Bewerbungen: laufende DM-Bewerbungen nach dem Neustart fortsetzen, Zeitlimits und Bewerbungsphasen überwachen
+    await restore(client);
+    setInterval(() => {
+      sweep(client).catch((err) => console.error('[bewerbung]', err));
+      watchPhases(client).catch((err) => console.error('[bewerbungsphase]', err));
+    }, 60_000);
 
     // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Roblox-Spiel, sonst der Name aus config.json.
     const updatePresence = async () => {

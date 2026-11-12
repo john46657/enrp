@@ -272,6 +272,40 @@ settings.ownAppTypes('555').push({ id: 'alt', name: 'Alt', panel: 'quali', numbe
 settings.saveAppTypes('555');
 expect(panels.panelsOf('555').map((p) => `${p.id}:${p.types}`).join() === 'quali:alt', 'Übernahme der alten Panels');
 console.log('✅ Panels und Übersicht in Discord');
+// Bewerbungsphasen und Dienstnummern
+{
+  const created = require('../src/lib/applications/manage').createType('777', { name: 'Phasen-Test' });
+  const id = created.type.id;
+  const phaseOf = () => appStore.phaseOf('777', appStore.typeById('777', id));
+  if (phaseOf().state !== 'open') fail(`Phase ohne Einschränkung: ${phaseOf().state}`);
+  settings.set('777', `applications.types.${id}.phase.opensAt`, Date.now() + 60_000);
+  if (phaseOf().state !== 'before') fail('Bewerbungsphase „öffnet später“ wird nicht erkannt');
+  settings.set('777', `applications.types.${id}.phase.opensAt`, null);
+  settings.set('777', `applications.types.${id}.phase.closesAt`, Date.now() - 1000);
+  if (phaseOf().state !== 'after') fail('Bewerbungsphase „geschlossen“ wird nicht erkannt');
+  settings.set('777', `applications.types.${id}.phase.closesAt`, null);
+  settings.set('777', `applications.types.${id}.phase.maxApplications`, 1);
+  appStore.createRecord('777', appStore.typeById('777', id), { userId: 'u1', answers: [] });
+  if (phaseOf().state !== 'full' || phaseOf().used !== 1) fail(`Plätze werden nicht gezählt: ${JSON.stringify(phaseOf())}`);
+  if (!appStore.phaseLabel({ state: 'full' }).includes('Plätze')) fail('phaseLabel falsch');
+
+  const sn = require('../src/lib/applications/serviceNumbers');
+  const cfg = { enabled: true, format: 'PD-{n}', digits: 2, start: 1, end: 3 };
+  if (sn.formatNumber(cfg, 7) !== 'PD-07' || sn.formatNumber({ format: 'A', digits: 3 }, 5) !== 'A005') fail('formatNumber falsch');
+  if (sn.nextFree('777', cfg) !== 1) fail('nextFree sollte 1 sein');
+  require('../src/lib/db').bucket('serviceNumbers', '777').x = { userId: 'x', value: 'PD-01' };
+  if (sn.nextFree('777', cfg) !== 2) fail('nextFree überspringt vergebene Nummern nicht');
+  const { parseLocalDate } = require('../src/lib/time');
+  if (new Date(parseLocalDate('24.12.2026 18:00', 'Europe/Berlin')).toISOString() !== '2026-12-24T17:00:00.000Z') fail('parseLocalDate falsch');
+  let threw = false;
+  try {
+    parseLocalDate('31.02.2027');
+  } catch {
+    threw = true;
+  }
+  if (!threw) fail('parseLocalDate akzeptiert ungültige Daten');
+  console.log('✅ Bewerbungsphasen und Dienstnummern');
+}
 
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');

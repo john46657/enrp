@@ -42,4 +42,22 @@ function fromZoned({ year, month, day, hour = 0, minute = 0 }, timeZone) {
 
 const formatDateTime = (ms, timeZone) => new Date(ms).toLocaleString('de-DE', { timeZone, dateStyle: 'medium', timeStyle: 'short' });
 
-module.exports = { isValidTimeZone, zonedParts, fromZoned, formatDateTime };
+// Datumseingaben wie „24.12.2026 18:00“, „24.12.2026“ oder „2026-12-24 18:00“ in einer Zeitzone → Millisekunden.
+// Wirft bei ungültiger Eingabe.
+function parseLocalDate(text, timeZone = 'Europe/Berlin') {
+  const input = String(text).trim();
+  const german = input.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:[ ,]+(\d{1,2}):(\d{2}))?(?:\s*uhr)?$/i);
+  const iso = input.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]+(\d{1,2}):(\d{2}))?$/);
+  if (!german && !iso) throw new Error(`„${input}“ verstehe ich nicht. Beispiel: \`24.12.2026 18:00\``);
+  const [year, month, day, hour, minute] = (
+    german ? [german[3], german[2], german[1], german[4] ?? 0, german[5] ?? 0] : [iso[1], iso[2], iso[3], iso[4] ?? 0, iso[5] ?? 0]
+  ).map(Number);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (month < 1 || month > 12 || probe.getUTCDate() !== day || hour > 23 || minute > 59) throw new Error(`„${input}“ ist kein gültiges Datum.`);
+  return fromZoned({ year, month, day, hour, minute }, timeZone);
+}
+
+const formatLocal = (ms, timeZone = 'Europe/Berlin') =>
+  new Date(ms).toLocaleString('de-DE', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+module.exports = { isValidTimeZone, zonedParts, fromZoned, formatDateTime, parseLocalDate, formatLocal };

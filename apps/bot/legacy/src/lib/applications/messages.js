@@ -38,11 +38,19 @@ function buildPanel(guildId, panelId) {
     container.addSeparatorComponents(new SeparatorBuilder()).addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         list.length
-          ? list.map((t) => `- [${t.emoji}] **${t.name}**${t.enabled ? '' : ' *(geschlossen)*'}${t.description ? `\n${t.description}` : ''}`).join('\n\n')
+          ? list
+              .map((t) => {
+                const label = store.phaseLabel(store.phaseOf(guildId, t));
+                return `- [${t.emoji}] **${t.name}**${label ? ` ${label}` : ''}${t.description ? `\n${t.description}` : ''}`;
+              })
+              .join('\n\n')
           : '*Derzeit gibt es hier keine Bewerbungen.*',
       ),
     );
   }
+  // Bei nur einer Art gibt es keine Liste – der Hinweis zur Bewerbungsphase steht dann direkt unter dem Text.
+  const single = list.length === 1 ? store.phaseLabel(store.phaseOf(guildId, list[0])) : '';
+  if (single) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(single));
   if (panel.image) {
     container.addSeparatorComponents(new SeparatorBuilder()).addMediaGalleryComponents(new MediaGalleryBuilder().addItems((item) => item.setURL(panel.image)));
   }
@@ -85,6 +93,19 @@ async function refreshPanels(guild) {
     }
     await message.edit(buildPanel(guild.id, kind)).catch((err) => console.error('[appPanel]', err.message));
   }
+  phaseSignatures.set(guild.id, phaseSignature(guild.id));
+}
+
+// Öffnet oder schließt eine Bewerbungsphase, ändert sich der Text im Panel. Läuft jede Minute.
+const phaseSignatures = new Map();
+const phaseSignature = (guildId) => store.types(guildId).map((t) => `${t.id}:${store.phaseOf(guildId, t).state}`).join('|');
+
+async function watchPhases(client) {
+  for (const guild of client.guilds.cache.values()) {
+    const signature = phaseSignature(guild.id);
+    if (phaseSignatures.has(guild.id) && phaseSignatures.get(guild.id) !== signature) await refreshPanels(guild);
+    else phaseSignatures.set(guild.id, signature);
+  }
 }
 
 // Panel löschen und seine geposteten Nachrichten aus Discord entfernen.
@@ -122,7 +143,8 @@ function infoEmbed(record, type) {
   if (record.roblox) applicant.push(`Roblox: [${record.roblox.name}](${profileUrl(record.roblox.id)}) (ID ${record.roblox.id})`);
   if (record.joinedAt) applicant.push(`Auf dem Server seit <t:${unix(record.joinedAt)}:R>`);
   if (record.accountCreatedAt) applicant.push(`Discord-Konto seit <t:${unix(record.accountCreatedAt)}:R>`);
-  applicant.push(`Dauer: ${formatDuration(record.durationMs ?? 0)}`);
+  applicant.push(`Dauer: ${formatDuration(record.durationMs ?? 0)}${record.via === 'WEB' ? ' · Web-Formular' : ''}`);
+  if (record.serviceNumber) applicant.push(`Dienstnummer: **${record.serviceNumber}**`);
   info.addFields({ name: 'Bewerber', value: applicant.join('\n') });
 
   if (record.ai) {
@@ -229,4 +251,4 @@ function buildTeamMessage(record, type, { withFile = false, components = true } 
   return message;
 }
 
-module.exports = { buildPanel, postPanel, refreshPanels, deletePanel, buildTeamMessage, answersFile, formatDuration };
+module.exports = { buildPanel, postPanel, refreshPanels, deletePanel, watchPhases, buildTeamMessage, answersFile, formatDuration };

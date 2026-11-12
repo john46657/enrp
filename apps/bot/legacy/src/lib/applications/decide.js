@@ -6,6 +6,8 @@ const { renderMessage } = require('./forms');
 const { buildTeamMessage } = require('./messages');
 const { applyRoles } = require('./roles');
 const { cancelForMember } = require('./flow');
+const serviceNumbers = require('./serviceNumbers');
+const { save } = require('../db');
 
 const LEFT_REASON = 'Hat den Discord-Server verlassen.';
 
@@ -53,9 +55,22 @@ async function afterDecision(guild, record, type, decider) {
     WITHDRAWN: ['warning', 'Deine **{applicationName}** (**{number}**) wurde zurückgezogen.'],
   };
   const [color, template] = texts[record.status];
-  await user?.send({ embeds: [embed(color).setDescription(renderMessage(template, vars)).setFooter({ text: guild.name })] }).catch(() => {});
-
   const member = await guild.members.fetch(record.userId).catch(() => null);
+
+  // Dienstnummer-Automatik: bei Annahme die nächste freie Nummer vergeben (und den Nickname setzen)
+  let text = renderMessage(template, { ...vars, serviceNumber: '—' });
+  if (record.status === 'ACCEPTED' && member) {
+    const entry = await serviceNumbers.assign(guild, record.userId, member, type, record);
+    if (entry) {
+      record.serviceNumber = entry.value;
+      save();
+      text = renderMessage(template, { ...vars, serviceNumber: entry.value });
+      if (!template.includes('{serviceNumber}')) text += `\n**Dienstnummer:** ${entry.value}`;
+      await updateTeamMessage(guild, record, type);
+    }
+  }
+  await user?.send({ embeds: [embed(color).setDescription(text).setFooter({ text: guild.name })] }).catch(() => {});
+
   const reason = `Bewerbung ${record.number}: ${store.STATUS[record.status]}`;
   if (record.status === 'ACCEPTED') {
     await applyRoles(member, { add: [...type.roles.acceptAdd, ...(record.roleSelections ?? [])], remove: [...type.roles.acceptRemove, ...type.roles.pending] }, reason);
@@ -176,6 +191,9 @@ async function openTicket(interaction, number) {
 // Bewerber verlässt den Server: je nach onLeave nichts tun, ablehnen oder zurückziehen.
 async function handleMemberLeave(member) {
   cancelForMember(member.guild.id, member.id);
+  // Dienstnummer wieder freigeben (abschaltbar mit serviceNumber.releaseOnLeave: false)
+  const held = serviceNumbers.getNumber(member.guild.id, member.id);
+  if (held && store.typeById(member.guild.id, held.typeId)?.serviceNumber?.releaseOnLeave !== false) serviceNumbers.release(member.guild.id, member.id);
   for (const record of store.openOf(member.guild.id, (r) => r.userId === member.id)) {
     const type = store.typeById(member.guild.id, record.type);
     if (!type || type.onLeave === 'NONE') continue;

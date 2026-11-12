@@ -13,6 +13,8 @@ const manage = require('../../lib/applications/manage');
 const { QUESTION_TYPES } = require('../../lib/applications/forms');
 const { refreshPanels } = require('../../lib/applications/messages');
 const dashboard = require('../../lib/applications/discordOverview');
+const settings = require('../../lib/settings');
+const { parseLocalDate } = require('../../lib/time');
 
 const { describeQuestion, typeLine } = dashboard;
 
@@ -113,7 +115,81 @@ const builder = new SlashCommandBuilder()
       .addStringOption(artOption)
       .addIntegerOption((o) => numberOption(o))
       .addIntegerOption((o) => numberOption(o, 'position', 'Neue Stelle')),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('phase')
+      .setDescription('Bewerbungsphase: automatisch öffnen/schließen und Plätze begrenzen (- = leeren).')
+      .addStringOption(artOption)
+      .addStringOption((o) => o.setName('oeffnet').setDescription('z. B. 24.12.2026 18:00 (Zeitzone des Servers)'))
+      .addStringOption((o) => o.setName('schliesst').setDescription('z. B. 31.12.2026 23:59 (Zeitzone des Servers)'))
+      .addIntegerOption((o) => o.setName('plaetze').setDescription('Höchstzahl Bewerbungen in dieser Phase (0 = unbegrenzt)').setMinValue(0).setMaxValue(10_000)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('dienstnummer')
+      .setDescription('Dienstnummer-Automatik bei Annahme einstellen.')
+      .addStringOption(artOption)
+      .addBooleanOption((o) => o.setName('aktiv').setDescription('Bei Annahme automatisch eine Dienstnummer vergeben?'))
+      .addStringOption((o) => o.setName('format').setDescription('z. B. PD-{n} ({n} = Nummer)').setMaxLength(20))
+      .addIntegerOption((o) => o.setName('stellen').setDescription('Stellen der Nummer, z. B. 2 → 07').setMinValue(1).setMaxValue(6))
+      .addIntegerOption((o) => o.setName('start').setDescription('Erste Nummer').setMinValue(0).setMaxValue(999_999))
+      .addIntegerOption((o) => o.setName('ende').setDescription('Letzte Nummer (0 = offen)').setMinValue(0).setMaxValue(999_999))
+      .addStringOption((o) => o.setName('nickname').setDescription('z. B. [{serviceNumber}] {name} (- = Nickname nicht ändern)').setMaxLength(60))
+      .addBooleanOption((o) => o.setName('freigeben_bei_verlassen').setDescription('Nummer wieder freigeben, wenn die Person den Server verlässt?')),
   );
+
+// Bewerbungsphase und Dienstnummern: Werte einer Bewerbungsart setzen (gleicher Speicherort wie das Dashboard).
+function saveTypeFields(guildId, typeId, changes) {
+  for (const [key, value] of Object.entries(changes)) settings.set(guildId, `applications.types.${typeId}.${key}`, value);
+}
+
+function phaseChanges(interaction, type) {
+  const o = interaction.options;
+  const timezone = settings.forGuild(interaction.guildId).timezone || 'Europe/Berlin';
+  const changes = {};
+  for (const [option, key] of [
+    ['oeffnet', 'opensAt'],
+    ['schliesst', 'closesAt'],
+  ]) {
+    const raw = o.getString(option);
+    if (raw !== null) changes[`phase.${key}`] = raw.trim() === '-' || !raw.trim() ? null : parseLocalDate(raw, timezone);
+  }
+  if (o.getInteger('plaetze') !== null) changes['phase.maxApplications'] = o.getInteger('plaetze');
+  if (!Object.keys(changes).length) throw new Error('Du hast keine Option angegeben – es wurde nichts geändert.');
+  const opens = 'phase.opensAt' in changes ? changes['phase.opensAt'] : store.toMs(type.phase?.opensAt);
+  const closes = 'phase.closesAt' in changes ? changes['phase.closesAt'] : store.toMs(type.phase?.closesAt);
+  if (opens && closes && closes <= opens) throw new Error('Die Phase muss nach dem Öffnen schließen.');
+  return changes;
+}
+
+function serviceNumberChanges(interaction, type) {
+  const o = interaction.options;
+  const changes = {};
+  for (const [option, key, getter, transform = (v) => v] of [
+    ['aktiv', 'enabled', 'getBoolean'],
+    ['format', 'format', 'getString', (v) => v.trim()],
+    ['stellen', 'digits', 'getInteger'],
+    ['start', 'start', 'getInteger'],
+    ['ende', 'end', 'getInteger'],
+    ['nickname', 'nickname', 'getString', (v) => (v.trim() === '-' ? '' : v.trim())],
+    ['freigeben_bei_verlassen', 'releaseOnLeave', 'getBoolean'],
+  ]) {
+    const raw = o[getter](option);
+    if (raw !== null) changes[`serviceNumber.${key}`] = transform(raw);
+  }
+  if (!Object.keys(changes).length) throw new Error('Du hast keine Option angegeben – es wurde nichts geändert.');
+  const next = { ...type.serviceNumber, ...Object.fromEntries(Object.entries(changes).map(([k, v]) => [k.split('.')[1], v])) };
+  if (next.end > 0 && next.end < next.start) throw new Error('Die letzte Nummer ist kleiner als die erste.');
+  return changes;
+}
+
+function phaseText(guildId, type) {
+  const phase = store.phaseOf(guildId, type);
+  const when = (ms) => (ms ? `<t:${Math.floor(ms / 1000)}:f>` : '—');
+  const states = { open: '🟢 offen', disabled: '⚪ ausgeschaltet', before: '🕒 öffnet bald', after: '🔴 geschlossen', full: '🟠 alle Plätze vergeben' };
+  return `${states[phase.state]} · Öffnet: ${when(phase.opensAt)} · Schließt: ${when(phase.closesAt)} · Plätze: ${phase.max ? `${phase.used}/${phase.max}` : 'unbegrenzt'}`;
+}
 
 // ---------- Eingaben umwandeln ----------
 
@@ -212,6 +288,22 @@ module.exports = {
     const typeId = o.getString('art');
 
     if (sub === 'uebersicht') return dashboard.open(interaction);
+
+    if (sub === 'phase' || sub === 'dienstnummer') {
+      const type = store.types(guildId).find((t) => t.id === typeId);
+      if (!type) return replyPrivate(interaction, '❌ Diese Bewerbung gibt es nicht. Wähle sie aus der Liste aus.');
+      try {
+        saveTypeFields(guildId, type.id, sub === 'phase' ? phaseChanges(interaction, type) : serviceNumberChanges(interaction, type));
+      } catch (err) {
+        return replyPrivate(interaction, `❌ ${err.message}`);
+      }
+      const saved = store.typeById(guildId, type.id);
+      const text =
+        sub === 'phase'
+          ? `✅ Bewerbungsphase von **${saved.name}** gespeichert. Das Panel aktualisiert sich automatisch, wenn die Phase öffnet oder schließt.\n${phaseText(guildId, saved)}`
+          : `✅ Dienstnummer-Automatik von **${saved.name}** gespeichert: ${saved.serviceNumber.enabled ? 'an' : 'aus'} · Format \`${saved.serviceNumber.format}\` · ab ${saved.serviceNumber.start}${saved.serviceNumber.end ? ` bis ${saved.serviceNumber.end}` : ''}`;
+      return done(interaction, {}, text);
+    }
 
     if (sub === 'erstellen' || sub === 'bearbeiten') {
       const fields = {

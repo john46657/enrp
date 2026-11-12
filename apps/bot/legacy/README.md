@@ -9,7 +9,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 
 | Bereich | Befehle / Features |
 |---|---|
-| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik · **im Dashboard**: Bewerbungen filtern und entscheiden, Prüfschritte, Notizen, CSV-Export, Sperren, Statistik und Einrichtung der Bewerbungsarten mit Fragen · **eigene Bewerbungen, Fragen und Panels anlegen** mit `/bewerbung-verwalten uebersicht` (keine vorgefertigten mehr) – **ausführlich in [APPLICATIONS.md](APPLICATIONS.md)** |
+| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik · **im Dashboard**: Bewerbungen filtern und entscheiden, Prüfschritte, Notizen, CSV-Export, Sperren, Statistik und Einrichtung der Bewerbungsarten mit Fragen · **eigene Bewerbungen, Fragen und Panels anlegen** mit `/bewerbung-verwalten uebersicht` (keine vorgefertigten mehr) · Bewerbungsphasen mit Plätzen · Dienstnummern mit Nickname (`/dienstnummer`) · laufende Bewerbungen überstehen einen Neustart – **ausführlich in [APPLICATIONS.md](APPLICATIONS.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: Roblox-Spiel mit Spielern online, Servern und „Spielen“-Button · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` `/melden` · Berechtigungen per Rolle · Warn-Limit, Ablauf, Warn-Rollen, öffentliche Verwarnung · Honeypot-Köderkanal · Auto-Mod (Hoisting, Einladungen, Links, Spam, Caps, Pings) · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien (einzeln abschaltbar), `/ticket fuer` (im Auftrag), eigenes Eröffnungs-Embed, Formular beim Schließen, Schließungs-Anfrage, Auto-Close, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
@@ -209,7 +209,8 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `bewerbung` / `bewerbungs-kanaele` | je Bewerbungsart: aktiv, Panel, Kanäle, Manager-/Ping-/Annahme-/Ausstehend-/Pflicht-Rolle, Wartezeit, Zeitlimit, Verhalten beim Verlassen, Team-Threads; Standard-Kanäle |
 | `tickets` | Kategorie, Claim-Kategorie, Limit, Team markieren, Schließ-Regeln, Verhalten beim Verlassen, Logs, Transkripte, Auslastung, Kanalname, Auto-Alert (mit Text), Auto-Unclaim, Auto-Close |
 | `ticket-panel` | Titel, Beschreibung, Banner, Fußzeile und Auswahltext (`-` leert ein Feld) |
-| `ticket-kategorie` | je Kategorie: Kapazität, Team-Rolle, Discord-Kategorie, Beschreibung, aktiv, Claimen, `/ticket fuer`, nur Team schließt, Verhalten beim Verlassen, Auto-Close, Erinnerung, Eröffnungs-Embed; `allgemein_verwenden` setzt die eigenen Regeln zurück |
+| `ticket-kategorie` | je Kategorie: Kapazität, Team-Rolle, Discord-Kategorie, Beschreibung, aktiv, Claimen, `/ticket fuer`, nur Team schließt, Verhalten beim Verlassen, Auto-Close, Erinnerung, Eröffnungs-Embed; `allgemein_verwenden` setzt die eigenen Regeln zurück; außerdem Name, Emoji und Präfix |
+| `ticket-kategorie-neu` · `ticket-kategorie-loeschen` | Ticket-Kategorie anlegen bzw. löschen (offene Tickets bleiben) |
 | `ticket-formular` | Formular beim Schließen je Kategorie: Feld 1–5 mit Frage, Art, Platzhalter, Länge, Pflicht (oder `entfernen`) |
 | `oeffnungszeiten` | An/aus, Zeitzone und Zeiten, z. B. `mo-fr 15:00-23:00; sa,so 12:00-24:00` |
 | `willkommen` | Willkommensnachricht mit `{user}` `{name}` `{server}` `{count}` |
@@ -219,7 +220,7 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `statistik` | Server-Statistiken an/aus, Kategorie für neue Kanäle, Statistik hinzufügen/umbenennen/entfernen |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
-Neue Ticket-Kategorien legst du weiterhin in der `config.json` an. Bewerbungen und ihre Fragen erstellst du mit
+Neue Ticket-Kategorien legst du mit `/einstellungen ticket-kategorie-neu` an. Bewerbungen und ihre Fragen erstellst du mit
 `/bewerbung-verwalten` oder im Dashboard (siehe [APPLICATIONS.md](APPLICATIONS.md#6-bewerbungen-selbst-erstellen-bewerbung-verwalten)).
 
 ## Web-Dashboard

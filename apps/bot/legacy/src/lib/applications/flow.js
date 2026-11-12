@@ -1,5 +1,5 @@
 // Bewerbung per Direktnachricht: Vorabprüfung, Fragen nacheinander, Einreichen.
-// Laufende Bewerbungen liegen im Speicher – ein Neustart des Bots bricht sie ab.
+// Laufende Bewerbungen liegen in data/db.json (appSessions) und gehen nach einem Neustart weiter (restore).
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const { forGuild } = require('../settings');
 const { embed, replyPrivate, truncate } = require('../util');
@@ -7,10 +7,28 @@ const store = require('./store');
 const { checkAnswer, formatDuration, renderMessage, optionValue, QUESTION_TYPES } = require('./forms');
 const { findRobloxUser, profileUrl } = require('./roblox');
 const { aiCheck } = require('./aiCheck');
-const { buildTeamMessage } = require('./messages');
+const { buildTeamMessage, refreshPanels } = require('./messages');
+const { data, save } = require('../db');
 const { applyRoles } = require('./roles');
 
-const sessions = new Map(); // userId → Sitzung
+// userId → Sitzung. Wie eine Map nutzbar, aber gespeichert, damit Bewerbungen einen Neustart überstehen.
+const stored = () => (data.appSessions ??= {});
+const sessions = {
+  get: (userId) => stored()[userId],
+  has: (userId) => userId in stored(),
+  set(userId, session) {
+    stored()[userId] = session;
+    save();
+  },
+  delete(userId) {
+    delete stored()[userId];
+    save();
+  },
+  values: () => Object.values(stored()),
+  get size() {
+    return Object.keys(stored()).length;
+  },
+};
 
 const dmLink = (channelId) => `https://discord.com/channels/@me/${channelId}`;
 
@@ -152,6 +170,7 @@ async function ask(client, session) {
   const type = session.type;
   const user = await client.users.fetch(session.userId);
   session.questionSentAt = Date.now();
+  save(); // Stand der Sitzung (Antworten, Schritt) sichern
   store.setProgress(session.guildId, session.userId, session.typeId, {
     startedAt: session.startedAt,
     expiresAt: session.expiresAt,
@@ -368,6 +387,8 @@ async function submit(client, session) {
       ],
     })
     .catch(() => {});
+  // Bei begrenzten Plätzen zeigt das Panel, wie viele noch frei sind.
+  if (type.phase?.maxApplications) await refreshPanels(guild).catch(() => {});
 }
 
 // Läuft jede Minute: abgelaufene Sitzungen beenden.
@@ -377,9 +398,30 @@ async function sweep(client) {
   }
 }
 
+// Nach einem Neustart: laufende Bewerbungen fortsetzen und die aktuelle Frage noch einmal schicken.
+async function restore(client) {
+  for (const session of sessions.values()) {
+    session.busy = false;
+    session.pendingRoblox = null;
+    try {
+      if (expired(session)) await expire(client, session);
+      else if (!client.guilds.cache.has(session.guildId) || !session.type?.questions?.[session.step]) end(session);
+      else {
+        const user = await client.users.fetch(session.userId);
+        await user.send({ embeds: [embed().setDescription('🔄 Der Bot wurde kurz neu gestartet. Deine Bewerbung geht hier weiter:')] });
+        await ask(client, session);
+      }
+    } catch (err) {
+      console.error(`[bewerbung] Sitzung von ${session.userId} konnte nicht fortgesetzt werden:`, err.message);
+      end(session);
+    }
+  }
+  store.cleanProgress();
+}
+
 function cancelForMember(guildId, userId) {
   const session = sessions.get(userId);
   if (session?.guildId === guildId) end(session);
 }
 
-module.exports = { offer, start, cancelFromButton, handleDirectMessage, handleSelect, handleSkip, handleRoblox, sweep, cancelForMember, sessions };
+module.exports = { offer, start, cancelFromButton, handleDirectMessage, handleSelect, handleSkip, handleRoblox, sweep, restore, cancelForMember, sessions };
