@@ -86,7 +86,6 @@ const before = { cap: config.tickets.types[0].capacity, log: config.channels.tic
 settings.set(a, `tickets.types.${firstType}.capacity`, 99);
 settings.set(a, 'channels.ticketLog', '123');
 settings.set(a, 'leveling.roleRewards.7', '456');
-settings.set(a, `applications.types.${config.applications.types[0].id}.enabled`, false);
 const ca = settings.forGuild(a);
 if (ca.tickets.types[0].capacity !== 99 || ca.channels.ticketLog !== '123' || ca.leveling.roleRewards[7] !== '456') {
   fail('Einstellungen werden nicht übernommen');
@@ -95,10 +94,6 @@ const cb = settings.forGuild(b);
 if (cb.tickets.types[0].capacity !== before.cap || cb.channels.ticketLog !== before.log || '7' in cb.leveling.roleRewards) {
   fail('Einstellungen eines Servers wirken sich auf einen anderen Server aus');
 }
-const appStore = require('../src/lib/applications/store');
-if (appStore.typeById(a, config.applications.types[0].id).enabled || !appStore.typeById(b, config.applications.types[0].id).enabled) {
-  fail('Bewerbungsarten sind nicht je Server getrennt');
-}
 if (config.tickets.types[0].capacity !== before.cap || config.channels.ticketLog !== before.log) fail('Vorlage config.json wurde verändert');
 settings.reset(a);
 const reset = settings.forGuild(a);
@@ -106,6 +101,73 @@ if (reset.tickets.types[0].capacity !== before.cap || reset.channels.ticketLog !
   fail('Einstellungen lassen sich nicht zurücksetzen');
 }
 console.log('✅ Einstellungen je Server setzen/zurücksetzen');
+
+// Bewerbungen selbst anlegen: keine vorgefertigten, je Server getrennt
+const appStore = require('../src/lib/applications/store');
+const manage = require('../src/lib/applications/manage');
+const expect = (condition, message) => condition || fail(`Bewerbung verwalten: ${message}`);
+expect(config.applications.types.length === 0, 'config.json sollte keine vorgefertigten Bewerbungen enthalten');
+expect(appStore.types(a).length === 0, 'neuer Server sollte keine Bewerbungen haben');
+
+const created = manage.createType(a, { name: 'Sanitäter Ausbildung', emoji: '🚑' });
+expect(!created.error, created.error);
+const appId = created.type?.id;
+expect(appId === 'sanitaeter-ausbildung', `id aus dem Namen: ${appId}`);
+expect(created.type?.numberPrefix === 'SANI', `Kürzel aus dem Namen: ${created.type?.numberPrefix}`);
+expect(manage.createType(a, { name: 'sanitäter ausbildung' }).error, 'doppelter Name sollte abgelehnt werden');
+expect(appStore.types(b).length === 0, 'Bewerbung eines Servers taucht auf einem anderen auf');
+expect(appStore.eligibility({ guild: { id: a }, id: 'u1', roles: { cache: new Map() } }, created.type)?.includes('keine Fragen'), 'ohne Fragen darf man sich nicht bewerben');
+expect(appStore.typeChoices(a, 'sani')[0]?.value === appId, 'Autovervollständigung findet die Bewerbung nicht');
+
+expect(!manage.addQuestion(a, appId, { type: 'TEXT', label: 'Warum?', min: 20, max: 500 }).error, 'Freitext-Frage');
+expect(!manage.addQuestion(a, appId, { type: 'CHOICE', label: 'Wie oft?', options: [{ label: 'Oft' }, { label: 'Selten' }] }).error, 'Auswahl-Frage');
+expect(manage.addQuestion(a, appId, { type: 'CHOICE', label: 'Ohne Optionen' }).error, 'Auswahl ohne Optionen sollte abgelehnt werden');
+expect(!manage.addQuestion(a, appId, { type: 'ROBLOX', label: 'Roblox-Name?' }, 1).error, 'Roblox-Frage an Position 1');
+expect(manage.addQuestion(a, appId, { type: 'ROBLOX', label: 'Noch mal?' }).error, 'zweite Roblox-Frage sollte abgelehnt werden');
+expect(manage.addQuestion(a, appId, { type: 'TEXT', label: 'x', min: 50, max: 10 }).error, 'min > max sollte abgelehnt werden');
+let app = appStore.typeById(a, appId);
+expect(app.questions.map((q) => q.type).join() === 'ROBLOX,TEXT,CHOICE', `Reihenfolge: ${app.questions.map((q) => q.type)}`);
+expect(new Set(app.questions.map((q) => q.key)).size === 3, 'Fragen-Schlüssel sind nicht eindeutig');
+expect(!manage.moveQuestion(a, appId, 1, 3).error && appStore.typeById(a, appId).questions[2].type === 'ROBLOX', 'Frage verschieben');
+expect(!manage.updateQuestion(a, appId, 1, { label: 'Warum willst du zu uns?', required: false }).error, 'Frage bearbeiten');
+expect(appStore.typeById(a, appId).questions[0].label === 'Warum willst du zu uns?', 'Frage wurde nicht geändert');
+expect(manage.updateQuestion(a, appId, 9, { label: 'x' }).error, 'nicht vorhandene Frage');
+expect(!manage.removeQuestion(a, appId, 2).error && appStore.typeById(a, appId).questions.length === 2, 'Frage entfernen');
+expect(!manage.updateType(a, appId, { name: 'Rettungsdienst', panel: 'quali', numberPrefix: 'rd' }).error, 'Bewerbung bearbeiten');
+app = appStore.typeById(a, appId);
+expect(app.name === 'Rettungsdienst' && app.panel === 'quali' && app.numberPrefix === 'RD', 'Bewerbung wurde nicht geändert');
+expect(manage.updateType(a, appId, { numberPrefix: 'zu-lang!' }).error, 'ungültiges Kürzel sollte abgelehnt werden');
+expect(!manage.setMessages(a, appId, { accept: 'Willkommen {applicant}!', reject: '' }).error, 'Texte speichern');
+app = appStore.typeById(a, appId);
+expect(app.messages.accept === 'Willkommen {applicant}!' && app.messages.reject === config.applications.defaults.messages.reject, 'Texte / Standardtext');
+settings.set(a, `applications.types.${appId}.enabled`, false);
+expect(appStore.typeById(a, appId).enabled === false, '/einstellungen bewerbung wirkt nicht auf eigene Bewerbungen');
+expect(!validateType(app).length, `eigene Bewerbung ungültig: ${validateType(app).join(', ')}`);
+
+const { parseOptions } = require('../src/commands/applications/manage');
+const fakeRoles = { roles: { cache: new Map([['123456789012345678', { name: 'Streife' }]]) } };
+expect(parseOptions('Täglich; Selten ;', 'CHOICE', fakeRoles).length === 2, 'Optionen trennen');
+expect(parseOptions('<@&123456789012345678>', 'ROLE', fakeRoles)[0]?.label === 'Streife', 'Rollen-Optionen');
+let threw = false;
+try {
+  parseOptions('A; a', 'CHOICE', fakeRoles);
+} catch {
+  threw = true;
+}
+expect(threw, 'doppelte Optionen sollten abgelehnt werden');
+
+// Löschen: ohne Bewerbungen ganz weg, mit alten Bewerbungen nur archiviert, mit offenen gar nicht
+const record = appStore.createRecord(a, appStore.typeById(a, appId), { userId: 'u1', answers: [] });
+expect(record.number === 'RD-0001', `Bewerbungsnummer: ${record.number}`);
+expect(manage.deleteType(a, appId).error, 'Löschen mit offener Bewerbung sollte abgelehnt werden');
+appStore.setStatus(record, 'REJECTED', 'u2');
+const deleted = manage.deleteType(a, appId);
+expect(!deleted.error && deleted.archived, 'Löschen mit alter Bewerbung sollte archivieren');
+expect(!appStore.types(a).length && appStore.typeById(a, appId)?.archived, 'archivierte Bewerbung');
+expect(!Object.keys(require('../src/lib/db').data.settings[a] ?? {}).some((p) => p.includes(appId)), 'Einstellungen der gelöschten Bewerbung bleiben übrig');
+expect(manage.createType(a, { name: 'Rettungsdienst' }).type?.id === 'rettungsdienst', 'Name nach dem Löschen wieder frei');
+expect(!manage.deleteType(a, 'rettungsdienst').archived && !appStore.typeById(a, 'rettungsdienst'), 'Löschen ohne Bewerbungen');
+console.log('✅ Bewerbungen selbst anlegen, bearbeiten, löschen');
 
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');

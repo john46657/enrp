@@ -24,7 +24,8 @@ const unix = (ms) => Math.floor(ms / 1000);
 // ---------- Panels ----------
 
 function panelTypes(guildId, kind) {
-  return store.types(guildId).filter((t) => t.panel === kind);
+  // Arten ohne Fragen sind noch nicht fertig eingerichtet und erscheinen nicht.
+  return store.types(guildId).filter((t) => t.panel === kind && t.questions.length);
 }
 
 function buildPanel(guildId, kind) {

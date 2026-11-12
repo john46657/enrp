@@ -9,7 +9,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 
 | Bereich | Befehle / Features |
 |---|---|
-| 📋 **Bewerbungen** | Polizei-Bewerbung und Einheiten (SEK, Flugstaffel, Ausbilder …) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
+| 📋 **Bewerbungen** | **Eigene Bewerbungen und Fragen in Discord anlegen** (`/bewerbung-verwalten`, keine vorgefertigten) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
@@ -48,7 +48,8 @@ ihm zugeordnet werden. Ist der Bot nur auf einem Server, passiert das automatisc
 
 ### Mehrere Server
 
-- Die `config.json` ist die **Vorlage für alle Server**: Texte, Ticket-Kategorien, Bewerbungsarten und Fragen.
+- Die `config.json` ist die **Vorlage für alle Server**: Texte, Ticket-Kategorien und Standardwerte für Bewerbungen.
+- **Bewerbungen und ihre Fragen** legt jeder Server selbst mit `/bewerbung-verwalten` an. Es gibt keine vorgefertigten.
 - Kanäle und Rollen sind auf jedem Server andere. Lass sie in der `config.json` leer und stelle sie auf jedem
   Server mit `/einstellungen` ein. Diese Änderungen gelten nur für den Server, auf dem du sie machst.
 - Slash-Commands erscheinen auf jedem Server sofort, auch wenn du den Bot später auf einen neuen Server einlädst.
@@ -66,7 +67,7 @@ du bei mehreren Servern besser je Server mit `/einstellungen` ein:
 | `roles.autoRole` | Bekommt jedes neue Mitglied |
 | `roles.support` | Standard-Team für Tickets |
 | `roles.staff` | Darf alle Bewerbungen entscheiden, Tickets freigeben usw. |
-| `applications` | Bewerbungsarten, Fragen, Texte, Rollen und Kanäle – siehe [docs/applications.md](docs/applications.md) |
+| `applications` | Panels, Standard-Kanäle und Standardwerte für Bewerbungen (`defaults`). Die Bewerbungen selbst legst du in Discord an – siehe [docs/applications.md](docs/applications.md) |
 | `fivem.address` | z. B. `123.45.67.89:30120` (leer = kein Gameserver) |
 | `fivem.connectUrl` | z. B. `https://cfx.re/join/abc123` für den „Verbinden“-Button |
 | `leveling.roleRewards` | z. B. `{ "10": "ROLLEN_ID" }` gibt ab Level 10 eine Rolle |
@@ -114,7 +115,8 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `fivem` | Server-Adresse und Verbinden-Link |
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
-Neue Ticket-Kategorien, Bewerbungsarten und Bewerbungsfragen legst du weiterhin in der `config.json` an.
+Neue Ticket-Kategorien legst du weiterhin in der `config.json` an. Bewerbungen und ihre Fragen erstellst du mit
+`/bewerbung-verwalten` (siehe [docs/applications.md](docs/applications.md#6-bewerbungen-selbst-erstellen-bewerbung-verwalten)).
 
 ## 3. Starten
 
@@ -131,7 +133,7 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 21 Slash-Commands auf „…“ registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 22 Slash-Commands auf „…“ registriert` stehen.
 
 Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.
@@ -142,7 +144,8 @@ Auf **jedem** Server, auf dem der Bot läuft:
 
 1. Mit `/einstellungen kanal` und `/einstellungen rolle` Kanäle und Rollen festlegen.
 2. `/ticket panel` im Support-Kanal ausführen.
-3. `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
+3. Bewerbungen mit `/bewerbung-verwalten erstellen` anlegen, Fragen mit `/bewerbung-verwalten frage-hinzufuegen` hinzufügen,
+   dann `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
 4. Optional `/rollenpanel` für selbst wählbare Rollen.
 
 ## Projektstruktur

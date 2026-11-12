@@ -37,14 +37,17 @@ function checkAnswer(question, value) {
 }
 
 // Prüft die Konfiguration einer Bewerbungsart; gibt eine Liste von Problemen zurück.
-function validateType(type) {
+// allowEmpty: noch keine Fragen ist erlaubt (gerade erst angelegt).
+function validateType(type, { allowEmpty = false } = {}) {
   const problems = [];
   if (!/^[a-z0-9_-]{2,24}$/.test(type.id)) problems.push(`Schlüssel „${type.id}“ muss 2–24 Zeichen a-z, 0-9, _ oder - haben`);
   if (!['apply', 'quali'].includes(type.panel)) problems.push(`${type.id}: panel muss "apply" oder "quali" sein`);
   if (!['police', 'simple'].includes(type.workflow)) problems.push(`${type.id}: workflow muss "police" oder "simple" sein`);
   if (!['NONE', 'DENY', 'WITHDRAW'].includes(type.onLeave)) problems.push(`${type.id}: onLeave muss NONE, DENY oder WITHDRAW sein`);
   if (type.timeLimitMinutes < 5 || type.timeLimitMinutes > 10_080) problems.push(`${type.id}: timeLimitMinutes muss zwischen 5 und 10080 liegen`);
-  if (!type.questions.length) problems.push(`${type.id}: keine Fragen`);
+  if (!type.name?.trim()) problems.push(`${type.id}: name fehlt`);
+  if (!/^[A-Z0-9]{1,6}$/.test(type.numberPrefix ?? '')) problems.push(`${type.id}: numberPrefix muss 1–6 Zeichen A-Z oder 0-9 haben`);
+  if (!type.questions.length && !allowEmpty) problems.push(`${type.id}: keine Fragen`);
   if (type.questions.length > 50) problems.push(`${type.id}: höchstens 50 Fragen`);
   const keys = new Set();
   for (const q of type.questions) {

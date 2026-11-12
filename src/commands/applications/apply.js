@@ -13,13 +13,16 @@ module.exports = {
     .addStringOption((o) =>
       o
         .setName('art')
-        .setDescription('Wofür? (Standard: Polizei-Bewerbung)')
-        .addChoices(...store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+        .setDescription('Wofür? (Standard: die erste Bewerbung im Bewerbungs-Panel)')
+        .setAutocomplete(true),
     ),
 
+  autocomplete: (interaction) => store.typeChoices(interaction.guildId, interaction.options.getFocused()),
+
   async execute(interaction) {
-    const types = store.types(interaction.guildId);
+    const types = store.types(interaction.guildId).filter((t) => t.questions.length);
     const typeId = interaction.options.getString('art') ?? (types.find((t) => t.panel === 'apply') ?? types[0])?.id;
+    if (!typeId) return replyPrivate(interaction, 'Auf diesem Server gibt es noch keine Bewerbungen. Das Team kann sie mit `/bewerbung-verwalten erstellen` anlegen.');
     return flow.offer(interaction, typeId);
   },
 

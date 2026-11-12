@@ -77,6 +77,7 @@ async function start(interaction, guildId, typeId) {
     userId: interaction.user.id,
     guildId,
     typeId,
+    type: structuredClone(type), // Fragen beim Start festhalten – spätere Änderungen gelten erst für neue Bewerbungen
     dmChannelId: interaction.channelId,
     step: 0,
     answers: [],
@@ -148,7 +149,7 @@ function questionPayload(type, session) {
 }
 
 async function ask(client, session) {
-  const type = store.typeById(session.guildId, session.typeId);
+  const type = session.type;
   const user = await client.users.fetch(session.userId);
   session.questionSentAt = Date.now();
   store.setProgress(session.guildId, session.userId, session.typeId, {
@@ -161,7 +162,7 @@ async function ask(client, session) {
 }
 
 async function saveAnswer(client, session, answer) {
-  const type = store.typeById(session.guildId, session.typeId);
+  const type = session.type;
   const q = type.questions[session.step];
   const ms = Date.now() - session.questionSentAt;
   session.answers.push({
@@ -201,7 +202,7 @@ async function handleDirectMessage(message) {
   if (expired(session)) return expire(message.client, session);
   if (session.busy) return message.reply('Einen Moment bitte …');
 
-  const type = store.typeById(session.guildId, session.typeId);
+  const type = session.type;
   const q = type.questions[session.step];
   if (q.type === 'CHOICE' || q.type === 'ROLE') return message.reply('Bitte nutze das Auswahlmenü oben. 👆');
   if (session.pendingRoblox) return message.reply('Bitte bestätige zuerst das Roblox-Konto oben mit **Ja** oder **Nein**.');
@@ -257,7 +258,7 @@ async function activeSession(interaction, step) {
 async function handleSelect(interaction, step) {
   const session = await activeSession(interaction, step);
   if (!session) return;
-  const q = store.typeById(session.guildId, session.typeId).questions[session.step];
+  const q = session.type.questions[session.step];
   const error = checkAnswer(q, interaction.values);
   if (error) return replyPrivate(interaction, `❌ ${error}`);
 
@@ -299,6 +300,7 @@ function teamChannelId(guildId, type) {
 async function submit(client, session) {
   end(session);
   const type = store.typeById(session.guildId, session.typeId);
+  const asked = session.type.questions;
   const guild = client.guilds.cache.get(session.guildId);
   const user = await client.users.fetch(session.userId);
   const fail = (text) => user.send({ embeds: [embed('danger').setTitle('Bewerbung nicht eingereicht').setDescription(text)] }).catch(() => {});
@@ -307,7 +309,8 @@ async function submit(client, session) {
   if (!member) return fail('Du bist nicht mehr auf dem Server.');
 
   // Serverseitige Prüfungen – gleich wie vor dem Start, plus Antworten und Roblox-Sperre
-  const answerError = type.questions
+  if (!type) return fail('Diese Bewerbung gibt es nicht mehr.');
+  const answerError = asked
     .map((q, i) => {
       const problem = checkAnswer(q, session.answers[i]?.raw ?? null);
       return problem && `Frage ${i + 1}: ${problem}`;
