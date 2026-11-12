@@ -28,8 +28,8 @@ Beim Anlegen wählst du den **Ablauf**:
 Die Bewerbungsnummer beginnt mit dem **Kürzel** (`numberPrefix`, z. B. `POL-0001`). Lässt du es weg, wird es aus dem
 Namen gebildet (Flugstaffel → `FLUG`). Gezählt wird je Kürzel und Server.
 
-Mit `panel` bestimmst du, wo eine Bewerbung erscheint: im **Bewerbungs-Panel** (`apply`, Standard) oder im
-**Qualifikations-Panel** (`quali`, z. B. für Einheiten).
+Wo eine Bewerbung erscheint, legst du über **Panels** fest (siehe [6.1](#61-panels)). Eine Bewerbung kann in mehreren
+Panels sein.
 
 Erlaubte Statuswechsel im mehrstufigen Ablauf (`POLICE_TRANSITIONS` in `src/lib/applications/store.js`):
 
@@ -144,20 +144,32 @@ Aufbau (`buildTeamMessage()` in `src/lib/applications/messages.js`):
 - **Ping:** die Ping-Rollen (`roles.ping`) werden markiert. Mit `teamThreads: true` wird zusätzlich ein Thread
   geöffnet.
 
-Kanal für neue Bewerbungen: `channels.open` der Art. Ist er leer, gilt bei Arten im Bewerbungs-Panel
-`applications.channel`, sonst `applications.qualiChannel`.
+Kanal für neue Bewerbungen: `channels.open` der Art. Ist er leer, gilt der Standard-Kanal `applications.channel`
+(`/einstellungen bewerbungs-kanaele`). Alte Einheiten-Bewerbungen aus dem früheren Qualifikations-Panel nutzen
+`applications.qualiChannel`.
 
 ---
 
 ## 6. Bewerbungen selbst erstellen (`/bewerbung-verwalten`)
 
-Alles in Discord, ohne Neustart und nur für den jeweiligen Server. Dafür braucht man „Server verwalten“.
+Ohne Neustart und nur für den jeweiligen Server. Dafür braucht man „Server verwalten“. Es gibt drei Wege, die alle
+dasselbe speichern:
+
+1. **Übersicht in Discord** – `/bewerbung-verwalten uebersicht` öffnet ein Menü mit Buttons (nur für dich sichtbar):
+   - **📋 Bewerbungen: N** – Liste, 🔍 Suchen, ➕ Neue Bewerbung. Eine Bewerbung öffnen → Bearbeiten, Texte,
+     Öffnen/Schließen, Ablauf, Löschen, Fragen hinzufügen (Typ wählen → Formular), Fragen bearbeiten, verschieben,
+     entfernen.
+   - **🗂️ Panels: N** – ➕ Neues Panel, Bewerbungen im Panel auswählen, in einen Kanal posten, bearbeiten, löschen.
+     Ohne Bewerbung zeigt es „Keine Bewerbungen gefunden“ mit einem Button zum Erstellen.
+2. **Web-Dashboard** im Browser (siehe [6.5](#65-web-dashboard)) – dieselben Seiten mit Fragen-Editor.
+3. **Einzelbefehle** (praktisch für schnelle Änderungen):
+
 Bei `art` schlägt Discord beim Tippen die Bewerbungen des Servers vor.
 
 | Unterbefehl | Wirkung |
 |---|---|
-| `liste` | alle Bewerbungen mit Status, Anzahl Fragen, Panel, Ablauf und Nummer |
-| `erstellen name [emoji] [beschreibung] [panel] [ablauf] [kuerzel]` | neue Bewerbung anlegen |
+| `uebersicht` | die Übersicht mit Buttons (siehe oben) |
+| `erstellen name [emoji] [beschreibung] [ablauf] [kuerzel]` | neue Bewerbung anlegen (kommt automatisch ins erste Panel) |
 | `bearbeiten art …` | dieselben Felder ändern (nur angegebene; `beschreibung:-` leert) |
 | `loeschen art bestaetigen` | löschen. Gibt es noch offene Bewerbungen oder füllt sie gerade jemand aus, geht das nicht. Alte Bewerbungen bleiben mit `/bewerbungen` lesbar |
 | `texte art` | Formular für die vier DM-Texte (Start, Einreichen, Annahme, Ablehnung). Leer = Standardtext |
@@ -184,7 +196,7 @@ Beispiel:
 /bewerbung-verwalten frage-hinzufuegen art:Polizei-Bewerbung typ:Freitext frage:Warum möchtest du zu uns? min_zeichen:50
 /bewerbung-verwalten frage-hinzufuegen art:Polizei-Bewerbung typ:Auswahl frage:Wie aktiv bist du? optionen:Täglich; Mehrmals pro Woche; Selten
 /einstellungen bewerbung art:Polizei-Bewerbung manager_rolle:@Ausbilder annahme_rolle:@Polizeianwärter
-/bewerbungspanel
+/bewerbung-verwalten uebersicht   → 🗂️ Panels → ➕ Neues Panel → in #bewerbungen posten
 ```
 
 - Eine Bewerbung **ohne Fragen** erscheint in keinem Panel und lässt sich nicht starten.
@@ -200,16 +212,21 @@ Rollen, Kanäle, Wartezeit, Zeitlimit usw. stellst du danach mit `/einstellungen
 > Bewerbungen dieses Servers übernommen und lassen sich danach wie jede andere bearbeiten oder löschen.
 
 ### 6.1 Panels
-- **Bewerbungs-Panel** (`applications.panels.apply`: Titel, Beschreibung, Bild): Bei einer Art erscheint der Button
-  *Jetzt bewerben*, bei mehreren ein Auswahlmenü. Posten mit `/bewerbungspanel`.
-- **Qualifikations-Panel** (`applications.panels.quali`): Beschreibung jeder Einheit plus Auswahlmenü. Posten mit
-  `/qualipanel`.
-- Gepostete Panels aktualisieren sich beim Bot-Start, nach `/einstellungen bewerbung` und nach `/bewerbung-verwalten`
-  automatisch.
+Ein Panel ist die Nachricht in Discord, über die man sich bewirbt. Du legst beliebig viele an, jedes mit **Name**,
+**Überschrift**, **Text**, optional **Bild** und den **Bewerbungen**, die darin auswählbar sind.
+
+- Für ein Panel brauchst du mindestens eine Bewerbung.
+- Mit einer Bewerbung zeigt das Panel den Button *Jetzt bewerben*, mit mehreren eine Liste und ein Auswahlmenü.
+- Bewerbungen ohne Fragen erscheinen nicht.
+- Posten: in der Übersicht oder im Web-Dashboard einen Kanal wählen, oder `/bewerbungspanel [panel]` im Kanal.
+- Gepostete Panels aktualisieren sich automatisch bei jeder Änderung und beim Bot-Start. Wird ein Panel gelöscht,
+  verschwinden auch seine Nachrichten.
+- Früher gab es zwei feste Panels (Bewerbungs- und Qualifikations-Panel). Sie werden beim Update automatisch zu
+  Panels mit denselben Texten; schon gepostete Nachrichten funktionieren weiter.
 
 ### 6.2 Aufbau einer Bewerbung
 So speichert der Bot eine Bewerbung (in `data/db.json` unter `appTypes`): `id` (wird aus dem Namen gebildet, `a-z0-9_-`,
-2–24 Zeichen), `name`, `emoji`, `description`, `panel`, `workflow`, `numberPrefix`, `questions` (max. 50) und alle
+2–24 Zeichen), `name`, `emoji`, `description`, `workflow`, `numberPrefix`, `questions` (max. 50) und alle
 Einstellungen aus 6.4. Wer möchte, kann Bewerbungen auch für alle Server fest in `config.json` unter
 `applications.types` eintragen – im Auslieferungszustand ist die Liste leer.
 
@@ -259,6 +276,30 @@ Optional ist bei jeder Frage `description` (Zusatztext unter der Frage, in Disco
 
 `npm run check` und der Bot-Start prüfen die Bewerbungsarten und melden Fehler wie doppelte Schlüssel, fehlende
 Optionen oder ungültige Werte.
+
+### 6.5 Web-Dashboard
+
+Bewerbungen und Panels im Browser verwalten – mit Suche, Karten, Fragen-Editor (Reihenfolge, Typen, Antworten,
+Rollen zum Anklicken), Texten und Panel-Editor inkl. „In Discord posten“. Login mit Discord; man sieht nur Server, auf
+denen man „Server verwalten“ hat (wird bei jeder Aktion live über den Bot geprüft).
+
+Einrichten (einmalig):
+
+1. Developer Portal → deine Anwendung → **OAuth2**: **Client Secret** kopieren (Reset Secret).
+2. Unter **OAuth2 → Redirects** die Adresse des Dashboards + `/callback` eintragen,
+   z. B. `http://123.45.67.89:8080/callback`.
+3. In die `.env`:
+   ```env
+   DISCORD_CLIENT_SECRET=dein-client-secret
+   DASHBOARD_URL=http://123.45.67.89:8080
+   DASHBOARD_PORT=8080
+   ```
+   Auf Bot-Hostern (Pterodactyl) ist der Port der freigegebene Port deines Servers (unter *Netzwerk*), die IP steht dort
+   ebenfalls. Ist `DASHBOARD_PORT` leer, wird `SERVER_PORT` verwendet.
+4. Bot neu starten. In der Konsole steht `🌐 Web-Dashboard läuft auf …`. Ohne diese Werte bleibt das Dashboard aus.
+
+> Für den Zugriff von außen am besten HTTPS verwenden (z. B. über einen Reverse-Proxy oder Cloudflare Tunnel) und
+> `DASHBOARD_URL` dann mit `https://` angeben. Anmeldungen gelten 12 Stunden und enden bei einem Neustart des Bots.
 
 ---
 
@@ -312,7 +353,7 @@ hohem Verdacht. **Nur ein Hinweis, kein Beweis.** Frag im Zweifel im Gespräch n
 | alle | sich bewerben (`/bewerbung`, Panels), eigene Bewerbung zurückziehen |
 | **Manager-Rollen** einer Art | diese Art entscheiden, Statusschritte, Verlauf, Ticket öffnen; `/bewerbungen` (außer löschen), `/bewerbungssperre` |
 | **Staff** (`roles.staff` oder „Server verwalten“) | alles oben für alle Arten, dazu `/bewerbungen loeschen` |
-| „Server verwalten“ | `/bewerbungspanel`, `/qualipanel`, `/einstellungen` |
+| „Server verwalten“ | `/bewerbung-verwalten`, `/bewerbungspanel`, `/einstellungen`, Web-Dashboard |
 
 ---
 
@@ -320,10 +361,9 @@ hohem Verdacht. **Nur ein Hinweis, kein Beweis.** Frag im Zweifel im Gespräch n
 
 | Befehl | Wer | Wirkung |
 |---|---|---|
-| `/bewerbung [art]` | alle | Bewerbung starten (Standard: die erste im Bewerbungs-Panel) |
+| `/bewerbung [art]` | alle | Bewerbung starten (Standard: die erste im ersten Panel) |
 | `/bewerbung-verwalten …` | „Server verwalten“ | Bewerbungen und Fragen anlegen, ändern, löschen (siehe 6.) |
-| `/bewerbungspanel` | „Server verwalten“ | Bewerbungs-Panel in den Kanal posten |
-| `/qualipanel` | „Server verwalten“ | Qualifikations-Panel in den Kanal posten |
+| `/bewerbungspanel [panel]` | „Server verwalten“ | ein Panel in den Kanal posten (Standard: das erste) |
 | `/bewerbungen offen [art]` | Team | offene Bewerbungen mit Links |
 | `/bewerbungen in-bearbeitung` | Team | gerade laufende DM-Bewerbungen |
 | `/bewerbungen anzeigen <nummer>` | Team | Bewerbung mit allen Antworten (auch als `.txt`) |
@@ -348,6 +388,7 @@ Gespeichert wird in `data/db.json` (keine externe Datenbank):
 | `appBans[guildId][id]` | Sperren: Discord-ID, Roblox-ID/-Name, Bereiche, Grund, Ablauf, aufgehoben |
 | `appProgress[guildId]` | angefangene Bewerbungen („in Bearbeitung“) |
 | `appPanels[guildId]` | gepostete Panels (zum automatischen Aktualisieren) |
+| `appPanelDefs[guildId]` | Panels: Name, Überschrift, Text, Bild, enthaltene Bewerbungen |
 | `appTypes[guildId]` | selbst erstellte Bewerbungen mit ihren Fragen und Texten (gelöschte mit alten Bewerbungen: `archived`) |
 | `settings` | per `/einstellungen` geänderte Werte |
 
@@ -365,7 +406,10 @@ Gespeichert wird in `data/db.json` (keine externe Datenbank):
 | `src/lib/applications/normalize.js` | Standardwerte (`defaults`) auf alle Arten anwenden |
 | `src/lib/applications/manage.js` | Bewerbungen und Fragen anlegen, ändern, löschen |
 | `src/lib/applications/legacyTypes.json` | die früher eingebauten Bewerbungen – nur für das Update älterer Server |
-| `src/commands/applications/` | `/bewerbung`, `/bewerbung-verwalten`, `/bewerbungspanel`, `/qualipanel`, `/bewerbungen`, `/bewerbungssperre` |
+| `src/commands/applications/` | `/bewerbung`, `/bewerbung-verwalten`, `/bewerbungspanel`, `/bewerbungen`, `/bewerbungssperre` |
+| `src/lib/applications/panels.js` | Panels anlegen, ändern, löschen; Übernahme der alten festen Panels |
+| `src/lib/applications/dashboard.js` | Übersicht mit Buttons in Discord (`dash:`) |
+| `src/web/` | Web-Dashboard (Server, Login mit Discord, Seiten) |
 
 ---
 
@@ -378,7 +422,7 @@ oder sind durch Discord-Funktionen ersetzt:
 |---|---|
 | Browser-Formular mit signiertem Link (`mode: 'WEB'`) | nicht enthalten – nur Fragen per DM |
 | öffentliche Seite `/apply` ohne Discord | nicht enthalten |
-| Dashboard (Liste, Einrichtung, Statistik, Sperren) | `/bewerbungen`, `/bewerbung-verwalten`, `/einstellungen`, `/bewerbungssperre` |
+| Dashboard (Liste, Einrichtung, Statistik, Sperren) | Web-Dashboard für Bewerbungen und Panels; Statistik und Sperren über `/bewerbungen` und `/bewerbungssperre` |
 | Rechte-System mit Konten (`applications.decide` …) | Staff + Manager-Rollen je Bewerbung |
 | Benachrichtigungen und Audit-Log im Dashboard | Team-Kanal, Team-Thread, Mod-Log |
 | Team-Chance (Bewerbungsphasen) | nicht enthalten – `enabled` per `/einstellungen bewerbung` umschalten |
@@ -390,14 +434,12 @@ oder sind durch Discord-Funktionen ersetzt:
 
 ## 14. Schnellstart
 
-1. In `config.json` oder per `/einstellungen bewerbungs-kanaele` den **Bewerbungs-Kanal** und den
-   **Qualifikations-Kanal** setzen.
-2. Bewerbung anlegen und Fragen hinzufügen: `/bewerbung-verwalten erstellen name:…`, dann
-   `/bewerbung-verwalten frage-hinzufuegen` für jede Frage (Beispiel in [6.](#6-bewerbungen-selbst-erstellen-bewerbung-verwalten)).
-   Texte der DMs optional mit `/bewerbung-verwalten texte`.
+1. Per `/einstellungen bewerbungs-kanaele` den **Team-Kanal** für neue Bewerbungen setzen.
+2. `/bewerbung-verwalten uebersicht` (oder das Web-Dashboard) → **➕ Neue Bewerbung**, danach Fragen hinzufügen.
+   Texte der DMs optional über **💬 Texte**.
 3. Je Bewerbung mindestens die **Manager-Rolle** und die **Annahme-Rolle** setzen:
    `/einstellungen bewerbung art:… manager_rolle:@Ausbilder annahme_rolle:@Polizeianwärter`.
-4. Im Panel-Kanal `/bewerbungspanel` bzw. `/qualipanel` ausführen.
+4. **🗂️ Panels** → **➕ Neues Panel** → Bewerbungen auswählen → in einen Kanal posten.
 5. Eine Testbewerbung mit einem zweiten Konto durchspielen:
    - DM-Fragen beantworten
    - Bewerbung erscheint im Team-Kanal

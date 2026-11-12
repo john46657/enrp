@@ -11,10 +11,11 @@ const {
   StringSelectMenuBuilder,
   TextDisplayBuilder,
 } = require('discord.js');
-const { base, forGuild } = require('../settings');
+const { base } = require('../settings');
 const { embed, truncate } = require('../util');
 const { bucket, save } = require('../db');
 const store = require('./store');
+const panels = require('./panels');
 const { AI_ICONS } = require('./aiCheck');
 const { profileUrl } = require('./roblox');
 
@@ -23,23 +24,21 @@ const unix = (ms) => Math.floor(ms / 1000);
 
 // ---------- Panels ----------
 
-function panelTypes(guildId, kind) {
-  // Arten ohne Fragen sind noch nicht fertig eingerichtet und erscheinen nicht.
-  return store.types(guildId).filter((t) => t.panel === kind && t.questions.length);
-}
+function buildPanel(guildId, panelId) {
+  const panel = panels.getPanel(guildId, panelId);
+  const container = new ContainerBuilder().setAccentColor(parseInt(base.colors.primary.slice(1), 16));
+  if (!panel) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('*Dieses Panel gibt es nicht mehr.*'));
+    return { components: [container], flags: MessageFlags.IsComponentsV2 };
+  }
+  const list = panels.activeTypes(guildId, panel);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title || panel.name}${panel.description ? `\n${panel.description}` : ''}`));
 
-function buildPanel(guildId, kind) {
-  const panel = forGuild(guildId).applications.panels[kind];
-  const list = panelTypes(guildId, kind);
-  const container = new ContainerBuilder()
-    .setAccentColor(parseInt(base.colors.primary.slice(1), 16))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`));
-
-  if (list.length > 1 || kind === 'quali') {
+  if (list.length !== 1) {
     container.addSeparatorComponents(new SeparatorBuilder()).addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         list.length
-          ? list.map((t) => `- [${t.emoji}] **${t.name}**${t.enabled ? '' : ' *(geschlossen)*'}\n${t.description || ''}`).join('\n\n')
+          ? list.map((t) => `- [${t.emoji}] **${t.name}**${t.enabled ? '' : ' *(geschlossen)*'}${t.description ? `\n${t.description}` : ''}`).join('\n\n')
           : '*Derzeit gibt es hier keine Bewerbungen.*',
       ),
     );
@@ -60,31 +59,42 @@ function buildPanel(guildId, kind) {
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('quali:pick')
-          .setPlaceholder(kind === 'apply' ? 'Wofür möchtest du dich bewerben?' : 'Wähle eine Einheit oder Qualifikation …')
-          .addOptions(list.slice(0, 25).map((t) => ({ label: t.name, value: t.id, emoji: t.emoji, description: truncate(t.description || t.name, 100) }))),
+          .setPlaceholder('Wofür möchtest du dich bewerben?')
+          .addOptions(list.slice(0, 25).map((t) => ({ label: truncate(t.name, 100), value: t.id, emoji: t.emoji, description: truncate(t.description || t.name, 100) }))),
       ),
     );
   }
   return { components, flags: MessageFlags.IsComponentsV2 };
 }
 
-async function postPanel(channel, kind) {
-  const message = await channel.send(buildPanel(channel.guild.id, kind));
-  bucket('appPanels', channel.guild.id)[message.id] = { channelId: channel.id, kind };
+async function postPanel(channel, panelId) {
+  const message = await channel.send(buildPanel(channel.guild.id, panelId));
+  bucket('appPanels', channel.guild.id)[message.id] = { channelId: channel.id, kind: panelId };
   save();
+  return message;
 }
 
 async function refreshPanels(guild) {
-  const panels = bucket('appPanels', guild.id);
-  for (const [messageId, { channelId, kind }] of Object.entries(panels)) {
+  const posted = bucket('appPanels', guild.id);
+  for (const [messageId, { channelId, kind }] of Object.entries(posted)) {
     const message = await guild.channels.cache.get(channelId)?.messages.fetch(messageId).catch(() => null);
     if (!message) {
-      delete panels[messageId];
+      delete posted[messageId];
       save();
       continue;
     }
     await message.edit(buildPanel(guild.id, kind)).catch((err) => console.error('[appPanel]', err.message));
   }
+}
+
+// Panel löschen und seine geposteten Nachrichten aus Discord entfernen.
+async function deletePanel(guild, panelId) {
+  const result = panels.deletePanel(guild.id, panelId);
+  if (result.error) return result;
+  for (const { channelId, messageId } of result.posts) {
+    await guild.channels.cache.get(channelId)?.messages.delete(messageId).catch(() => {});
+  }
+  return result;
 }
 
 // ---------- Team-Nachricht ----------
@@ -219,4 +229,4 @@ function buildTeamMessage(record, type, { withFile = false, components = true } 
   return message;
 }
 
-module.exports = { buildPanel, postPanel, refreshPanels, buildTeamMessage, answersFile, formatDuration };
+module.exports = { buildPanel, postPanel, refreshPanels, deletePanel, buildTeamMessage, answersFile, formatDuration };

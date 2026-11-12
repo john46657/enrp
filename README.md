@@ -9,7 +9,7 @@ jeder Server hat seine eigenen Kanäle, Rollen, Tickets, Bewerbungen, Verwarnung
 
 | Bereich | Befehle / Features |
 |---|---|
-| 📋 **Bewerbungen** | **Eigene Bewerbungen und Fragen in Discord anlegen** (`/bewerbung-verwalten`, keine vorgefertigten) · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
+| 📋 **Bewerbungen** | **Eigene Bewerbungen, Fragen und Panels anlegen** – in Discord (`/bewerbung-verwalten uebersicht`) oder im **Web-Dashboard**, keine vorgefertigten · Fragen per DM inkl. Roblox-Konto · Annehmen/Ablehnen mit Grund, Statusschritte, Rollen automatisch · Sperren · KI-Checker · Statistik – **ausführlich in [docs/applications.md](docs/applications.md)** |
 | 🎭 **Roleplay** | `/serverstatus`: FiveM-Status und Spielerliste · `/ankuendigung`: Ankündigungen als Embed · Bot-Status zeigt Spieleranzahl |
 | 🛡️ **Moderation** | `/kick` `/ban` `/unban` `/timeout` `/warn` `/verwarnungen anzeigen\|loeschen` `/clear` · Rollen-Hierarchie wird geprüft · DM an Betroffene · Mod-Log |
 | 🎫 **Tickets** | Panel mit Kategorien, **Live-Auslastung** und Banner · Öffnungszeiten · Limit pro Nutzer · Kanalnamen mit Platzhaltern · Übernehmen/Freigeben · Schließen mit Rückfrage und optionalem Grund · Claim-Kategorie · Auto-Team-Alert & Auto-Unclaim · Personen-Anfragen durch Ersteller · Aktivitäts-Log & Transkripte |
@@ -116,7 +116,21 @@ sofort und **nur für diesen Server**, werden in `data/db.json` gespeichert und 
 | `zuruecksetzen` | Alle Discord-Änderungen dieses Servers verwerfen, wieder die `config.json` verwenden |
 
 Neue Ticket-Kategorien legst du weiterhin in der `config.json` an. Bewerbungen und ihre Fragen erstellst du mit
-`/bewerbung-verwalten` (siehe [docs/applications.md](docs/applications.md#6-bewerbungen-selbst-erstellen-bewerbung-verwalten)).
+`/bewerbung-verwalten` oder im Web-Dashboard (siehe [docs/applications.md](docs/applications.md#6-bewerbungen-selbst-erstellen-bewerbung-verwalten)).
+
+### Web-Dashboard (optional)
+
+Bewerbungen und Panels kannst du auch im Browser verwalten (Login mit Discord). Dafür in die `.env`:
+
+```env
+DISCORD_CLIENT_SECRET=dein-client-secret
+DASHBOARD_URL=http://deine-ip:8080
+DASHBOARD_PORT=8080
+```
+
+Das Client Secret findest du im Developer Portal unter **OAuth2**. Dort unter **Redirects** außerdem
+`DASHBOARD_URL` + `/callback` eintragen (z. B. `http://deine-ip:8080/callback`). Auf Bot-Hostern nimmst du IP und Port
+deines Servers (unter *Netzwerk*). Details: [docs/applications.md](docs/applications.md#65-web-dashboard).
 
 ## 3. Starten
 
@@ -133,7 +147,7 @@ npm start
 2. Alle Dateien hochladen **außer** `node_modules` (wird vom Panel installiert).
 3. Die `.env`-Datei mit dem Token hochladen bzw. im Dateimanager anlegen.
 4. Als Startdatei (`Main file` / `JS file`) `index.js` eintragen, dann starten.
-5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 22 Slash-Commands auf „…“ registriert` stehen.
+5. In der Konsole sollte `✅ Eingeloggt als …` und für jeden Server `✅ 21 Slash-Commands auf „…“ registriert` stehen.
 
 Die Daten (Verwarnungen, Level, Tickets) liegen in `data/db.json`. Diesen Ordner beim Aktualisieren
 nicht löschen.
@@ -144,8 +158,8 @@ Auf **jedem** Server, auf dem der Bot läuft:
 
 1. Mit `/einstellungen kanal` und `/einstellungen rolle` Kanäle und Rollen festlegen.
 2. `/ticket panel` im Support-Kanal ausführen.
-3. Bewerbungen mit `/bewerbung-verwalten erstellen` anlegen, Fragen mit `/bewerbung-verwalten frage-hinzufuegen` hinzufügen,
-   dann `/bewerbungspanel` und `/qualipanel` in den Bewerbungs-Kanälen ausführen (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
+3. `/bewerbung-verwalten uebersicht` (oder das Web-Dashboard): Bewerbungen und Fragen anlegen, dann unter **Panels** ein
+   Panel erstellen und in einen Kanal posten (Einrichtung: [docs/applications.md](docs/applications.md#14-schnellstart)).
 4. Optional `/rollenpanel` für selbst wählbare Rollen.
 
 ## Projektstruktur
@@ -155,6 +169,7 @@ index.js              Start, lädt Befehle und Events
 config.json           Einstellungen (keine Geheimnisse)
 src/commands/…        Slash-Befehle, nach Bereich sortiert
 src/events/…          Discord-Events (Start, Interaktionen, Join/Leave, Nachrichten)
+src/web/…             Web-Dashboard (startet nur mit DISCORD_CLIENT_SECRET + DASHBOARD_URL)
 src/lib/…             Gemeinsame Logik (Datenbank, Einstellungen je Server, Tickets, Öffnungszeiten, Level, FiveM)
 scripts/check.js      Offline-Prüfung: npm run check
 ```

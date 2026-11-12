@@ -12,9 +12,11 @@ const store = require('../../lib/applications/store');
 const manage = require('../../lib/applications/manage');
 const { QUESTION_TYPES } = require('../../lib/applications/forms');
 const { refreshPanels } = require('../../lib/applications/messages');
+const dashboard = require('../../lib/applications/dashboard');
+
+const { describeQuestion, typeLine } = dashboard;
 
 const WORKFLOWS = { simple: 'Einfach (offen → angenommen/abgelehnt)', police: 'Mehrstufig (Prüfung → Gespräch → Entscheidung)' };
-const PANELS = { apply: 'Bewerbungs-Panel', quali: 'Qualifikations-Panel' };
 const MESSAGES = {
   start: 'Startnachricht (DM)',
   finish: 'Nach dem Einreichen',
@@ -32,12 +34,6 @@ function typeOptions(s, { nameRequired }) {
     .addStringOption((o) => o.setName('name').setDescription('z. B. Polizei-Bewerbung, SEK, Sanitäter').setMaxLength(80).setRequired(nameRequired))
     .addStringOption((o) => o.setName('emoji').setDescription('z. B. 👮').setMaxLength(64))
     .addStringOption((o) => o.setName('beschreibung').setDescription('Text im Panel (- = leeren)').setMaxLength(500))
-    .addStringOption((o) =>
-      o
-        .setName('panel')
-        .setDescription('Wo erscheint sie? (Standard: Bewerbungs-Panel)')
-        .addChoices(...Object.entries(PANELS).map(([value, name]) => ({ name, value }))),
-    )
     .addStringOption((o) =>
       o
         .setName('ablauf')
@@ -77,10 +73,10 @@ const builder = new SlashCommandBuilder()
   .setName('bewerbung-verwalten')
   .setDescription('Eigene Bewerbungen und Fragen anlegen, ändern und löschen.')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addSubcommand((s) => s.setName('liste').setDescription('Alle Bewerbungen dieses Servers.'))
+  .addSubcommand((s) => s.setName('uebersicht').setDescription('Übersicht mit Buttons: Bewerbungen, Fragen und Panels verwalten.'))
   .addSubcommand((s) => typeOptions(s.setName('erstellen').setDescription('Legt eine neue Bewerbung an (danach Fragen hinzufügen).'), { nameRequired: true }))
   .addSubcommand((s) =>
-    typeOptions(s.setName('bearbeiten').setDescription('Name, Emoji, Beschreibung, Panel, Ablauf oder Kürzel ändern.').addStringOption(artOption), {
+    typeOptions(s.setName('bearbeiten').setDescription('Name, Emoji, Beschreibung, Ablauf oder Kürzel ändern.').addStringOption(artOption), {
       nameRequired: false,
     }),
   )
@@ -166,39 +162,12 @@ function questionFields(interaction, current) {
 
 // ---------- Anzeigen ----------
 
-function describeQuestion(q, i) {
-  const details = [QUESTION_TYPES[q.type], q.required === false ? 'optional' : 'Pflicht'];
-  if (q.type === 'TEXT') details.push(`${q.min ? `${q.min}–` : 'bis '}${q.max ?? 5000} Zeichen`);
-  if (q.options) details.push(`${q.multiple ? 'mehrere: ' : ''}${q.options.map((x) => (x.roleId ? `<@&${x.roleId}>` : x.label)).join(', ')}`);
-  return `**${i + 1}.** ${q.label}\n-# ${details.join(' · ')}${q.description ? `\n-# ${q.description}` : ''}`;
-}
-
 function questionsEmbed(type) {
   const lines = type.questions.map(describeQuestion);
   return embed()
     .setTitle(`${type.emoji} ${type.name} – ${type.questions.length} Fragen`)
     .setDescription(
       truncate(lines.join('\n') || '*Noch keine Fragen.* Füge welche mit `/bewerbung-verwalten frage-hinzufuegen` hinzu – erst dann erscheint die Bewerbung im Panel.', 4000),
-    );
-}
-
-function typeLine(t) {
-  const state = !t.questions.length ? '⚠️ keine Fragen' : t.enabled ? '✅ offen' : '⛔ geschlossen';
-  return `${t.emoji} **${t.name}** · ${state} · ${t.questions.length} Fragen · ${PANELS[t.panel]} · ${t.workflow === 'police' ? 'mehrstufig' : 'einfach'} · \`${t.numberPrefix}-0001\``;
-}
-
-function listEmbed(guildId) {
-  const list = store.types(guildId);
-  return embed()
-    .setTitle(`📋 Bewerbungen (${list.length})`)
-    .setDescription(
-      list.length
-        ? truncate(list.map(typeLine).join('\n'), 4000)
-        : 'Hier gibt es noch keine Bewerbungen. So legst du eine an:\n' +
-            '1. `/bewerbung-verwalten erstellen name:…`\n' +
-            '2. `/bewerbung-verwalten frage-hinzufuegen` für jede Frage\n' +
-            '3. Rollen und Kanäle mit `/einstellungen bewerbung` festlegen\n' +
-            '4. `/bewerbungspanel` bzw. `/qualipanel` posten',
     );
 }
 
@@ -242,14 +211,13 @@ module.exports = {
     const guildId = interaction.guildId;
     const typeId = o.getString('art');
 
-    if (sub === 'liste') return replyPrivate(interaction, { embeds: [listEmbed(guildId)] });
+    if (sub === 'uebersicht') return dashboard.open(interaction);
 
     if (sub === 'erstellen' || sub === 'bearbeiten') {
       const fields = {
         name: o.getString('name') ?? undefined,
         emoji: o.getString('emoji')?.trim() || undefined,
         description: o.getString('beschreibung') ?? undefined,
-        panel: o.getString('panel') ?? undefined,
         workflow: o.getString('ablauf') ?? undefined,
         numberPrefix: o.getString('kuerzel') ?? undefined,
       };
@@ -259,8 +227,8 @@ module.exports = {
           interaction,
           result,
           result.type &&
-            `✅ **${result.type.name}** angelegt. Jetzt Fragen hinzufügen mit \`/bewerbung-verwalten frage-hinzufuegen art:${result.type.name}\`, ` +
-              'dann Rollen und Kanäle mit `/einstellungen bewerbung` festlegen.',
+            `✅ **${result.type.name}** angelegt${result.panel ? ` (im Panel **${result.panel.name}**)` : ''}. Jetzt Fragen hinzufügen mit ` +
+              `\`/bewerbung-verwalten frage-hinzufuegen art:${result.type.name}\`, dann Rollen und Kanäle mit \`/einstellungen bewerbung\` festlegen.`,
         );
       }
       if (Object.values(fields).every((v) => v === undefined)) return replyPrivate(interaction, 'Du hast keine Option angegeben – es wurde nichts geändert.');
@@ -320,6 +288,9 @@ module.exports = {
   },
 
   components: {
+    // Übersicht mit Buttons (siehe src/lib/applications/dashboard.js)
+    dash: (interaction, args) => dashboard.handle(interaction, args),
+
     // Formular aus „texte“
     async appadmin(interaction, [action, typeId]) {
       if (action !== 'texts' || !interaction.isModalSubmit()) return replyPrivate(interaction, 'Diese Aktion ist veraltet.');

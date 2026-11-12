@@ -108,10 +108,10 @@ function overview(guild) {
               .types(guild.id)
               .map(
                 (t) =>
-                  `${t.emoji} **${t.name}** ${onOff(t.enabled)} · Panel ${t.panel} · Kanal ${channel(t.channels.open)} · ` +
+                  `${t.emoji} **${t.name}** ${onOff(t.enabled)} · Kanal ${channel(t.channels.open)} · ` +
                   `Manager ${t.roles.managers.map(role).join(' ') || '—'} · ${t.questions.length} Fragen · Wartezeit ${t.cooldownMinutes} Min. · Verlassen: ${t.onLeave}`,
               )
-              .join('\n') || 'Noch keine – anlegen mit `/bewerbung-verwalten erstellen`.'),
+              .join('\n') || 'Noch keine – anlegen mit `/bewerbung-verwalten uebersicht`.'),
           1024,
         ),
       },
@@ -230,14 +230,11 @@ const builder = new SlashCommandBuilder()
       .addStringOption((o) =>
         o
           .setName('art')
-          .setDescription('Welche Bewerbung? (anlegen mit /bewerbung-verwalten erstellen)')
+          .setDescription('Welche Bewerbung? (anlegen mit /bewerbung-verwalten)')
           .setRequired(true)
           .setAutocomplete(true),
       )
       .addBooleanOption((o) => o.setName('aktiv').setDescription('Bewerbungen annehmen?'))
-      .addStringOption((o) =>
-        o.setName('panel').setDescription('In welchem Panel?').addChoices({ name: 'Bewerbungs-Panel', value: 'apply' }, { name: 'Qualifikations-Panel', value: 'quali' }),
-      )
       .addChannelOption((o) => o.setName('kanal_offen').setDescription('Hier landen neue Bewerbungen').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('kanal_angenommen').setDescription('Kopie angenommener Bewerbungen').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('kanal_abgelehnt').setDescription('Kopie abgelehnter Bewerbungen').addChannelTypes(ChannelType.GuildText))
@@ -260,9 +257,9 @@ const builder = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s
       .setName('bewerbungs-kanaele')
-      .setDescription('Standard-Kanäle für neue Bewerbungen (wenn eine Art keinen eigenen hat).')
-      .addChannelOption((o) => o.setName('bewerbungen').setDescription('Für das Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText))
-      .addChannelOption((o) => o.setName('qualifikationen').setDescription('Für das Qualifikations-Panel').addChannelTypes(ChannelType.GuildText)),
+      .setDescription('Standard-Kanal für neue Bewerbungen (wenn eine Bewerbung keinen eigenen hat).')
+      .addChannelOption((o) => o.setName('bewerbungen').setDescription('Standard-Kanal für alle Bewerbungen').addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('qualifikationen').setDescription('Für alte Einheiten-Bewerbungen (früheres Qualifikations-Panel)').addChannelTypes(ChannelType.GuildText)),
   )
   .addSubcommand((s) =>
     s
@@ -367,7 +364,7 @@ function changesFor(interaction, sub) {
     case 'bewerbung': {
       const typeId = o.getString('art');
       if (!appStore.types(interaction.guildId).some((t) => t.id === typeId)) {
-        throw new Error('Diese Bewerbung gibt es nicht. Wähle sie aus der Liste oder lege sie mit `/bewerbung-verwalten erstellen` an.');
+        throw new Error('Diese Bewerbung gibt es nicht. Wähle sie aus der Liste oder lege sie mit `/bewerbung-verwalten uebersicht` an.');
       }
       const base = `applications.types.${typeId}`;
       const asList = (r) => [r.id];
@@ -378,7 +375,6 @@ function changesFor(interaction, sub) {
       changes.push(
         ...collect(interaction, [
           ['aktiv', `${base}.enabled`, 'getBoolean'],
-          ['panel', `${base}.panel`, 'getString'],
           ['kanal_offen', `${base}.channels.open`, 'getChannel', (c) => c.id],
           ['kanal_angenommen', `${base}.channels.accepted`, 'getChannel', (c) => c.id],
           ['kanal_abgelehnt', `${base}.channels.rejected`, 'getChannel', (c) => c.id],

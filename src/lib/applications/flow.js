@@ -294,7 +294,7 @@ async function handleRoblox(interaction, step, answer) {
 
 function teamChannelId(guildId, type) {
   const { applications } = forGuild(guildId);
-  return type.channels.open || (type.panel === 'apply' ? applications.channel : applications.qualiChannel);
+  return type.channels.open || (type.panel === 'quali' ? applications.qualiChannel : applications.channel) || applications.channel || applications.qualiChannel;
 }
 
 async function submit(client, session) {

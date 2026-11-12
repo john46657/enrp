@@ -169,6 +169,42 @@ expect(manage.createType(a, { name: 'Rettungsdienst' }).type?.id === 'rettungsdi
 expect(!manage.deleteType(a, 'rettungsdienst').archived && !appStore.typeById(a, 'rettungsdienst'), 'Löschen ohne Bewerbungen');
 console.log('✅ Bewerbungen selbst anlegen, bearbeiten, löschen');
 
+// Panels als eigene Objekte und die Übersicht in Discord
+const panels = require('../src/lib/applications/panels');
+const appMessages = require('../src/lib/applications/messages');
+const dashboard = require('../src/lib/applications/dashboard');
+const c = '333';
+expect(panels.createPanel(c, { name: 'Leer' }).error, 'Panel ohne Bewerbungen auf dem Server sollte abgelehnt werden');
+const police = manage.createType(c, { name: 'Polizei', workflow: 'police' }).type;
+manage.addQuestion(c, police.id, { type: 'TEXT', label: 'Warum?' });
+const panel = panels.createPanel(c, { name: 'Polizei-Panel', description: 'Hier bewerben', types: [police.id] }).panel;
+expect(panel?.title === 'Polizei-Panel' && panel.types[0] === police.id, 'Panel anlegen');
+expect(panels.createPanel(c, { name: 'polizei-panel' }).error, 'doppelter Panel-Name');
+expect(panels.updatePanel(c, panel.id, { types: ['gibtsnicht'] }).error, 'unbekannte Bewerbung im Panel');
+expect(panels.updatePanel(c, panel.id, { image: 'kein-link' }).error, 'ungültiges Bild');
+const built = appMessages.buildPanel(c, panel.id).components.map((x) => x.toJSON());
+expect(built[1]?.components?.[0]?.custom_id === `quali:apply:${police.id}`, 'Panel mit einer Bewerbung zeigt den Button');
+const second = manage.createType(c, { name: 'SEK' });
+expect(second.panel?.id === panel.id && panels.getPanel(c, panel.id).types.length === 2, 'neue Bewerbung kommt ins erste Panel');
+manage.deleteType(c, second.type.id);
+expect(panels.getPanel(c, panel.id).types.length === 1, 'gelöschte Bewerbung bleibt im Panel');
+for (const view of [dashboard.homeView(c, 'u'), dashboard.appView(c, police.id), dashboard.questionView(c, police.id, 1), dashboard.panelsView(c), dashboard.panelView(c, panel.id), dashboard.panelsView('444')]) {
+  view.components.forEach((x) => x.toJSON());
+}
+expect(dashboard.panelsView('444').embeds[0].toJSON().description.includes('Keine Bewerbungen gefunden'), 'leerer Panel-Zustand');
+expect(JSON.stringify(dashboard.parseLength('20-500')) === '{"min":20,"max":500}', 'Länge aus Formular');
+expect(!manage.setQuestions(c, police.id, [{ type: 'TEXT', label: 'A', min: 5, max: 50 }, { type: 'CHOICE', label: 'B', options: [{ label: 'x' }, { label: 'y' }] }]).error, 'Fragen auf einmal setzen');
+expect(manage.setQuestions(c, police.id, [{ type: 'ROBLOX', label: 'R' }, { type: 'ROBLOX', label: 'R2' }]).error, 'zwei Roblox-Fragen');
+expect(manage.setQuestions(c, police.id, [{ type: 'ROLE', label: 'R', options: [{ label: 'x', roleId: 'kaputt' }] }]).error, 'Rolle ohne gültige ID');
+expect(appStore.typeById(c, police.id).questions.map((q) => q.key).join() === 'f1,f2', 'Fragen-Schlüssel nach setQuestions');
+
+// Alte feste Panels („apply“/„quali“) werden zu Panel-Objekten
+require('../src/lib/db').data.appPanelDefs['555'] = undefined;
+settings.ownAppTypes('555').push({ id: 'alt', name: 'Alt', panel: 'quali', numberPrefix: 'A', questions: [{ key: 'a', type: 'TEXT', label: 'x' }] });
+settings.saveAppTypes('555');
+expect(panels.panelsOf('555').map((p) => `${p.id}:${p.types}`).join() === 'quali:alt', 'Übernahme der alten Panels');
+console.log('✅ Panels und Übersicht in Discord');
+
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');
 process.exit(0);

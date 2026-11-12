@@ -4,6 +4,7 @@ const settings = require('../settings');
 const { merge } = require('./normalize');
 const { validateType } = require('./forms');
 const store = require('./store');
+const panels = require('./panels');
 
 const MAX_QUESTIONS = 50;
 const MAX_TYPES = 25; // so viele passen in ein Auswahlmenü
@@ -75,7 +76,7 @@ function assignDefined(target, fields) {
 
 // ---------- Bewerbungsarten ----------
 
-function createType(guildId, { name, emoji, description, panel, workflow, numberPrefix }) {
+function createType(guildId, { name, emoji, description, workflow, numberPrefix }) {
   if (!name?.trim()) return { error: 'Bitte gib einen Namen an.' };
   if (store.types(guildId).length >= MAX_TYPES) return { error: `Es sind höchstens ${MAX_TYPES} Bewerbungen möglich. Lösche zuerst eine.` };
   if (store.types(guildId).some((t) => t.name.toLowerCase() === name.trim().toLowerCase())) {
@@ -86,7 +87,7 @@ function createType(guildId, { name, emoji, description, panel, workflow, number
     name: name.trim(),
     emoji: emoji?.trim() || '📝',
     description: description?.trim() ?? '',
-    panel: panel ?? 'apply',
+    panel: 'apply', // nur noch für den Standard-Kanal (applications.channel); sichtbar wird sie über Panels
     workflow: workflow ?? 'simple',
     numberPrefix: (numberPrefix?.trim() || prefixFrom(name)).toUpperCase(),
     questions: [],
@@ -94,9 +95,11 @@ function createType(guildId, { name, emoji, description, panel, workflow, number
   };
   const problems = validateType(merge(settings.forGuild(guildId).applications.defaults, raw), { allowEmpty: true });
   if (problems.length) return { error: problems.join('\n') };
+  panels.panelsOf(guildId); // alte feste Panels vorher übernehmen, sonst landet die neue Bewerbung darin
   ownTypes(guildId).push(raw);
   settings.saveAppTypes(guildId);
-  return { type: store.typeById(guildId, raw.id) };
+  const panel = panels.addTypeToDefault(guildId, raw.id);
+  return { type: store.typeById(guildId, raw.id), panel };
 }
 
 function updateType(guildId, typeId, fields) {
@@ -113,8 +116,10 @@ function updateType(guildId, typeId, fields) {
     assignDefined(draft, clean);
     return null;
   });
-  // Eine per /einstellungen gespeicherte Panel-Auswahl würde die neue sonst überdecken.
-  if (!result.error && fields.panel !== undefined) settings.unset(guildId, `applications.types.${typeId}.panel`);
+  // Ein per /einstellungen gespeicherter Wert würde den neuen sonst überdecken.
+  if (!result.error) {
+    for (const key of ['panel', 'enabled', 'workflow']) if (fields[key] !== undefined) settings.unset(guildId, `applications.types.${typeId}.${key}`);
+  }
   return result.error ? result : { type: store.typeById(guildId, typeId) };
 }
 
@@ -137,6 +142,7 @@ function deleteType(guildId, typeId) {
     list.splice(list.indexOf(found.raw), 1);
   }
   settings.dropAppTypeOverrides(guildId, typeId);
+  panels.removeTypeEverywhere(guildId, typeId);
   return { name, archived: hasRecords };
 }
 
@@ -231,7 +237,50 @@ function moveQuestion(guildId, typeId, number, position) {
   });
 }
 
+// Alle Fragen auf einmal ersetzen (Web-Dashboard). Unbekannte Felder werden verworfen.
+function setQuestions(guildId, typeId, list) {
+  if (!Array.isArray(list)) return { error: 'Ungültige Fragen.' };
+  if (list.length > MAX_QUESTIONS) return { error: `Es sind höchstens ${MAX_QUESTIONS} Fragen möglich.` };
+  const questions = [];
+  for (const [i, input] of list.entries()) {
+    const n = i + 1;
+    const type = String(input?.type ?? '');
+    if (!['TEXT', 'CHOICE', 'ROLE', 'ROBLOX'].includes(type)) return { error: `Frage ${n}: unbekannter Typ.` };
+    const label = String(input.label ?? '').trim();
+    if (!label) return { error: `Frage ${n}: Der Fragetext fehlt.` };
+    if (label.length > 250) return { error: `Frage ${n}: höchstens 250 Zeichen.` };
+    const question = { key: /^[a-z0-9_]{1,32}$/.test(input.key ?? '') && !questions.some((q) => q.key === input.key) ? input.key : null, type, label, required: input.required !== false };
+    const description = String(input.description ?? '').trim();
+    if (description) question.description = description.slice(0, 500);
+    if (type === 'TEXT') {
+      const min = Number(input.min) || 0;
+      const max = Number(input.max) || 1000;
+      if (min < 0 || max < 1 || max > 5000 || min > max) return { error: `Frage ${n}: Die Länge muss zwischen 0 und 5000 liegen, Minimum ≤ Maximum.` };
+      if (min) question.min = min;
+      question.max = max;
+    }
+    if (type === 'CHOICE' || type === 'ROLE') {
+      const options = (Array.isArray(input.options) ? input.options : [])
+        .map((o) => ({ label: String(o?.label ?? '').trim().slice(0, 100), ...(type === 'ROLE' ? { roleId: String(o?.roleId ?? '') } : {}) }))
+        .filter((o) => o.label);
+      if (!options.length || options.length > 25) return { error: `Frage ${n}: 1–25 Antworten nötig.` };
+      if (new Set(options.map((o) => o.label.toLowerCase())).size !== options.length) return { error: `Frage ${n}: Jede Antwort darf nur einmal vorkommen.` };
+      if (type === 'ROLE' && options.some((o) => !/^\d{17,20}$/.test(o.roleId))) return { error: `Frage ${n}: Jede Antwort braucht eine Rolle.` };
+      question.options = options;
+      question.multiple = Boolean(input.multiple);
+    }
+    questions.push(question);
+  }
+  if (questions.filter((q) => q.type === 'ROBLOX').length > 1) return { error: 'Es darf nur eine Roblox-Frage geben.' };
+  for (const question of questions) question.key ??= nextKey(questions.filter((q) => q.key));
+  return commit(guildId, typeId, (draft) => {
+    draft.questions = questions;
+    return null;
+  });
+}
+
 module.exports = {
+  setQuestions,
   MAX_QUESTIONS,
   slugify,
   prefixFrom,

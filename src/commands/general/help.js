@@ -2,7 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { embed, replyPrivate } = require('../../lib/util');
 
 const SECTIONS = {
-  '📋 Bewerbungen': ['bewerbung', 'bewerbungspanel', 'qualipanel', 'bewerbungen', 'bewerbungssperre', 'bewerbung-verwalten'],
+  '📋 Bewerbungen': ['bewerbung', 'bewerbungspanel', 'bewerbungen', 'bewerbungssperre', 'bewerbung-verwalten'],
   '🎭 Roleplay': ['serverstatus', 'ankuendigung'],
   '🛡️ Moderation': ['kick', 'ban', 'unban', 'timeout', 'warn', 'verwarnungen', 'clear'],
   '🎫 Tickets': ['ticket'],
