@@ -39,7 +39,8 @@
   "pnpm": {
     "overrides": {
       "postcss": "^8.5.31",
-      "@fastify/static": "^10.1.7"
+      "@fastify/static": "^10.1.7",
+      "zod@<4.6.6": "^4.6.7"
     }
   }
 }

@@ -43,4 +43,6 @@ const clientDir = join(root, 'src/StarterPlayer/StarterPlayerScripts');
 const client = readdirSync(clientDir).filter((f) => f.endsWith('.lua'));
 writeFileSync(join(root, 'ENRP-Client.rbxmx'), doc(client.map((f) => scriptFor(clientDir, f)).join('')));
 
+// Kommandozeilen-Skript: die Ausgabe ist die Rückmeldung für den Aufrufer.
+// eslint-disable-next-line no-console
 console.log(`roblox/ENRP-Server.rbxmx (${server.length} Skripte) und roblox/ENRP-Client.rbxmx erstellt${apiUrl ? ` – ApiBaseUrl = ${apiUrl}` : ''}.`);
