@@ -104,7 +104,6 @@ const before = { cap: config.tickets.types[0].capacity, log: config.channels.tic
 settings.set(a, `tickets.types.${firstType}.capacity`, 99);
 settings.set(a, 'channels.ticketLog', '123');
 settings.set(a, 'leveling.roleRewards.7', '456');
-settings.set(a, `applications.types.${config.applications.types[0].id}.enabled`, false);
 const ca = settings.forGuild(a);
 if (ca.tickets.types[0].capacity !== 99 || ca.channels.ticketLog !== '123' || ca.leveling.roleRewards[7] !== '456') {
   fail('Einstellungen werden nicht übernommen');
@@ -112,10 +111,6 @@ if (ca.tickets.types[0].capacity !== 99 || ca.channels.ticketLog !== '123' || ca
 const cb = settings.forGuild(b);
 if (cb.tickets.types[0].capacity !== before.cap || cb.channels.ticketLog !== before.log || '7' in cb.leveling.roleRewards) {
   fail('Einstellungen eines Servers wirken sich auf einen anderen Server aus');
-}
-const appStore = require('../src/lib/applications/store');
-if (appStore.typeById(a, config.applications.types[0].id).enabled || !appStore.typeById(b, config.applications.types[0].id).enabled) {
-  fail('Bewerbungsarten sind nicht je Server getrennt');
 }
 if (config.tickets.types[0].capacity !== before.cap || config.channels.ticketLog !== before.log) fail('Vorlage config.json wurde verändert');
 settings.reset(a);
@@ -174,6 +169,109 @@ const { parsePlaceId } = require('../src/lib/robloxGame');
 const places = [['920587237', '920587237'], ['https://www.roblox.com/games/920587237/Adopt-Me', '920587237'], ['roblox.com/de/games/123/x', '123'], ['https://cfx.re/join/abc', null], ['', null]];
 for (const [text, id] of places) if (parsePlaceId(text) !== id) fail(`parsePlaceId(${text}) = ${parsePlaceId(text)}`);
 console.log('✅ Roblox-Spiel-Link');
+
+// Bewerbungen selbst anlegen: keine vorgefertigten, je Server getrennt
+const appStore = require('../src/lib/applications/store');
+const manage = require('../src/lib/applications/manage');
+const expect = (condition, message) => condition || fail(`Bewerbung verwalten: ${message}`);
+expect(config.applications.types.length === 0, 'config.json sollte keine vorgefertigten Bewerbungen enthalten');
+expect(appStore.types(a).length === 0, 'neuer Server sollte keine Bewerbungen haben');
+
+const created = manage.createType(a, { name: 'Sanitäter Ausbildung', emoji: '🚑' });
+expect(!created.error, created.error);
+const appId = created.type?.id;
+expect(appId === 'sanitaeter-ausbildung', `id aus dem Namen: ${appId}`);
+expect(created.type?.numberPrefix === 'SANI', `Kürzel aus dem Namen: ${created.type?.numberPrefix}`);
+expect(manage.createType(a, { name: 'sanitäter ausbildung' }).error, 'doppelter Name sollte abgelehnt werden');
+expect(appStore.types(b).length === 0, 'Bewerbung eines Servers taucht auf einem anderen auf');
+expect(appStore.eligibility({ guild: { id: a }, id: 'u1', roles: { cache: new Map() } }, created.type)?.includes('keine Fragen'), 'ohne Fragen darf man sich nicht bewerben');
+expect(appStore.typeChoices(a, 'sani')[0]?.value === appId, 'Autovervollständigung findet die Bewerbung nicht');
+
+expect(!manage.addQuestion(a, appId, { type: 'TEXT', label: 'Warum?', min: 20, max: 500 }).error, 'Freitext-Frage');
+expect(!manage.addQuestion(a, appId, { type: 'CHOICE', label: 'Wie oft?', options: [{ label: 'Oft' }, { label: 'Selten' }] }).error, 'Auswahl-Frage');
+expect(manage.addQuestion(a, appId, { type: 'CHOICE', label: 'Ohne Optionen' }).error, 'Auswahl ohne Optionen sollte abgelehnt werden');
+expect(!manage.addQuestion(a, appId, { type: 'ROBLOX', label: 'Roblox-Name?' }, 1).error, 'Roblox-Frage an Position 1');
+expect(manage.addQuestion(a, appId, { type: 'ROBLOX', label: 'Noch mal?' }).error, 'zweite Roblox-Frage sollte abgelehnt werden');
+expect(manage.addQuestion(a, appId, { type: 'TEXT', label: 'x', min: 50, max: 10 }).error, 'min > max sollte abgelehnt werden');
+let app = appStore.typeById(a, appId);
+expect(app.questions.map((q) => q.type).join() === 'ROBLOX,TEXT,CHOICE', `Reihenfolge: ${app.questions.map((q) => q.type)}`);
+expect(new Set(app.questions.map((q) => q.key)).size === 3, 'Fragen-Schlüssel sind nicht eindeutig');
+expect(!manage.moveQuestion(a, appId, 1, 3).error && appStore.typeById(a, appId).questions[2].type === 'ROBLOX', 'Frage verschieben');
+expect(!manage.updateQuestion(a, appId, 1, { label: 'Warum willst du zu uns?', required: false }).error, 'Frage bearbeiten');
+expect(appStore.typeById(a, appId).questions[0].label === 'Warum willst du zu uns?', 'Frage wurde nicht geändert');
+expect(manage.updateQuestion(a, appId, 9, { label: 'x' }).error, 'nicht vorhandene Frage');
+expect(!manage.removeQuestion(a, appId, 2).error && appStore.typeById(a, appId).questions.length === 2, 'Frage entfernen');
+expect(!manage.updateType(a, appId, { name: 'Rettungsdienst', panel: 'quali', numberPrefix: 'rd' }).error, 'Bewerbung bearbeiten');
+app = appStore.typeById(a, appId);
+expect(app.name === 'Rettungsdienst' && app.panel === 'quali' && app.numberPrefix === 'RD', 'Bewerbung wurde nicht geändert');
+expect(manage.updateType(a, appId, { numberPrefix: 'zu-lang!' }).error, 'ungültiges Kürzel sollte abgelehnt werden');
+expect(!manage.setMessages(a, appId, { accept: 'Willkommen {applicant}!', reject: '' }).error, 'Texte speichern');
+app = appStore.typeById(a, appId);
+expect(app.messages.accept === 'Willkommen {applicant}!' && app.messages.reject === config.applications.defaults.messages.reject, 'Texte / Standardtext');
+settings.set(a, `applications.types.${appId}.enabled`, false);
+expect(appStore.typeById(a, appId).enabled === false, '/einstellungen bewerbung wirkt nicht auf eigene Bewerbungen');
+expect(!validateType(app).length, `eigene Bewerbung ungültig: ${validateType(app).join(', ')}`);
+
+const { parseOptions } = require('../src/commands/applications/manage');
+const fakeRoles = { roles: { cache: new Map([['123456789012345678', { name: 'Streife' }]]) } };
+expect(parseOptions('Täglich; Selten ;', 'CHOICE', fakeRoles).length === 2, 'Optionen trennen');
+expect(parseOptions('<@&123456789012345678>', 'ROLE', fakeRoles)[0]?.label === 'Streife', 'Rollen-Optionen');
+let threw = false;
+try {
+  parseOptions('A; a', 'CHOICE', fakeRoles);
+} catch {
+  threw = true;
+}
+expect(threw, 'doppelte Optionen sollten abgelehnt werden');
+
+// Löschen: ohne Bewerbungen ganz weg, mit alten Bewerbungen nur archiviert, mit offenen gar nicht
+const record = appStore.createRecord(a, appStore.typeById(a, appId), { userId: 'u1', answers: [] });
+expect(record.number === 'RD-0001', `Bewerbungsnummer: ${record.number}`);
+expect(manage.deleteType(a, appId).error, 'Löschen mit offener Bewerbung sollte abgelehnt werden');
+appStore.setStatus(record, 'REJECTED', 'u2');
+const deleted = manage.deleteType(a, appId);
+expect(!deleted.error && deleted.archived, 'Löschen mit alter Bewerbung sollte archivieren');
+expect(!appStore.types(a).length && appStore.typeById(a, appId)?.archived, 'archivierte Bewerbung');
+expect(!Object.keys(require('../src/lib/db').data.settings[a] ?? {}).some((p) => p.includes(appId)), 'Einstellungen der gelöschten Bewerbung bleiben übrig');
+expect(manage.createType(a, { name: 'Rettungsdienst' }).type?.id === 'rettungsdienst', 'Name nach dem Löschen wieder frei');
+expect(!manage.deleteType(a, 'rettungsdienst').archived && !appStore.typeById(a, 'rettungsdienst'), 'Löschen ohne Bewerbungen');
+console.log('✅ Bewerbungen selbst anlegen, bearbeiten, löschen');
+
+// Panels als eigene Objekte und die Übersicht in Discord
+const panels = require('../src/lib/applications/panels');
+const appMessages = require('../src/lib/applications/messages');
+const dashboard = require('../src/lib/applications/discordOverview');
+const c = '333';
+expect(panels.createPanel(c, { name: 'Leer' }).error, 'Panel ohne Bewerbungen auf dem Server sollte abgelehnt werden');
+const police = manage.createType(c, { name: 'Polizei', workflow: 'police' }).type;
+manage.addQuestion(c, police.id, { type: 'TEXT', label: 'Warum?' });
+const panel = panels.createPanel(c, { name: 'Polizei-Panel', description: 'Hier bewerben', types: [police.id] }).panel;
+expect(panel?.title === 'Polizei-Panel' && panel.types[0] === police.id, 'Panel anlegen');
+expect(panels.createPanel(c, { name: 'polizei-panel' }).error, 'doppelter Panel-Name');
+expect(panels.updatePanel(c, panel.id, { types: ['gibtsnicht'] }).error, 'unbekannte Bewerbung im Panel');
+expect(panels.updatePanel(c, panel.id, { image: 'kein-link' }).error, 'ungültiges Bild');
+const built = appMessages.buildPanel(c, panel.id).components.map((x) => x.toJSON());
+expect(built[1]?.components?.[0]?.custom_id === `quali:apply:${police.id}`, 'Panel mit einer Bewerbung zeigt den Button');
+const second = manage.createType(c, { name: 'SEK' });
+expect(second.panel?.id === panel.id && panels.getPanel(c, panel.id).types.length === 2, 'neue Bewerbung kommt ins erste Panel');
+manage.deleteType(c, second.type.id);
+expect(panels.getPanel(c, panel.id).types.length === 1, 'gelöschte Bewerbung bleibt im Panel');
+for (const view of [dashboard.homeView(c, 'u'), dashboard.appView(c, police.id), dashboard.questionView(c, police.id, 1), dashboard.panelsView(c), dashboard.panelView(c, panel.id), dashboard.panelsView('444')]) {
+  view.components.forEach((x) => x.toJSON());
+}
+expect(dashboard.panelsView('444').embeds[0].toJSON().description.includes('Keine Bewerbungen gefunden'), 'leerer Panel-Zustand');
+expect(JSON.stringify(dashboard.parseLength('20-500')) === '{"min":20,"max":500}', 'Länge aus Formular');
+expect(!manage.setQuestions(c, police.id, [{ type: 'TEXT', label: 'A', min: 5, max: 50 }, { type: 'CHOICE', label: 'B', options: [{ label: 'x' }, { label: 'y' }] }]).error, 'Fragen auf einmal setzen');
+expect(manage.setQuestions(c, police.id, [{ type: 'ROBLOX', label: 'R' }, { type: 'ROBLOX', label: 'R2' }]).error, 'zwei Roblox-Fragen');
+expect(manage.setQuestions(c, police.id, [{ type: 'ROLE', label: 'R', options: [{ label: 'x', roleId: 'kaputt' }] }]).error, 'Rolle ohne gültige ID');
+expect(appStore.typeById(c, police.id).questions.map((q) => q.key).join() === 'f1,f2', 'Fragen-Schlüssel nach setQuestions');
+
+// Alte feste Panels („apply“/„quali“) werden zu Panel-Objekten
+require('../src/lib/db').data.appPanelDefs['555'] = undefined;
+settings.ownAppTypes('555').push({ id: 'alt', name: 'Alt', panel: 'quali', numberPrefix: 'A', questions: [{ key: 'a', type: 'TEXT', label: 'x' }] });
+settings.saveAppTypes('555');
+expect(panels.panelsOf('555').map((p) => `${p.id}:${p.types}`).join() === 'quali:alt', 'Übernahme der alten Panels');
+console.log('✅ Panels und Übersicht in Discord');
 
 if (failed) process.exit(1);
 console.log('✅ Alles in Ordnung');

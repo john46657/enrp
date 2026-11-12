@@ -22,10 +22,21 @@ const POLICE_TRANSITIONS = {
   PENDING_DECISION: ['ACCEPTED', 'REJECTED', 'WITHDRAWN'],
 };
 
-// Bewerbungsarten mit den Einstellungen eines Servers; baseTypes() = Vorlage aus config.json (z. B. für Befehlsauswahlen).
-const types = (guildId) => forGuild(guildId).applications.types;
-const typeById = (guildId, id) => types(guildId).find((t) => t.id === id);
+// Bewerbungsarten eines Servers (aus config.json und selbst erstellt). Gelöschte Arten mit alten Bewerbungen sind
+// nur noch archiviert: types() blendet sie aus, typeById() findet sie weiterhin (für alte Bewerbungen).
+const allTypes = (guildId) => forGuild(guildId).applications.types;
+const types = (guildId) => allTypes(guildId).filter((t) => !t.archived);
+const typeById = (guildId, id) => allTypes(guildId).find((t) => t.id === id);
 const baseTypes = () => base.applications.types;
+
+// Vorschläge für Befehlsoptionen „art“ (Autovervollständigung, max. 25).
+function typeChoices(guildId, query = '', { extra = [] } = {}) {
+  const q = query.trim().toLowerCase();
+  return [...extra, ...types(guildId).map((t) => ({ name: `${t.emoji} ${t.name}`.trim(), value: t.id }))]
+    .filter((c) => !q || c.name.toLowerCase().includes(q) || c.value.includes(q))
+    .slice(0, 25)
+    .map((c) => ({ name: c.name.slice(0, 100), value: c.value }));
+}
 const isOpenStatus = (status) => !FINAL.includes(status);
 const initialStatus = (type) => (type.workflow === 'police' ? 'SUBMITTED' : 'OPEN');
 
@@ -119,6 +130,8 @@ function roleCheck(member, type) {
 
 // Gibt eine Fehlermeldung zurück oder null.
 function eligibility(member, type, { robloxId } = {}) {
+  if (type.archived) return 'Diese Bewerbung gibt es nicht mehr.';
+  if (!type.questions.length) return `**${type.name}** ist noch nicht fertig eingerichtet (es gibt noch keine Fragen).`;
   if (!type.enabled) return `Bewerbungen für **${type.name}** sind derzeit geschlossen.`;
   const roles = roleCheck(member, type);
   if (roles) return roles;
@@ -156,9 +169,11 @@ module.exports = {
   STATUS,
   FINAL,
   POLICE_TRANSITIONS,
+  allTypes,
   types,
   typeById,
   baseTypes,
+  typeChoices,
   isOpenStatus,
   recordsOf,
   bansOf,

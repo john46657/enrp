@@ -5,6 +5,7 @@ const store = require('../../lib/applications/store');
 const flow = require('../../lib/applications/flow');
 const decisions = require('../../lib/applications/decide');
 const { buildPanel } = require('../../lib/applications/messages');
+const panels = require('../../lib/applications/panels');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,13 +14,17 @@ module.exports = {
     .addStringOption((o) =>
       o
         .setName('art')
-        .setDescription('Wofür? (Standard: Polizei-Bewerbung)')
-        .addChoices(...store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+        .setDescription('Wofür? (Standard: die erste Bewerbung im ersten Panel)')
+        .setAutocomplete(true),
     ),
 
+  autocomplete: (interaction) => store.typeChoices(interaction.guildId, interaction.options.getFocused()),
+
   async execute(interaction) {
-    const types = store.types(interaction.guildId);
-    const typeId = interaction.options.getString('art') ?? (types.find((t) => t.panel === 'apply') ?? types[0])?.id;
+    const types = store.types(interaction.guildId).filter((t) => t.questions.length);
+    const [firstPanel] = panels.panelsOf(interaction.guildId);
+    const typeId = interaction.options.getString('art') ?? ((firstPanel && panels.activeTypes(interaction.guildId, firstPanel)[0]) ?? types[0])?.id;
+    if (!typeId) return replyPrivate(interaction, 'Auf diesem Server gibt es noch keine Bewerbungen. Das Team kann sie mit `/bewerbung-verwalten uebersicht` anlegen.');
     return flow.offer(interaction, typeId);
   },
 

@@ -12,6 +12,8 @@ const store = require('../src/lib/applications/store');
 const dash = require('../src/lib/applications/dashboard');
 
 const GUILD = '7001';
+// Bewerbungen legt jeder Server selbst an – hier die früher eingebauten als eigene Arten.
+settings.set(GUILD, 'applications.types', require('../src/lib/applications/legacyTypes.json'));
 const sent = [];
 const fakeUser = (id) => ({ id, tag: `user${id}`, username: `user${id}`, toString: () => `<@${id}>`, send: async (m) => sent.push({ to: id, m }) });
 const guild = {
@@ -89,13 +91,25 @@ test('Einstellungen werden vor dem Speichern geprüft', () => {
   const types = structuredClone(settings.forGuild(GUILD).applications.types);
   const check = (changes) => dash.checkConfig(settings.preview(GUILD, changes).config);
   assert.equal(check([{ path: 'applications.types', value: types }]), null);
-  assert.match(check([{ path: 'applications.types', value: [] }]), /Mindestens eine/);
+  assert.equal(check([{ path: 'applications.types', value: [] }]), null); // jeder Server legt selbst an
   assert.match(check([{ path: 'applications.types', value: [types[0], types[0]] }]), /eindeutig/);
   const noQuestions = structuredClone(types);
   noQuestions[1].questions = [];
-  assert.match(check([{ path: 'applications.types', value: noQuestions }]), /keine Fragen/);
+  // Gerade angelegte Arten dürfen noch keine Fragen haben (bewerben kann man sich dann noch nicht).
+  assert.equal(check([{ path: 'applications.types', value: noQuestions }]), null);
   const badPrefix = structuredClone(types);
   badPrefix[0].numberPrefix = 'zu-lang!';
   assert.match(check([{ path: 'applications.types', value: badPrefix }]), /Kürzel/);
   assert.equal(check([{ path: 'applications.panels.apply.title', value: 'Neu' }]), null);
+});
+
+test('Dashboard und /bewerbung-verwalten ändern dieselbe Bewerbungsart', () => {
+  const manage = require('../src/lib/applications/manage');
+  settings.set(GUILD, 'applications.types.sek.name', 'SEK-Einheit');
+  assert.equal(store.typeById(GUILD, 'sek').name, 'SEK-Einheit');
+  assert.ok(!manage.updateType(GUILD, 'sek', { name: 'Spezialeinheit' }).error);
+  assert.equal(store.typeById(GUILD, 'sek').name, 'Spezialeinheit', 'Dashboard-Wert darf spätere Änderungen nicht überdecken');
+  settings.set(GUILD, 'applications.types.sek.roles.managers', ['123']);
+  assert.deepEqual(store.typeById(GUILD, 'sek').roles.managers, ['123']);
+  assert.ok(Array.isArray(store.typeById(GUILD, 'sek').roles.ping), 'Standardwerte bleiben erhalten');
 });

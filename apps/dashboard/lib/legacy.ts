@@ -29,6 +29,8 @@ export interface LegacyGuild {
   roles: LegacyRole[];
   questionTypes: Record<string, string> | string[];
   ticketPanels: number;
+  /** Bewerbungs-Panels (in Discord mit /bewerbung-verwalten angelegt). */
+  appPanels?: { id: string; name: string; types: string[] }[];
 }
 export interface LegacyChange {
   path: string;

@@ -6,7 +6,6 @@ const store = require('../../lib/applications/store');
 const { buildTeamMessage, answersFile } = require('../../lib/applications/messages');
 const { buildStats } = require('../../lib/applications/stats');
 
-const typeChoices = () => store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }));
 const link = (r) => (r.messageId ? `https://discord.com/channels/${r.guildId}/${r.channelId}/${r.messageId}` : null);
 
 module.exports = {
@@ -17,7 +16,7 @@ module.exports = {
       s
         .setName('offen')
         .setDescription('Alle offenen Bewerbungen.')
-        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').addChoices(...typeChoices())),
+        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').setAutocomplete(true)),
     )
     .addSubcommand((s) => s.setName('in-bearbeitung').setDescription('Bewerbungen, die gerade per DM ausgefüllt werden.'))
     .addSubcommand((s) =>
@@ -43,7 +42,7 @@ module.exports = {
         .setName('statistik')
         .setDescription('Kennzahlen, Verlauf, Prüfer und Heatmap.')
         .addIntegerOption((o) => o.setName('tage').setDescription('Zeitraum (7–365, Standard 30)').setMinValue(7).setMaxValue(365))
-        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').addChoices(...typeChoices()))
+        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').setAutocomplete(true))
         .addStringOption((o) =>
           o
             .setName('status')
@@ -57,6 +56,8 @@ module.exports = {
         )
         .addUserOption((o) => o.setName('pruefer').setDescription('Nur Entscheidungen dieser Person')),
     ),
+
+  autocomplete: (interaction) => store.typeChoices(interaction.guildId, interaction.options.getFocused()),
 
   async execute(interaction) {
     if (!store.managesAny(interaction.member)) return replyPrivate(interaction, 'Nur das Bewerbungsteam kann das sehen.');

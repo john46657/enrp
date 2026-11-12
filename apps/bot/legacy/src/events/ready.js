@@ -30,9 +30,12 @@ module.exports = {
 
     // Bewerbungen: laufende DM-Bewerbungen gehen bei einem Neustart verloren
     appStore.resetProgress();
-    for (const problem of appStore.baseTypes().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
-
-    for (const guild of client.guilds.cache.values()) await setupGuild(guild);
+    for (const guild of client.guilds.cache.values()) {
+      for (const problem of appStore.types(guild.id).flatMap((t) => validateType(t, { allowEmpty: true }))) {
+        console.warn(`⚠️  „${guild.name}“ → Bewerbung: ${problem}`);
+      }
+      await setupGuild(guild);
+    }
     startTicketWatcher(client);
     startStatsWatcher(client);
     startTeamWatcher(client);

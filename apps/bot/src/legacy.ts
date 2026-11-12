@@ -19,7 +19,7 @@ export const LEGACY_COMMAND_FILES = [
   'applications/bans.js',
   'applications/bewerbungspanel.js',
   'applications/list.js',
-  'applications/qualipanel.js',
+  'applications/manage.js',
   'community/leaderboard.js',
   'community/rank.js',
   'community/rolepanel.js',
@@ -39,6 +39,8 @@ export interface LegacyCommand {
   /** Discord-Recht, das der Befehl bisher verlangt hat (bleibt als Zugang erhalten). */
   discordPermission?: bigint | null;
   execute(interaction: unknown): Promise<unknown>;
+  /** Vorschläge beim Tippen (z. B. Bewerbungsarten, die jeder Server selbst anlegt). */
+  autocomplete?(interaction: unknown): unknown;
   components?: Record<string, (interaction: unknown, args: string[]) => Promise<unknown>>;
 }
 
@@ -92,7 +94,9 @@ export function loadLegacy(logger: Logger): LegacyBridge {
         await tickets.refreshPanels(guild).catch((err: Error) => logger.warn({ err: err.message }, 'Ticketpanel'));
       tickets.startTicketWatcher(client);
       appStore.resetProgress();
-      for (const problem of appStore.baseTypes().flatMap(validateType)) logger.warn(`Bewerbung: ${problem}`);
+      for (const guild of client.guilds.cache.values())
+        for (const problem of appStore.types(guild.id).flatMap((t: unknown) => validateType(t, { allowEmpty: true })))
+          logger.warn(`Bewerbung (${guild.name}): ${problem}`);
       for (const guild of client.guilds.cache.values())
         await appMessages
           .refreshPanels(guild)

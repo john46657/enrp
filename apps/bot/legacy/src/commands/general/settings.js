@@ -6,6 +6,7 @@ const appMessages = require('../../lib/applications/messages');
 const stats = require('../../lib/stats');
 const { isValidTimeZone } = require('../../lib/time');
 const { parsePlaceId, gameUrl } = require('../../lib/robloxGame');
+const appStore = require('../../lib/applications/store');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -125,13 +126,14 @@ function overview(guild) {
         name: 'Bewerbungen',
         value: truncate(
           `Bewerbungs-Kanal: ${channel(config.applications.channel)} · Qualifikations-Kanal: ${channel(config.applications.qualiChannel)}\n` +
-            config.applications.types
+            (appStore
+              .types(guild.id)
               .map(
                 (t) =>
-                  `${t.emoji} **${t.name}** ${onOff(t.enabled)} · Panel ${t.panel} · Kanal ${channel(t.channels.open)} · ` +
-                  `Manager ${t.roles.managers.map(role).join(' ') || '—'} · Wartezeit ${t.cooldownMinutes} Min. · Verlassen: ${t.onLeave}`,
+                  `${t.emoji} **${t.name}** ${onOff(t.enabled)} · Kanal ${channel(t.channels.open)} · ` +
+                  `Manager ${t.roles.managers.map(role).join(' ') || '—'} · ${t.questions.length} Fragen · Wartezeit ${t.cooldownMinutes} Min. · Verlassen: ${t.onLeave}`,
               )
-              .join('\n'),
+              .join('\n') || 'Noch keine – anlegen mit `/bewerbung-verwalten uebersicht`.'),
           1024,
         ),
       },
@@ -294,14 +296,11 @@ const builder = new SlashCommandBuilder()
       .addStringOption((o) =>
         o
           .setName('art')
-          .setDescription('Welche Bewerbung?')
+          .setDescription('Welche Bewerbung? (anlegen mit /bewerbung-verwalten)')
           .setRequired(true)
-          .addChoices(...settings.base.applications.types.slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+          .setAutocomplete(true),
       )
       .addBooleanOption((o) => o.setName('aktiv').setDescription('Bewerbungen annehmen?'))
-      .addStringOption((o) =>
-        o.setName('panel').setDescription('In welchem Panel?').addChoices({ name: 'Bewerbungs-Panel', value: 'apply' }, { name: 'Qualifikations-Panel', value: 'quali' }),
-      )
       .addChannelOption((o) => o.setName('kanal_offen').setDescription('Hier landen neue Bewerbungen').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('kanal_angenommen').setDescription('Kopie angenommener Bewerbungen').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('kanal_abgelehnt').setDescription('Kopie abgelehnter Bewerbungen').addChannelTypes(ChannelType.GuildText))
@@ -324,9 +323,9 @@ const builder = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s
       .setName('bewerbungs-kanaele')
-      .setDescription('Standard-Kanäle für neue Bewerbungen (wenn eine Art keinen eigenen hat).')
-      .addChannelOption((o) => o.setName('bewerbungen').setDescription('Für das Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText))
-      .addChannelOption((o) => o.setName('qualifikationen').setDescription('Für das Qualifikations-Panel').addChannelTypes(ChannelType.GuildText)),
+      .setDescription('Standard-Kanal für neue Bewerbungen (wenn eine Bewerbung keinen eigenen hat).')
+      .addChannelOption((o) => o.setName('bewerbungen').setDescription('Standard-Kanal für alle Bewerbungen').addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('qualifikationen').setDescription('Für alte Einheiten-Bewerbungen (früheres Qualifikations-Panel)').addChannelTypes(ChannelType.GuildText)),
   )
   .addSubcommand((s) =>
     s
@@ -507,7 +506,11 @@ function changesFor(interaction, sub) {
       ]);
     }
     case 'bewerbung': {
-      const base = `applications.types.${o.getString('art')}`;
+      const typeId = o.getString('art');
+      if (!appStore.types(interaction.guildId).some((t) => t.id === typeId)) {
+        throw new Error('Diese Bewerbung gibt es nicht. Wähle sie aus der Liste oder lege sie mit `/bewerbung-verwalten uebersicht` an.');
+      }
+      const base = `applications.types.${typeId}`;
       const asList = (r) => [r.id];
       const changes = [];
       if (o.getBoolean('rollen_leeren')) {
@@ -516,7 +519,6 @@ function changesFor(interaction, sub) {
       changes.push(
         ...collect(interaction, [
           ['aktiv', `${base}.enabled`, 'getBoolean'],
-          ['panel', `${base}.panel`, 'getString'],
           ['kanal_offen', `${base}.channels.open`, 'getChannel', (c) => c.id],
           ['kanal_angenommen', `${base}.channels.accepted`, 'getChannel', (c) => c.id],
           ['kanal_abgelehnt', `${base}.channels.rejected`, 'getChannel', (c) => c.id],
@@ -594,6 +596,8 @@ module.exports = {
   data: builder,
   parsePeriods,
 
+  autocomplete: (interaction) => appStore.typeChoices(interaction.guildId, interaction.options.getFocused()),
+
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'anzeigen') return replyPrivate(interaction, { embeds: [overview(interaction.guild)] });
@@ -601,7 +605,7 @@ module.exports = {
     if (sub === 'zuruecksetzen') {
       if (!interaction.options.getBoolean('bestaetigen')) return replyPrivate(interaction, 'Abgebrochen.');
       settings.reset(interaction.guildId);
-      await replyPrivate(interaction, '♻️ Alle Einstellungen dieses Servers kommen jetzt wieder aus der config.json.');
+      await replyPrivate(interaction, '♻️ Alle Einstellungen dieses Servers kommen jetzt wieder aus der config.json. Selbst erstellte Bewerbungen bleiben erhalten.');
       await appMessages.refreshPanels(interaction.guild);
       return refreshPanels(interaction.guild);
     }

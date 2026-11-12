@@ -176,6 +176,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       ? interaction.customId
       : interaction.type;
   try {
+    if (interaction.isAutocomplete()) {
+      const command = legacyCommands.get(interaction.commandName);
+      await interaction.respond(((await command?.autocomplete?.(interaction)) as never) ?? []);
+      return;
+    }
     if (interaction.isChatInputCommand()) await handleCommand(interaction);
     else await handleComponent(interaction);
   } catch (err) {

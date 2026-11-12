@@ -43,17 +43,6 @@ const GENERAL: SettingField[] = [
     hint: 'Hier landen neue Bewerbungen, wenn die Art keinen eigenen Kanal hat.',
   },
   { path: 'applications.qualiChannel', label: 'Team-Kanal für das Qualifikations-Panel', type: 'channel' },
-  { path: 'applications.panels.apply.title', label: 'Bewerbungs-Panel: Überschrift', type: 'text', maxLength: 200 },
-  { path: 'applications.panels.quali.title', label: 'Qualifikations-Panel: Überschrift', type: 'text', maxLength: 200 },
-  { path: 'applications.panels.apply.description', label: 'Bewerbungs-Panel: Text', type: 'textarea', maxLength: 1500 },
-  {
-    path: 'applications.panels.quali.description',
-    label: 'Qualifikations-Panel: Text',
-    type: 'textarea',
-    maxLength: 1500,
-  },
-  { path: 'applications.panels.apply.image', label: 'Bewerbungs-Panel: Banner (Bild-URL)', type: 'text' },
-  { path: 'applications.panels.quali.image', label: 'Qualifikations-Panel: Banner (Bild-URL)', type: 'text' },
 ];
 
 const typeFields = (id: string): SettingField[] => {
@@ -64,15 +53,6 @@ const typeFields = (id: string): SettingField[] => {
     { path: `${p}.name`, label: 'Name', type: 'text', maxLength: 80 },
     { path: `${p}.emoji`, label: 'Emoji', type: 'text', maxLength: 40 },
     { path: `${p}.description`, label: 'Beschreibung im Panel', type: 'textarea', maxLength: 500 },
-    {
-      path: `${p}.panel`,
-      label: 'Panel',
-      type: 'select',
-      options: [
-        { value: 'apply', label: 'Bewerbungs-Panel' },
-        { value: 'quali', label: 'Qualifikations-Panel' },
-      ],
-    },
     {
       path: `${p}.onLeave`,
       label: 'Wenn der Bewerber den Server verlässt',
@@ -402,29 +382,29 @@ export function ApplicationSetup({ guild, canEdit }: { guild: LegacyGuild; canEd
   const [selected, setSelected] = useState(types[0]?.id ?? '');
   const current = types.find((t) => t.id === selected) ?? types[0];
   const textChannels = guild.channels.filter((c) => c.type === 0 || c.type === 5);
+  const panels = guild.appPanels ?? [];
   return (
     <div className="space-y-6">
       <SettingsForm
-        title="Panels und Team-Kanäle"
+        title="Team-Kanäle und Panels"
+        description="Bewerbungen, Fragen und Panels legst du in Discord mit /bewerbung-verwalten uebersicht an. Hier stellst du sie ein und postest Panels."
         guild={guild}
         fields={GENERAL}
         canEdit={canEdit}
         actions={
-          canEdit && (
+          canEdit &&
+          panels.length > 0 && (
             <ActionDialog
               title="Bewerbungs-Panel posten"
-              description="Postet das Panel, über das sich Mitglieder bewerben. Es zeigt alle aktiven Arten dieses Panels."
+              description="Postet das Panel, über das sich Mitglieder bewerben. Es zeigt alle aktiven Bewerbungen dieses Panels."
               fields={[
                 {
                   name: 'kind',
                   label: 'Panel',
                   type: 'select',
                   required: true,
-                  defaultValue: 'apply',
-                  options: [
-                    { value: 'apply', label: 'Bewerbungs-Panel' },
-                    { value: 'quali', label: 'Qualifikations-Panel' },
-                  ],
+                  defaultValue: panels[0]?.id,
+                  options: panels.map((p) => ({ value: p.id, label: `${p.name} (${p.types.length})` })),
                 },
                 {
                   name: 'channelId',
@@ -451,7 +431,7 @@ export function ApplicationSetup({ guild, canEdit }: { guild: LegacyGuild; canEd
           <SettingsForm
             key={`settings-${current.id}`}
             title={`Bewerbungsart: ${current.emoji ?? ''} ${current.name}`}
-            description={`Ablauf: ${current.workflow === 'police' ? 'Polizei-Bewerbung mit Prüfschritten (Eingereicht → In Prüfung → Gespräch → Entscheidung)' : 'einfache Bewerbung (Annehmen oder Ablehnen)'}. Neue Bewerbungsarten legst du weiterhin in der config.json der Altmodule an.`}
+            description={`Ablauf: ${current.workflow === 'police' ? 'Polizei-Bewerbung mit Prüfschritten (Eingereicht → In Prüfung → Gespräch → Entscheidung)' : 'einfache Bewerbung (Annehmen oder Ablehnen)'}. Neue Bewerbungsarten, Fragen und Texte legst du auch in Discord mit /bewerbung-verwalten an.`}
             guild={guild}
             fields={typeFields(current.id)}
             canEdit={canEdit}

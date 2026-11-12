@@ -14,7 +14,10 @@ const SECTIONS: Array<[string, string]> = [
     '`/mod warn|timeout|kick|ban|unban|history|revoke` · `/report list|resolve` · `/appeal review` · `/clear`',
   ],
   ['🎉 Community', '`/poll` · `/giveaway` · `/announce create` · `/rollenpanel` · `/rang` · `/bestenliste`'],
-  ['📋 Bewerbungen', '`/bewerbung` · `/bewerbungen` · `/bewerbungspanel` · `/qualipanel` · `/bewerbungssperre`'],
+  [
+    '📋 Bewerbungen',
+    '`/bewerbung` · `/bewerbungen` · `/bewerbung-verwalten` · `/bewerbungspanel` · `/bewerbungssperre`',
+  ],
   ['⚙️ Verwaltung', '`/permissions …` · `/approval …` · `/feature …` · `/killswitch …` · `/einstellungen`'],
   [
     '🖥️ Betrieb',

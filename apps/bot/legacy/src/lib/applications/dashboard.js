@@ -254,13 +254,15 @@ async function liftBan(guild, { id }, member) {
   });
 }
 
-async function postPanel(guild, { kind, channelId }) {
-  if (!['apply', 'quali'].includes(kind)) throw new Error('Unbekanntes Panel.');
+// kind: Panel-ID (die alten festen Panels heißen weiterhin „apply“ und „quali“).
+async function postPanel(guild, { kind, panelId, channelId }) {
+  const panel = require('./panels').getPanel(guild.id, String(panelId ?? kind ?? ''));
+  if (!panel) throw new Error('Unbekanntes Panel.');
   const channel = await guild.channels.fetch(String(channelId ?? '')).catch(() => null);
   if (!channel?.isTextBased()) throw new Error('Bitte einen Textkanal wählen.');
-  if (!store.types(guild.id).some((t) => t.panel === kind && t.enabled))
-    throw new Error('Keine aktive Bewerbungsart für dieses Panel.');
-  await require('./messages').postPanel(channel, kind);
+  if (!require('./panels').activeTypes(guild.id, panel).some((t) => t.enabled))
+    throw new Error('Keine aktive Bewerbungsart in diesem Panel.');
+  await require('./messages').postPanel(channel, panel.id);
 }
 
 // ---------- Prüfung der Einstellungen vor dem Speichern ----------
@@ -269,7 +271,6 @@ async function postPanel(guild, { kind, channelId }) {
 function checkConfig(config) {
   const types = config.applications?.types;
   if (!Array.isArray(types)) return null;
-  if (!types.length) return 'Mindestens eine Bewerbungsart ist nötig.';
   if (types.length > 25) return 'Höchstens 25 Bewerbungsarten.';
   if (new Set(types.map((t) => t.id)).size !== types.length)
     return 'Die Schlüssel der Bewerbungsarten müssen eindeutig sein.';
@@ -277,7 +278,7 @@ function checkConfig(config) {
     if (!t.name?.trim()) return `Bewerbungsart „${t.id}“: Name fehlt.`;
     if (!/^[A-Z0-9]{1,6}$/.test(t.numberPrefix ?? ''))
       return `${t.name}: Nummern-Kürzel muss 1–6 Großbuchstaben/Ziffern haben.`;
-    const problem = validateType(t)[0];
+    const problem = validateType(t, { allowEmpty: true })[0];
     if (problem) return `Bewerbung ${problem}`;
   }
   return null;

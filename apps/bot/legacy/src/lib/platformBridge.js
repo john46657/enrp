@@ -50,6 +50,10 @@ const live = {
       questionTypes: appDashboard.QUESTION_TYPES,
       statTypes: Object.fromEntries(Object.entries(stats.TYPES).map(([key, t]) => [key, { label: t.label, name: t.name }])),
       ticketPanels: Object.keys(bucket('ticketPanels', guild.id)).length,
+      // Bewerbungs-Panels (eigene Objekte, siehe /bewerbung-verwalten → Panels)
+      appPanels: require('./applications/panels')
+        .panelsOf(guild.id)
+        .map((p) => ({ id: p.id, name: p.name, types: p.types })),
     };
   },
   applications: (guild) => appDashboard.list(guild),
