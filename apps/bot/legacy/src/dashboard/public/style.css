@@ -143,3 +143,10 @@ th { color: var(--muted); font-weight: 500; }
   .card-head, .card-body { padding-left: 16px; padding-right: 16px; }
   .user span { display: none; }
 }
+
+/* Admin-Knopf unten links (nur Bot-Admins) */
+.admin-fab { position: fixed; left: 24px; bottom: 24px; z-index: 25; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: var(--panel); border: 1px solid rgba(234, 179, 8, 0.45); color: var(--yellow); font-weight: 700; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+.admin-fab:hover { border-color: var(--yellow); background: var(--panel-2); }
+.admin-fab.active { background: rgba(234, 179, 8, 0.12); border-color: var(--yellow); }
+.spacer-24 { height: 24px; }
+@media (max-width: 900px) { .admin-fab { left: 12px; bottom: 12px; padding: 8px 14px; } }

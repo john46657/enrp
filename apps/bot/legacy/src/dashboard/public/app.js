@@ -359,6 +359,7 @@ function userBox() {
     { class: 'user' },
     h('img', { class: 'avatar', src: avatar, alt: '' }),
     h('span', {}, u.globalName || u.username),
+    u.isBotAdmin && h('span', { class: 'badge yellow', title: 'Voller Zugriff auf alle Server des Bots' }, 'Bot-Admin'),
     h('button', { class: 'btn ghost small', onclick: async () => (await api('/logout', { method: 'POST' }), (location.href = '/')) }, 'Abmelden'),
   );
 }
@@ -408,11 +409,100 @@ function renderServers() {
   document.title = `${state.me.bot.brand} Dashboard`;
 }
 
+// ---------- Admin-Bereich (nur Bot-Admins) ----------
+
+// Fester Knopf unten links, nur für Bot-Admins (BOT_ADMINS in der .env des Bots).
+function adminButton() {
+  document.querySelector('.admin-fab')?.remove();
+  if (!state.me?.user?.isBotAdmin) return;
+  const active = location.hash.startsWith('#/admin');
+  document.body.append(h('a', { class: `admin-fab${active ? ' active' : ''}`, href: '#/admin', title: 'Admin-Bereich: alle Server des Bots' }, h('span', {}, '🛡️'), 'Admin'));
+}
+
+const duration = (seconds) => {
+  const d = Math.floor(seconds / 86_400);
+  const hours = Math.floor((seconds % 86_400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return d ? `${d} T ${hours} Std` : hours ? `${hours} Std ${minutes} Min` : `${minutes} Min`;
+};
+
+async function renderAdmin() {
+  const app = document.getElementById('app');
+  let data;
+  try {
+    data = await api('/api/admin/guilds');
+  } catch (err) {
+    app.replaceChildren(h('div', { class: 'center' }, h('div', {}, h('p', {}, err.message), h('a', { href: '#/' }, '← Zurück zur Server-Auswahl'))));
+    return;
+  }
+  const search = h('input', { type: 'text', placeholder: 'Server, ID oder Besitzer-ID suchen …', oninput: () => draw() });
+  const list = h('div');
+  const stat = (label, value) => h('div', { class: 'stat' }, h('div', { class: 'label' }, label), h('div', { class: 'value' }, value));
+  const serverCard = (g) =>
+    h(
+      'div',
+      { class: 'server' },
+      guildIconNode(g),
+      h('h3', {}, g.name),
+      h('div', { class: 'muted small' }, `${g.memberCount.toLocaleString('de-DE')} Mitglieder · seit ${new Date(g.joinedAt).toLocaleDateString('de-DE')}`),
+      h(
+        'div',
+        { class: 'pills' },
+        h('span', { class: `badge ${g.member ? 'green' : 'yellow'}`, title: g.member ? 'Du hast hier selbst „Server verwalten“' : 'Zugriff nur über Bot-Admin' }, g.member ? 'Eigene Rechte' : 'Nur Admin-Zugriff'),
+        g.changed ? h('span', { class: 'badge' }, `${g.changed} Einstellungen`) : null,
+      ),
+      h('div', { class: 'muted small' }, h('code', {}, g.id)),
+      h('a', { class: 'btn primary', href: `#/g/${g.id}` }, 'Verwalten ›'),
+    );
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    const shown = data.guilds.filter((g) => !q || g.name.toLowerCase().includes(q) || g.id.includes(q) || g.ownerId === q);
+    setChildren(
+      list,
+      h('div', { class: 'section-title' }, 'Alle Server des Bots', h('span', { class: 'badge' }, shown.length)),
+      shown.length ? h('div', { class: 'server-grid' }, shown.map(serverCard)) : h('p', { class: 'muted' }, 'Keine Server gefunden.'),
+    );
+  };
+  draw();
+  app.replaceChildren(
+    h(
+      'div',
+      { class: 'servers' },
+      h(
+        'div',
+        { class: 'servers-head' },
+        h('div', {}, h('h1', {}, '🛡️ Admin-Bereich'), h('p', { class: 'lead' }, 'Als Bot-Admin hast du auf jedem Server des Bots vollen Zugriff – auch ohne dort Mitglied zu sein.')),
+        userBox(),
+      ),
+      h(
+        'div',
+        { class: 'stats-grid' },
+        stat('Server', data.totals.guilds.toLocaleString('de-DE')),
+        stat('Mitglieder gesamt', data.totals.members.toLocaleString('de-DE')),
+        stat('Bot-Ping', `${data.bot.ping} ms`),
+        stat('Laufzeit', duration(data.bot.uptime)),
+      ),
+      search,
+      h('div', { class: 'spacer-24' }),
+      list,
+    ),
+  );
+  document.title = `Admin · ${state.me.bot.brand} Dashboard`;
+}
+
 // ---------- Routing ----------
 
 let lastGuildId = null;
 async function render() {
   const [, kind, guildId, pageId] = location.hash.split('/');
+  adminButton();
+  if (kind === 'admin') {
+    if (state.changes.size && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+    state.changes.clear();
+    lastGuildId = null;
+    updateSavebar();
+    return renderAdmin();
+  }
   if (kind !== 'g') {
     if (state.changes.size && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
     state.changes.clear();

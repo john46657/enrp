@@ -4,7 +4,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const { forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
-const { embed, fill, getChannel, replyPrivate } = require('./util');
+const { embed, fill, getChannel, replyPrivate, isBotAdmin } = require('./util');
 const activity = require('./activity');
 const team = require('./team');
 
@@ -146,7 +146,7 @@ async function answer(interaction, approve, key) {
   const cfg = careersOf(interaction.guildId);
   const track = cfg.tracks.find((t) => t.id === trackId);
   const state = stateOf(interaction.guildId)[key];
-  const allowed = interaction.member.permissions.has(PermissionFlagsBits.ManageGuild) || (track?.approverRoles ?? []).some((id) => interaction.member.roles.cache.has(id));
+  const allowed = isBotAdmin(interaction.user.id) || interaction.member.permissions.has(PermissionFlagsBits.ManageGuild) || (track?.approverRoles ?? []).some((id) => interaction.member.roles.cache.has(id));
   if (!allowed) return replyPrivate(interaction, 'Nur Freigebende dieser Laufbahn können das entscheiden.');
   if (!track || !state?.pending) return interaction.update({ components: [] });
   const member = await interaction.guild.members.fetch(userId).catch(() => null);

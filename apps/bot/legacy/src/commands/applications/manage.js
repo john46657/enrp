@@ -7,7 +7,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const { embed, replyPrivate, truncate } = require('../../lib/util');
+const { embed, replyPrivate, truncate, isBotAdmin } = require('../../lib/util');
 const store = require('../../lib/applications/store');
 const manage = require('../../lib/applications/manage');
 const { QUESTION_TYPES } = require('../../lib/applications/forms');
@@ -281,7 +281,7 @@ module.exports = {
   autocomplete: (interaction) => store.typeChoices(interaction.guildId, interaction.options.getFocused()),
 
   async execute(interaction) {
-    if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) return replyPrivate(interaction, 'Dafür brauchst du „Server verwalten“.');
+    if (!isBotAdmin(interaction.user.id) && !interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) return replyPrivate(interaction, 'Dafür brauchst du „Server verwalten“.');
     const o = interaction.options;
     const sub = o.getSubcommand();
     const guildId = interaction.guildId;
@@ -386,7 +386,7 @@ module.exports = {
     // Formular aus „texte“
     async appadmin(interaction, [action, typeId]) {
       if (action !== 'texts' || !interaction.isModalSubmit()) return replyPrivate(interaction, 'Diese Aktion ist veraltet.');
-      if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) return replyPrivate(interaction, 'Dafür brauchst du „Server verwalten“.');
+      if (!isBotAdmin(interaction.user.id) && !interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) return replyPrivate(interaction, 'Dafür brauchst du „Server verwalten“.');
       const messages = Object.fromEntries(Object.keys(MESSAGES).map((key) => [key, interaction.fields.getTextInputValue(key)]));
       const result = manage.setMessages(interaction.guildId, typeId, messages);
       if (result.error) return replyPrivate(interaction, `❌ ${result.error}`);

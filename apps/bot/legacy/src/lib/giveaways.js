@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { forGuild } = require('./settings');
 const { bucket, save } = require('./db');
-const { embed, fill, getChannel, replyPrivate } = require('./util');
+const { embed, fill, getChannel, replyPrivate, isBotAdmin } = require('./util');
 const { zonedParts } = require('./time');
 
 const settingsOf = (guildId) => forGuild(guildId).giveaways;
@@ -22,7 +22,7 @@ function parseDuration(text) {
 }
 
 const isManager = (member) =>
-  member.permissions.has(PermissionFlagsBits.ManageGuild) || settingsOf(member.guild.id).managerRoles.some((id) => member.roles.cache.has(id));
+  isBotAdmin(member.id) || member.permissions.has(PermissionFlagsBits.ManageGuild) || settingsOf(member.guild.id).managerRoles.some((id) => member.roles.cache.has(id));
 
 async function log(guild, text) {
   const channel = await getChannel(guild, settingsOf(guild.id).logChannel);
