@@ -40,10 +40,20 @@ function hasRole(member, roleKey) {
   return Boolean(id && member.roles.cache.has(id));
 }
 
-// Staff = Staff-Rolle, "Server verwalten" oder Freigabe durch das Rechtesystem der Plattform (siehe platformGrant.js).
+// Bot-Admins: Discord-IDs aus BOT_ADMINS in der .env (durch Komma getrennt). Sie haben auf jedem Server, auf dem
+// der Bot ist, vollen Zugriff – in Discord und im Dashboard. Absichtlich nur über die .env änderbar.
+function botAdmins(env = process.env) {
+  return new Set((env.BOT_ADMINS ?? '').split(/[\s,;]+/).filter((id) => /^\d{15,25}$/.test(id)));
+}
+const isBotAdmin = (userId) => Boolean(userId) && botAdmins().has(userId);
+
+// Staff = Bot-Admin, Staff-Rolle, "Server verwalten" oder Freigabe durch das Rechtesystem der Plattform (siehe platformGrant.js).
 function isStaff(member) {
   return (
-    hasRole(member, 'staff') || member.permissions.has(PermissionFlagsBits.ManageGuild) || hasPlatformGrant(member)
+    isBotAdmin(member.id) ||
+    hasRole(member, 'staff') ||
+    member.permissions.has(PermissionFlagsBits.ManageGuild) ||
+    hasPlatformGrant(member)
   );
 }
 
@@ -55,4 +65,4 @@ function truncate(text, max) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-module.exports = { embed, replyPrivate, getChannel, sendTo, fill, hasRole, isStaff, isSupport, truncate };
+module.exports = { embed, replyPrivate, getChannel, sendTo, fill, hasRole, isStaff, isSupport, truncate, botAdmins, isBotAdmin };

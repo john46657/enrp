@@ -13,7 +13,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const { embed, truncate } = require('../util');
+const { embed, truncate, isBotAdmin } = require('../util');
 const store = require('./store');
 const manage = require('./manage');
 const panels = require('./panels');
@@ -383,7 +383,7 @@ async function open(interaction) {
 }
 
 async function handle(interaction, [action, a, b, c]) {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+  if (!isBotAdmin(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
     return interaction.reply({ content: 'Dafür brauchst du „Server verwalten“.', flags: MessageFlags.Ephemeral });
   }
   const guildId = interaction.guildId;

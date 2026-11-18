@@ -3,12 +3,12 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
-const { getChannel, replyPrivate, truncate } = require('./util');
+const { getChannel, replyPrivate, truncate, isBotAdmin } = require('./util');
 
 const settingsOf = (guildId) => forGuild(guildId).suggestions;
 const suggestionsOf = (guildId) => bucket('suggestions', guildId); // Nachrichten-ID → Vorschlag
 const activeCategories = (guildId) => settingsOf(guildId).categories.filter((c) => c.enabled !== false);
-const isTeam = (member) => member.permissions.has(PermissionFlagsBits.Administrator) || member.permissions.has(PermissionFlagsBits.ManageGuild) || settingsOf(member.guild.id).teamRoles.some((id) => member.roles.cache.has(id));
+const isTeam = (member) => isBotAdmin(member.id) || member.permissions.has(PermissionFlagsBits.Administrator) || member.permissions.has(PermissionFlagsBits.ManageGuild) || settingsOf(member.guild.id).teamRoles.some((id) => member.roles.cache.has(id));
 
 const STATUS = {
   open: ['🗳️ Offen', '#2F7BFF'],

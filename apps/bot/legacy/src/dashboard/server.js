@@ -8,6 +8,7 @@ const { PermissionFlagsBits, OAuth2Scopes } = require('discord.js');
 const settings = require('../lib/settings');
 const { bucket, save } = require('../lib/db');
 const { isValidTimeZone } = require('../lib/time');
+const { isBotAdmin } = require('../lib/util');
 
 const API = 'https://discord.com/api/v10';
 const SESSION_DAYS = 7;
@@ -154,24 +155,72 @@ function createApp(client) {
     const invite = (guildId) =>
       client.generateInvite({ scopes: [OAuth2Scopes.Bot, OAuth2Scopes.ApplicationsCommands], permissions: [PermissionFlagsBits.Administrator], guild: guildId });
     res.json({
-      user: req.session.user,
+      user: { ...req.session.user, isBotAdmin: isBotAdmin(req.session.user.id) },
       bot: { name: client.user.username, avatar: client.user.displayAvatarURL(), brand: settings.base.serverName },
       guilds: req.session.guilds.map((g) => ({ ...g, botIn: client.guilds.cache.has(g.id), invite: invite(g.id) })),
     });
   });
 
   // Zugriff auf einen Server: Bot muss drauf sein, der Nutzer dort (laut Bot) „Server verwalten“ haben.
+  // Bot-Admins (BOT_ADMINS in der .env) dürfen auf jeden Server des Bots, auch ohne Mitglied zu sein.
   async function guildAccess(req, res, next) {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Der Bot ist nicht auf diesem Server.' });
-    const member = await guild.members.fetch(req.session.user.id).catch(() => null);
-    if (!member || !(member.id === guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild))) {
+    const userId = req.session.user.id;
+    let member = await guild.members.fetch(userId).catch(() => null);
+    if (isBotAdmin(userId)) {
+      member ??= await botAdminMember(guild, userId);
+    } else if (!member || !(member.id === guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild))) {
       return res.status(403).json({ error: 'Du brauchst auf diesem Server „Server verwalten“.' });
     }
     req.guild = guild;
     req.member = member;
     next();
   }
+
+  // Platzhalter-Mitglied für Bot-Admins, die nicht auf dem Server sind: alle Rechte, keine Rollen.
+  // Aktionen (z. B. Bewerbung entscheiden) brauchen id und user.
+  async function botAdminMember(guild, userId) {
+    const user = await client.users.fetch(userId);
+    return {
+      id: userId,
+      user,
+      guild,
+      displayName: user.globalName ?? user.username,
+      toString: () => user.toString(),
+      roles: { cache: new Map(), highest: { position: 0 } },
+      permissions: { has: () => true },
+    };
+  }
+
+  // ---------- Admin-Bereich (nur Bot-Admins) ----------
+
+  function adminOnly(req, res, next) {
+    if (!isBotAdmin(req.session.user.id)) return res.status(403).json({ error: 'Nur für Bot-Admins.' });
+    next();
+  }
+
+  // Alle Server, auf denen der Bot ist – mit Kennzahlen.
+  app.get('/api/admin/guilds', adminOnly, (req, res) => {
+    const own = new Map(req.session.guilds.map((g) => [g.id, g]));
+    const guilds = client.guilds.cache
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        icon: g.iconURL({ size: 128 }),
+        memberCount: g.memberCount,
+        ownerId: g.ownerId,
+        joinedAt: g.joinedTimestamp,
+        changed: settings.overrideCount(g.id),
+        member: own.has(g.id), // hat der Bot-Admin hier selbst „Server verwalten“?
+      }))
+      .sort((a, b) => b.memberCount - a.memberCount);
+    res.json({
+      guilds,
+      totals: { guilds: guilds.length, members: guilds.reduce((sum, g) => sum + (g.memberCount ?? 0), 0) },
+      bot: { name: client.user.username, id: client.user.id, uptime: Math.round(process.uptime()), ping: client.ws.ping },
+    });
+  });
 
   app.get('/api/guilds/:guildId', guildAccess, (req, res) => {
     const { guild } = req;
@@ -231,6 +280,7 @@ function createApp(client) {
     const fn = actions.get(req.params.name);
     if (!fn) return res.status(404).json({ error: 'Unbekannte Aktion' });
     try {
+      if (isBotAdmin(req.session.user.id)) console.log(`[dashboard] Bot-Admin ${req.session.user.username} → Aktion „${req.params.name}“ auf „${req.guild.name}“`);
       res.json({ ok: true, result: (await fn(req.guild, req.body ?? {}, req.member)) ?? null });
     } catch (err) {
       res.status(400).json({ error: err.message });

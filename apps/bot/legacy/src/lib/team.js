@@ -3,7 +3,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const { forGuild } = require('./settings');
 const { bucket, save, nextNumber } = require('./db');
-const { embed, fill, getChannel, truncate, replyPrivate } = require('./util');
+const { embed, fill, getChannel, truncate, replyPrivate, isBotAdmin } = require('./util');
 const { fromZoned } = require('./time');
 
 const settingsOf = (guildId) => forGuild(guildId).team;
@@ -18,7 +18,7 @@ const PERMS = {
   attendanceView: 'Anwesenheitsstatistik ansehen (/meeting anwesenheit für alle)',
 };
 
-const isAdmin = (member) => member.id === member.guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild);
+const isAdmin = (member) => isBotAdmin(member.id) || member.id === member.guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild);
 const teamRolesOf = (member) => settingsOf(member.guild.id).roles.filter((r) => member.roles.cache.has(r.id));
 const isTeam = (member) => isAdmin(member) || teamRolesOf(member).length > 0;
 const can = (member, perm) => isAdmin(member) || teamRolesOf(member).some((r) => r.perms?.includes(perm));
