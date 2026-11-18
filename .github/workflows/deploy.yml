@@ -1,0 +1,90 @@
+# Wird ausschließlich über freigegebene Releases angestoßen (Dashboard/Discord → Worker → workflow_dispatch)
+# oder manuell. Discord führt niemals Befehle auf Servern aus.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version (z. B. 1.4.0)
+        required: true
+      environment:
+        description: Zielumgebung
+        required: true
+        type: choice
+        options: [staging, production]
+      release_id:
+        description: Release-ID aus der Plattform (für die Rückmeldung)
+        required: false
+      kind:
+        description: deploy | rollback | promote
+        required: false
+        default: deploy
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # GitHub-Environments trennen Geheimnisse; für "production" Schutzregeln (Reviewer) aktivieren.
+    environment: ${{ inputs.environment }}
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.kind == 'rollback' && format('v{0}', inputs.version) || github.ref }}
+
+      - name: Rückmeldung „wird ausgerollt“
+        if: inputs.release_id != ''
+        run: |
+          curl -fsS -X POST "${{ vars.PLATFORM_URL }}/api/v1/releases/${{ inputs.release_id }}/result" \
+            -H "x-release-secret: ${{ secrets.RELEASE_WEBHOOK_SECRET }}" -H "content-type: application/json" \
+            -d "{\"status\":\"deploying\",\"pipelineRunUrl\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Images bauen und veröffentlichen
+        run: |
+          for target in api worker bot dashboard; do
+            docker buildx build --target "$target" --build-arg APP_VERSION=${{ inputs.version }} \
+              --tag "$REGISTRY/enrp-$target:${{ inputs.version }}" --push .
+          done
+
+      - name: Ausrollen (Docker Compose auf dem Zielserver)
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER: ${{ vars.DEPLOY_USER }}
+        run: |
+          install -m 600 /dev/null key && printf '%s\n' "$SSH_KEY" > key
+          ssh -i key -o StrictHostKeyChecking=accept-new "$USER@$HOST" \
+            "cd /opt/enrp && ENRP_VERSION=${{ inputs.version }} docker compose -f docker-compose.prod.yml pull && ENRP_VERSION=${{ inputs.version }} docker compose -f docker-compose.prod.yml up -d"
+          rm -f key
+
+      - name: Health-Check nach dem Release
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS "${{ vars.PLATFORM_URL }}/api/v1/status" && exit 0
+            sleep 10
+          done
+          exit 1
+
+      - name: Rückmeldung Ergebnis
+        if: always() && inputs.release_id != ''
+        run: |
+          STATUS=$([ "${{ job.status }}" = "success" ] && echo deployed || echo failed)
+          curl -fsS -X POST "${{ vars.PLATFORM_URL }}/api/v1/releases/${{ inputs.release_id }}/result" \
+            -H "x-release-secret: ${{ secrets.RELEASE_WEBHOOK_SECRET }}" -H "content-type: application/json" \
+            -d "{\"status\":\"$STATUS\",\"pipelineRunUrl\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

@@ -1,0 +1,82 @@
+# Lokale Komplettumgebung bzw. Vorlage für einen Einzelserver.
+# Nur Datenbank + Redis für die Entwicklung: docker compose up -d postgres redis
+name: enrp
+
+x-env: &env
+  env_file: .env
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: enrp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-enrp}
+      POSTGRES_DB: enrp
+    volumes: [pgdata:/var/lib/postgresql/data]
+    ports: ['127.0.0.1:5432:5432']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U enrp']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes: [redisdata:/data]
+    ports: ['127.0.0.1:6379:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *env
+    build: { context: ., target: api }
+    environment:
+      DATABASE_URL: postgres://enrp:${POSTGRES_PASSWORD:-enrp}@postgres:5432/enrp
+      REDIS_URL: redis://redis:6379
+      RUN_MIGRATIONS: 'true'
+      TRUST_PROXY: 'true'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    profiles: [app]
+
+  worker:
+    <<: *env
+    build: { context: ., target: worker }
+    environment:
+      DATABASE_URL: postgres://enrp:${POSTGRES_PASSWORD:-enrp}@postgres:5432/enrp
+      REDIS_URL: redis://redis:6379
+    volumes: [backups:/backups]
+    depends_on: [api]
+    profiles: [app]
+
+  bot:
+    <<: *env
+    build: { context: ., target: bot }
+    environment:
+      API_URL: http://api:4000
+    volumes: [botdata:/app/legacy/data]
+    depends_on: [api]
+    profiles: [app]
+
+  dashboard:
+    <<: *env
+    build: { context: ., target: dashboard }
+    environment:
+      API_URL: http://api:4000
+    ports: ['127.0.0.1:3000:3000']
+    depends_on: [api]
+    profiles: [app]
+
+volumes:
+  pgdata:
+  redisdata:
+  backups:
+  botdata:

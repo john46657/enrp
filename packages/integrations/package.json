@@ -1,0 +1,20 @@
+{
+  "name": "@enrp/integrations",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@enrp/config": "workspace:*",
+    "@enrp/core": "workspace:*",
+    "bullmq": "^5.81.5",
+    "ioredis": "^5.11.1"
+  }
+}
