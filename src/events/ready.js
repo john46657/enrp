@@ -29,6 +29,7 @@ module.exports = {
 
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
     startTicketWatcher(client);
+    require('../dashboard/server').start(client); // Web-Dashboard, falls in der .env eingerichtet
     setInterval(() => sweep(client).catch((err) => console.error('[bewerbung]', err)), 60_000);
 
     // Bot-Status: Spieleranzahl des ersten Servers mit eingetragenem Gameserver, sonst der Name aus config.json.

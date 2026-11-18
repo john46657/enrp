@@ -113,6 +113,8 @@ console.log('✅ Einstellungen je Server setzen/zurücksetzen');
 
 require('./check-applications')(fail)
   .then(() => console.log('✅ Bewerbungen: Vorlagen, Editor, Panels, IDs und Prüfschritte'))
+  .then(() => require('./check-dashboard')(fail))
+  .then(() => console.log('✅ Dashboard: Anmeldung, Rechte, Bearbeiten, Entscheiden, Sperren'))
   .catch((err) => fail(`Bewerbungen: ${err.stack}`))
   .finally(() => {
     if (failed) process.exit(1);

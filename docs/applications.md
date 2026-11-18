@@ -9,8 +9,8 @@ Entscheidungen im Team-Kanal, Sperren, KI-Checker und Statistik.
 > landet mit Annehmen/Ablehnen-Buttons im Team-Kanal → die Entscheidung geht per DM an die Person, Rollen werden
 > automatisch vergeben/entfernt.
 
-Alles läuft in Discord. Was die Web-Version zusätzlich kann (Browser-Formular, Dashboard, …), steht unter
-[13. Nicht enthalten](#13-nicht-enthalten).
+Alles läuft in Discord. Bearbeiten und Entscheiden geht zusätzlich im [Web-Dashboard](dashboard.md).
+Was es nicht gibt, steht unter [13. Nicht enthalten](#13-nicht-enthalten).
 
 ---
 
@@ -390,7 +390,7 @@ oder sind durch Discord-Funktionen ersetzt:
 |---|---|
 | Browser-Formular mit signiertem Link (`mode: 'WEB'`) | nicht enthalten – nur Fragen per DM |
 | öffentliche Seite `/apply` ohne Discord | nicht enthalten |
-| Dashboard (Liste, Einrichtung, Statistik, Sperren) | `/bewerbungsart`, `/bewerbungspanel`, `/bewerbungen`, `/bewerbungssperre` – ein Web-Dashboard ist geplant |
+| Dashboard (Liste, Einrichtung, Statistik, Sperren) | enthalten – siehe [dashboard.md](dashboard.md); dazu `/bewerbungsart`, `/bewerbungspanel`, `/bewerbungen`, `/bewerbungssperre` |
 | Rechte-System mit Konten (`applications.decide` …) | Staff + Manager-Rollen je Bewerbung |
 | Benachrichtigungen und Audit-Log im Dashboard | Team-Kanal, Team-Thread, Mod-Log |
 | Team-Chance (Bewerbungsphasen) | nicht enthalten – `enabled` per `/einstellungen bewerbung` umschalten |

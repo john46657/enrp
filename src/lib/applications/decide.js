@@ -173,6 +173,36 @@ async function openTicket(interaction, number) {
   return interaction.editReply(`🎫 Ticket erstellt: ${channel}`);
 }
 
+// ---------- Aus dem Dashboard (ohne Discord-Interaktion) ----------
+// Gibt eine Fehlermeldung zurück oder null. by = Discord-Nutzer, der im Dashboard eingeloggt ist.
+
+async function decideExternal(guild, number, action, by, reason = null) {
+  const record = store.getRecord(guild.id, number);
+  const type = record && store.typeById(guild.id, record.type);
+  if (!record || !type) return 'Diese Bewerbung gibt es nicht (mehr) oder ihre Bewerbungsart wurde gelöscht.';
+  if (record.userId === by.id) return 'Über deine eigene Bewerbung kannst du nicht entscheiden.';
+  const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
+  if (!store.setStatus(record, status, by.id, { reason: reason || null })) {
+    return `Diese Bewerbung wurde bereits entschieden: ${store.statusLabel(record.status, type)}.`;
+  }
+  await updateTeamMessage(guild, record, type);
+  await afterDecision(guild, record, type, by);
+  return null;
+}
+
+async function changeStatusExternal(guild, number, next, by) {
+  const record = store.getRecord(guild.id, number);
+  const type = record && store.typeById(guild.id, record.type);
+  if (!record || !type) return 'Diese Bewerbung gibt es nicht (mehr) oder ihre Bewerbungsart wurde gelöscht.';
+  if (record.userId === by.id) return 'Über deine eigene Bewerbung kannst du nicht entscheiden.';
+  if (!store.nextStatuses(record, type).includes(next)) return `Von „${store.statusLabel(record.status, type)}“ geht es nicht nach „${store.statusLabel(next, type)}“.`;
+  const reason = next === 'WITHDRAWN' ? 'Vom Team zurückgezogen.' : undefined;
+  if (!store.setStatus(record, next, by.id, { reason })) return 'Diese Bewerbung wurde bereits entschieden.';
+  await updateTeamMessage(guild, record, type);
+  if (next === 'WITHDRAWN') await afterDecision(guild, record, type, by);
+  return null;
+}
+
 // Bewerber verlässt den Server: je nach onLeave nichts tun, ablehnen oder zurückziehen.
 async function handleMemberLeave(member) {
   cancelForMember(member.guild.id, member.id);
@@ -186,4 +216,4 @@ async function handleMemberLeave(member) {
   }
 }
 
-module.exports = { decide, askReason, changeStatus, withdraw, showHistory, openTicket, handleMemberLeave, updateTeamMessage };
+module.exports = { decide, askReason, changeStatus, withdraw, showHistory, openTicket, handleMemberLeave, updateTeamMessage, decideExternal, changeStatusExternal };
