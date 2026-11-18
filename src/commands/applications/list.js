@@ -5,7 +5,7 @@ const store = require('../../lib/applications/store');
 const { buildTeamMessage, answersFile } = require('../../lib/applications/messages');
 const { buildStats } = require('../../lib/applications/stats');
 
-const typeChoices = () => store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }));
+const autocomplete = require('../../lib/applications/autocomplete');
 const link = (r) => (r.messageId ? `https://discord.com/channels/${r.guildId}/${r.channelId}/${r.messageId}` : null);
 
 module.exports = {
@@ -16,14 +16,14 @@ module.exports = {
       s
         .setName('offen')
         .setDescription('Alle offenen Bewerbungen.')
-        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').addChoices(...typeChoices())),
+        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').setAutocomplete(true)),
     )
     .addSubcommand((s) => s.setName('in-bearbeitung').setDescription('Bewerbungen, die gerade per DM ausgefüllt werden.'))
     .addSubcommand((s) =>
       s
         .setName('anzeigen')
         .setDescription('Zeigt eine Bewerbung mit allen Antworten.')
-        .addStringOption((o) => o.setName('nummer').setDescription('z. B. APP-0001').setRequired(true)),
+        .addStringOption((o) => o.setName('nummer').setDescription('z. B. FW-0001').setRequired(true)),
     )
     .addSubcommand((s) =>
       s
@@ -35,14 +35,14 @@ module.exports = {
       s
         .setName('loeschen')
         .setDescription('Löscht eine Bewerbung (nur Staff).')
-        .addStringOption((o) => o.setName('nummer').setDescription('z. B. APP-0001').setRequired(true)),
+        .addStringOption((o) => o.setName('nummer').setDescription('z. B. FW-0001').setRequired(true)),
     )
     .addSubcommand((s) =>
       s
         .setName('statistik')
         .setDescription('Kennzahlen, Verlauf, Prüfer und Heatmap.')
         .addIntegerOption((o) => o.setName('tage').setDescription('Zeitraum (7–365, Standard 30)').setMinValue(7).setMaxValue(365))
-        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').addChoices(...typeChoices()))
+        .addStringOption((o) => o.setName('art').setDescription('Nur diese Art').setAutocomplete(true))
         .addStringOption((o) =>
           o
             .setName('status')
@@ -57,6 +57,8 @@ module.exports = {
         .addUserOption((o) => o.setName('pruefer').setDescription('Nur Entscheidungen dieser Person')),
     ),
 
+  autocomplete: autocomplete.respond,
+
   async execute(interaction) {
     if (!store.managesAny(interaction.member)) return replyPrivate(interaction, 'Nur das Bewerbungsteam kann das sehen.');
     const sub = interaction.options.getSubcommand();
@@ -69,7 +71,7 @@ module.exports = {
       const lines = open.map((r) => {
         const type = store.typeById(guildId, r.type);
         const url = link(r);
-        return `${url ? `[**${r.number}**](${url})` : `**${r.number}**`} ${type?.emoji ?? ''} <@${r.userId}> – ${store.STATUS[r.status]} · <t:${Math.floor(r.createdAt / 1000)}:R>${r.ai?.level === 'hoch' ? ' · 🔴 KI' : ''}`;
+        return `${url ? `[**${r.number}**](${url})` : `**${r.number}**`} ${type?.emoji ?? ''} <@${r.userId}> – ${store.statusLabel(r.status, type)} · <t:${Math.floor(r.createdAt / 1000)}:R>${r.ai?.level === 'hoch' ? ' · 🔴 KI' : ''}`;
       });
       return replyPrivate(interaction, { embeds: [embed().setTitle(`📥 Offene Bewerbungen (${open.length})`).setDescription(truncate(lines.join('\n'), 4000))] });
     }
@@ -87,7 +89,7 @@ module.exports = {
       const user = interaction.options.getUser('user');
       const list = store.historyOf(guildId, user.id);
       if (!list.length) return replyPrivate(interaction, `${user} hat noch keine Bewerbungen.`);
-      const lines = list.map((r) => `**${r.number}** ${store.typeById(guildId, r.type)?.name ?? r.type} – ${store.STATUS[r.status]} <t:${Math.floor(r.createdAt / 1000)}:R>`);
+      const lines = list.map((r) => `**${r.number}** ${store.typeById(guildId, r.type)?.name ?? r.type} – ${store.statusLabel(r.status, store.typeById(guildId, r.type))} <t:${Math.floor(r.createdAt / 1000)}:R>`);
       return replyPrivate(interaction, { embeds: [embed().setTitle(`📜 Verlauf von ${user.username}`).setDescription(truncate(lines.join('\n'), 4000))] });
     }
 

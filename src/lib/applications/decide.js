@@ -56,7 +56,7 @@ async function afterDecision(guild, record, type, decider) {
   await user?.send({ embeds: [embed(color).setDescription(renderMessage(template, vars)).setFooter({ text: guild.name })] }).catch(() => {});
 
   const member = await guild.members.fetch(record.userId).catch(() => null);
-  const reason = `Bewerbung ${record.number}: ${store.STATUS[record.status]}`;
+  const reason = `Bewerbung ${record.number}: ${store.statusLabel(record.status, type)}`;
   if (record.status === 'ACCEPTED') {
     await applyRoles(member, { add: [...type.roles.acceptAdd, ...(record.roleSelections ?? [])], remove: [...type.roles.acceptRemove, ...type.roles.pending] }, reason);
   } else if (record.status === 'REJECTED') {
@@ -68,7 +68,7 @@ async function afterDecision(guild, record, type, decider) {
   if (record.threadId) {
     const thread = await guild.channels.fetch(record.threadId).catch(() => null);
     await thread
-      ?.send({ embeds: [embed(color).setDescription(`${store.STATUS[record.status]} von ${vars.user}${record.reason ? `\n**Grund:** ${record.reason}` : ''}`)] })
+      ?.send({ embeds: [embed(color).setDescription(`${store.statusLabel(record.status, type)} von ${vars.user}${record.reason ? `\n**Grund:** ${record.reason}` : ''}`)] })
       .catch(() => {});
   }
 
@@ -89,7 +89,7 @@ async function decide(interaction, number, action, reason = null) {
   const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
   // setStatus prüft und setzt synchron – ein zweiter, gleichzeitiger Klick scheitert hier.
   if (!store.setStatus(record, status, interaction.user.id, { reason })) {
-    return replyPrivate(interaction, `Diese Bewerbung wurde bereits entschieden: **${store.STATUS[record.status]}**${record.decidedBy ? ` von <@${record.decidedBy}>` : ''}.`);
+    return replyPrivate(interaction, `Diese Bewerbung wurde bereits entschieden: **${store.statusLabel(record.status, type)}**${record.decidedBy ? ` von <@${record.decidedBy}>` : ''}.`);
   }
   await interaction.update(buildTeamMessage(record, type));
   if (interaction.message.id !== record.messageId) await updateTeamMessage(interaction.guild, record, type);
@@ -112,15 +112,15 @@ async function askReason(interaction, number, action) {
   );
 }
 
-// Polizei-Workflow: SUBMITTED → SCREENING → INTERVIEW → PENDING_DECISION (oder Zurückziehen)
+// Status-Menü: eigener Prüfschritt der Art (z. B. In Prüfung, Gespräch) oder Zurückziehen
 async function changeStatus(interaction, number) {
   const loaded = await loadForManager(interaction, number);
   if (!loaded) return;
   const { record, type } = loaded;
   if (record.userId === interaction.user.id) return replyPrivate(interaction, 'Über deine eigene Bewerbung kannst du nicht entscheiden.');
   const next = interaction.values[0];
-  if (!(store.POLICE_TRANSITIONS[record.status] ?? []).includes(next)) {
-    return replyPrivate(interaction, `Von „${store.STATUS[record.status]}“ geht es nicht nach „${store.STATUS[next]}“.`);
+  if (!store.nextStatuses(record, type).includes(next)) {
+    return replyPrivate(interaction, `Von „${store.statusLabel(record.status, type)}“ geht es nicht nach „${store.statusLabel(next, type)}“.`);
   }
   const reason = next === 'WITHDRAWN' ? 'Vom Team zurückgezogen.' : undefined;
   if (!store.setStatus(record, next, interaction.user.id, { reason })) return replyPrivate(interaction, 'Diese Bewerbung wurde bereits entschieden.');
@@ -137,7 +137,7 @@ async function withdraw(interaction, guildId, number) {
     return interaction.update({ components: [] });
   }
   if (!store.setStatus(record, 'WITHDRAWN', interaction.user.id, { reason: 'Vom Bewerber zurückgezogen.' })) {
-    return interaction.update({ embeds: [...interaction.message.embeds, embed().setDescription(`Diese Bewerbung ist bereits ${store.STATUS[record.status].toLowerCase()}.`)], components: [] });
+    return interaction.update({ embeds: [...interaction.message.embeds, embed().setDescription(`Diese Bewerbung ist bereits ${store.statusLabel(record.status, type).toLowerCase()}.`)], components: [] });
   }
   await interaction.update({ embeds: [...interaction.message.embeds, embed('warning').setDescription(`↩️ Du hast ${record.number} zurückgezogen.`)], components: [] });
   await updateTeamMessage(guild, record, type);
@@ -151,7 +151,7 @@ async function showHistory(interaction, userId) {
   const lines = list.map((r) => {
     const type = store.typeById(interaction.guildId, r.type);
     const link = r.messageId ? ` · [Nachricht](https://discord.com/channels/${r.guildId}/${r.channelId}/${r.messageId})` : '';
-    return `**${r.number}** ${type?.emoji ?? ''} ${type?.name ?? r.type} – ${store.STATUS[r.status]} <t:${Math.floor(r.createdAt / 1000)}:R>${link}`;
+    return `**${r.number}** ${type?.emoji ?? ''} ${type?.name ?? r.type} – ${store.statusLabel(r.status, type)} <t:${Math.floor(r.createdAt / 1000)}:R>${link}`;
   });
   return replyPrivate(interaction, { embeds: [embed().setTitle(`📜 Verlauf (${list.length})`).setDescription(`<@${userId}>\n\n${truncate(lines.join('\n'), 3900)}`)] });
 }
@@ -167,7 +167,7 @@ async function openTicket(interaction, number) {
   const channel = await openApplicationTicket(interaction, member, {
     roles: type.roles.managers,
     name: `${record.number}-${member.user.username}`,
-    title: `${type.emoji} ${type.name} – ${record.number}`,
+    title: `${type.emoji ? `${type.emoji} ` : ''}${type.name} – ${record.number}`,
     label: `Bewerbung ${record.number}`,
   });
   return interaction.editReply(`🎫 Ticket erstellt: ${channel}`);

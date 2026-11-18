@@ -18,27 +18,37 @@ const store = require('./store');
 const { AI_ICONS } = require('./aiCheck');
 const { profileUrl } = require('./roblox');
 
-const STATUS_COLORS = { ACCEPTED: 'success', REJECTED: 'danger', WITHDRAWN: '#99AAB5', SCREENING: 'warning', INTERVIEW: 'warning', PENDING_DECISION: 'warning' };
+const STATUS_COLORS = { ACCEPTED: 'success', REJECTED: 'danger', WITHDRAWN: '#99AAB5', SUBMITTED: 'primary', OPEN: 'primary' };
+// Eigene Prüfschritte sind gelb.
+const statusColor = (status) => STATUS_COLORS[status] ?? 'warning';
 const unix = (ms) => Math.floor(ms / 1000);
 
 // ---------- Panels ----------
 
-function panelTypes(guildId, kind) {
-  return store.types(guildId).filter((t) => t.panel === kind);
+const panelsOf = (guildId) => forGuild(guildId).applications.panels;
+
+function panelTypes(guildId, panelId) {
+  return store.types(guildId).filter((t) => t.panel === panelId);
 }
 
-function buildPanel(guildId, kind) {
-  const panel = forGuild(guildId).applications.panels[kind];
-  const list = panelTypes(guildId, kind);
+function buildPanel(guildId, panelId) {
+  const panel = panelsOf(guildId)[panelId];
+  if (!panel) {
+    return {
+      components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent('*Dieses Bewerbungs-Panel wurde gelöscht.*'))],
+      flags: MessageFlags.IsComponentsV2,
+    };
+  }
+  const list = panelTypes(guildId, panelId);
   const container = new ContainerBuilder()
     .setAccentColor(parseInt(base.colors.primary.slice(1), 16))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${panel.title}\n${panel.description}`));
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(`## ${panel.title}${panel.description ? `\n${panel.description}` : ''}`, 4000)));
 
-  if (list.length > 1 || kind === 'quali') {
+  if (list.length > 1 || (panel.showList && list.length) || !list.length) {
     container.addSeparatorComponents(new SeparatorBuilder()).addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         list.length
-          ? list.map((t) => `- [${t.emoji}] **${t.name}**${t.enabled ? '' : ' *(geschlossen)*'}\n${t.description || ''}`).join('\n\n')
+          ? truncate(list.map((t) => `- ${t.emoji ? `[${t.emoji}] ` : ''}**${t.name}**${t.enabled ? '' : ' *(geschlossen)*'}${t.description ? `\n${t.description}` : ''}`).join('\n\n'), 3500)
           : '*Derzeit gibt es hier keine Bewerbungen.*',
       ),
     );
@@ -49,28 +59,35 @@ function buildPanel(guildId, kind) {
 
   const components = [container];
   if (list.length === 1) {
-    components.push(
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`quali:apply:${list[0].id}`).setLabel('Jetzt bewerben').setStyle(ButtonStyle.Primary).setEmoji(list[0].emoji),
-      ),
-    );
+    const button = new ButtonBuilder().setCustomId(`quali:apply:${list[0].id}`).setLabel('Jetzt bewerben').setStyle(ButtonStyle.Primary);
+    if (list[0].emoji) button.setEmoji(list[0].emoji);
+    components.push(new ActionRowBuilder().addComponents(button));
   } else if (list.length > 1) {
-    components.push(
-      new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId('quali:pick')
-          .setPlaceholder(kind === 'apply' ? 'Wofür möchtest du dich bewerben?' : 'Wähle eine Einheit oder Qualifikation …')
-          .addOptions(list.slice(0, 25).map((t) => ({ label: t.name, value: t.id, emoji: t.emoji, description: truncate(t.description || t.name, 100) }))),
-      ),
-    );
+    components.push(new ActionRowBuilder().addComponents(typeSelect('quali:pick', list, panel.placeholder || 'Wofür möchtest du dich bewerben?')));
   }
   return { components, flags: MessageFlags.IsComponentsV2 };
 }
 
-async function postPanel(channel, kind) {
-  const message = await channel.send(buildPanel(channel.guild.id, kind));
-  bucket('appPanels', channel.guild.id)[message.id] = { channelId: channel.id, kind };
+// Auswahlmenü mit Bewerbungsarten (Panel und /bewerbung ohne Angabe).
+function typeSelect(customId, list, placeholder) {
+  return new StringSelectMenuBuilder()
+    .setCustomId(customId)
+    .setPlaceholder(truncate(placeholder, 150))
+    .addOptions(
+      list.slice(0, 25).map((t) => ({
+        label: truncate(t.name, 100),
+        value: t.id,
+        description: truncate(t.description || (t.enabled ? t.name : 'geschlossen'), 100),
+        ...(t.emoji ? { emoji: t.emoji } : {}),
+      })),
+    );
+}
+
+async function postPanel(channel, panelId) {
+  const message = await channel.send(buildPanel(channel.guild.id, panelId));
+  bucket('appPanels', channel.guild.id)[message.id] = { channelId: channel.id, kind: panelId };
   save();
+  return message;
 }
 
 async function refreshPanels(guild) {
@@ -95,12 +112,12 @@ function formatDuration(ms) {
 }
 
 function infoEmbed(record, type) {
-  const color = STATUS_COLORS[record.status] ?? 'primary';
-  const status = [`**${store.STATUS[record.status]}**`];
+  const color = statusColor(record.status);
+  const status = [`**${store.statusLabel(record.status, type)}**`];
   if (record.decidedBy) status.push(`von <@${record.decidedBy}> <t:${unix(record.decidedAt)}:R>`);
 
   const info = embed(color)
-    .setTitle(`${type.emoji} ${type.name} – ${record.number}`)
+    .setTitle(`${type.emoji ? `${type.emoji} ` : ''}${type.name} – ${record.number}`)
     .setAuthor({ name: record.userTag, iconURL: record.avatarUrl ?? undefined })
     .setFooter({ text: `${base.serverName} · ${record.number}` })
     .setTimestamp(record.createdAt)
@@ -153,7 +170,7 @@ function answerEmbeds(record, budget) {
   const embeds = [];
   for (let i = 0; i < items.length; i += 25) {
     embeds.push(
-      embed(STATUS_COLORS[record.status] ?? 'primary')
+      embed(statusColor(record.status))
         .setFooter(null)
         .setTimestamp(null)
         .addFields(items.slice(i, i + 25).map((f) => ({ name: truncate(f.name, nameLimit), value: truncate(f.value, valueLimit) }))),
@@ -168,7 +185,7 @@ function answersFile(record, type) {
     `Bewerber: ${record.userTag} (${record.userId})`,
     record.roblox ? `Roblox: ${record.roblox.name} (ID ${record.roblox.id})` : null,
     `Eingereicht: ${new Date(record.createdAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}`,
-    `Status: ${store.STATUS[record.status]}${record.reason ? ` – Grund: ${record.reason}` : ''}`,
+    `Status: ${store.statusLabel(record.status, type)}${record.reason ? ` – Grund: ${record.reason}` : ''}`,
     record.ai ? `KI-Checker: ${record.ai.level}${record.ai.reasons.length ? ` (${record.ai.reasons.join('; ')})` : ''}` : null,
     '',
     ...record.answers.flatMap((a, i) => [`${i + 1}. ${a.question}`, a.answer || '—', '']),
@@ -195,14 +212,15 @@ function teamComponents(record, type) {
       new ButtonBuilder().setCustomId(`quali:ticket:${record.number}`).setLabel('Ticket mit Bewerber öffnen').setStyle(ButtonStyle.Secondary).setEmoji('🎫'),
     ),
   );
-  const next = (store.POLICE_TRANSITIONS[record.status] ?? []).filter((s) => !['ACCEPTED', 'REJECTED'].includes(s));
-  if (open && type.workflow === 'police' && next.length) {
+  // Status-Menü: Prüfschritte der Art (falls eingerichtet) und Zurückziehen
+  const next = store.nextStatuses(record, type);
+  if (open && next.length) {
     rows.push(
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(`quali:status:${record.number}`)
-          .setPlaceholder(`Status: ${store.STATUS[record.status]} – nächster Schritt …`)
-          .addOptions(next.map((s) => ({ label: s === 'WITHDRAWN' ? 'Zurückziehen' : store.STATUS[s], value: s }))),
+          .setPlaceholder(truncate(`Status: ${store.statusLabel(record.status, type)} – ändern …`, 150))
+          .addOptions(next.map((s) => ({ label: s === 'WITHDRAWN' ? 'Zurückziehen' : truncate(store.statusLabel(s, type), 100), value: s }))),
       ),
     );
   }
@@ -218,4 +236,4 @@ function buildTeamMessage(record, type, { withFile = false, components = true } 
   return message;
 }
 
-module.exports = { buildPanel, postPanel, refreshPanels, buildTeamMessage, answersFile, formatDuration };
+module.exports = { buildPanel, typeSelect, postPanel, refreshPanels, panelTypes, buildTeamMessage, answersFile, formatDuration };

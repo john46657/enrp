@@ -1,7 +1,11 @@
 // Prüft Konfiguration und Befehle ohne Discord-Login: npm run check
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { InteractionContextType } = require('discord.js');
+
+// Tests schreiben in einen leeren Ordner statt in data/db.json.
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'enrp-check-'));
 
 let failed = false;
 const fail = (msg) => {
@@ -16,7 +20,7 @@ for (const t of config.tickets.types) {
 }
 if (new Set(config.tickets.types.map((t) => t.id)).size !== config.tickets.types.length) fail('Doppelte Ticket-Kategorie-IDs');
 const { validateType } = require('../src/lib/applications/forms');
-for (const problem of config.applications.types.flatMap(validateType)) fail(`Bewerbung: ${problem}`);
+for (const problem of config.applications.types.flatMap((t) => validateType(t, { panels: Object.keys(config.applications.panels) }))) fail(`Bewerbung: ${problem}`);
 
 const names = new Set();
 function walk(dir) {
@@ -107,6 +111,11 @@ if (reset.tickets.types[0].capacity !== before.cap || reset.channels.ticketLog !
 }
 console.log('✅ Einstellungen je Server setzen/zurücksetzen');
 
-if (failed) process.exit(1);
-console.log('✅ Alles in Ordnung');
-process.exit(0);
+require('./check-applications')(fail)
+  .then(() => console.log('✅ Bewerbungen: Vorlagen, Editor, Panels, IDs und Prüfschritte'))
+  .catch((err) => fail(`Bewerbungen: ${err.stack}`))
+  .finally(() => {
+    if (failed) process.exit(1);
+    console.log('✅ Alles in Ordnung');
+    process.exit(0);
+  });

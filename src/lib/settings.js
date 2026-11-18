@@ -5,7 +5,9 @@
 const base = require('../../config.json');
 const db = require('./db');
 
-require('./applications/normalize')(base); // Standardwerte der Bewerbungsarten ergänzen
+const normalizeApplications = require('./applications/normalize');
+
+normalizeApplications(base); // Standardwerte der Bewerbungsarten ergänzen
 
 const overrides = (db.data.settings ??= {}); // { guildId: { pfad: wert } }
 const configs = new Map(); // guildId → config-Objekt
@@ -61,6 +63,7 @@ function forGuild(guildId) {
         console.warn(`⚠️  Gespeicherte Einstellung ${path} (Server ${guildId}) passt nicht mehr zur config.json und wird ignoriert`);
       }
     }
+    normalizeApplications(config); // in Discord angelegte Bewerbungsarten und Panels um neue Standardwerte ergänzen
     configs.set(guildId, config);
   }
   return configs.get(guildId);
@@ -72,22 +75,34 @@ function get(guildId, path) {
 }
 
 // value === undefined entfernt den Schlüssel (z. B. eine Level-Belohnung).
+// Ein gesetzter Pfad ersetzt ältere Änderungen darunter (z. B. "applications.types" alle "applications.types.x.y")
+// und wird ans Ende gestellt, damit er beim nächsten Start nach den übergeordneten Pfaden angewendet wird.
 function set(guildId, path, value) {
+  const stored = value !== null && typeof value === 'object' ? structuredClone(value) : value;
   if (!apply(forGuild(guildId), path, value)) throw new Error(`Unbekannte Einstellung: ${path}`);
-  (overrides[guildId] ??= {})[path] = value === undefined ? null : value;
+  const own = (overrides[guildId] ??= {});
+  for (const key of Object.keys(own)) if (key === path || key.startsWith(`${path}.`)) delete own[key];
+  own[path] = stored === undefined ? null : stored;
   db.save();
 }
 
 // Alle Änderungen eines Servers verwerfen und wieder die Werte aus config.json verwenden.
-function reset(guildId) {
-  delete overrides[guildId];
+// keep: Pfade, die erhalten bleiben (z. B. ['applications'] für selbst angelegte Bewerbungsarten und Panels).
+function reset(guildId, { keep = [] } = {}) {
+  const kept = Object.fromEntries(Object.entries(overrides[guildId] ?? {}).filter(([path]) => keep.some((k) => path === k || path.startsWith(`${k}.`))));
+  if (Object.keys(kept).length) overrides[guildId] = kept;
+  else delete overrides[guildId];
   configs.delete(guildId);
   db.save();
 }
 
+// Baut das config-Objekt eines Servers beim nächsten Zugriff neu auf, wie nach einem Neustart.
+const reload = (guildId) => configs.delete(guildId);
+
 module.exports = {
   base,
   forGuild,
+  reload,
   get,
   set,
   reset,

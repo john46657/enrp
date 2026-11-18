@@ -1,10 +1,11 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { ActionRowBuilder, SlashCommandBuilder } = require('discord.js');
 const { replyPrivate } = require('../../lib/util');
 const { bucket } = require('../../lib/db');
 const store = require('../../lib/applications/store');
 const flow = require('../../lib/applications/flow');
 const decisions = require('../../lib/applications/decide');
-const { buildPanel } = require('../../lib/applications/messages');
+const { buildPanel, typeSelect } = require('../../lib/applications/messages');
+const autocomplete = require('../../lib/applications/autocomplete');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,14 +14,20 @@ module.exports = {
     .addStringOption((o) =>
       o
         .setName('art')
-        .setDescription('Wofür? (Standard: Polizei-Bewerbung)')
-        .addChoices(...store.baseTypes().slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+        .setDescription('Wofür? (ohne Angabe: Auswahl aller offenen Bewerbungen)')
+        .setAutocomplete(true),
     ),
 
+  autocomplete: autocomplete.respond,
+
   async execute(interaction) {
-    const types = store.types(interaction.guildId);
-    const typeId = interaction.options.getString('art') ?? (types.find((t) => t.panel === 'apply') ?? types[0])?.id;
-    return flow.offer(interaction, typeId);
+    const typeId = interaction.options.getString('art');
+    if (typeId) return flow.offer(interaction, typeId);
+    // Ohne Angabe: alle offenen Bewerbungen zur Auswahl (bei nur einer direkt starten)
+    const open = store.types(interaction.guildId).filter((t) => t.enabled);
+    if (!open.length) return replyPrivate(interaction, 'Derzeit sind alle Bewerbungen geschlossen.');
+    if (open.length === 1) return flow.offer(interaction, open[0].id);
+    return replyPrivate(interaction, { components: [new ActionRowBuilder().addComponents(typeSelect('quali:pick', open, 'Wofür möchtest du dich bewerben?'))] });
   },
 
   // Alle Buttons, Menüs und Formulare des Bewerbungssystems (customId "quali:<aktion>:…")

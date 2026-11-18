@@ -24,7 +24,8 @@ module.exports = {
 
     // Bewerbungen: laufende DM-Bewerbungen gehen bei einem Neustart verloren
     appStore.resetProgress();
-    for (const problem of appStore.baseTypes().flatMap(validateType)) console.warn(`⚠️  Bewerbung: ${problem}`);
+    const panelIds = Object.keys(settings.base.applications.panels);
+    for (const problem of appStore.baseTypes().flatMap((t) => validateType(t, { panels: panelIds }))) console.warn(`⚠️  Bewerbung: ${problem}`);
 
     for (const guild of client.guilds.cache.values()) await setupGuild(guild);
     startTicketWatcher(client);

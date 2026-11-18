@@ -27,12 +27,18 @@
       "apply": {
         "title": "📋 Bewerbung",
         "description": "Du möchtest Teil unseres Teams werden? Klicke unten und der Bot stellt dir die Fragen per **Direktnachricht** – lass deine DMs offen!",
-        "image": ""
+        "image": "",
+        "placeholder": "Wofür möchtest du dich bewerben?",
+        "channel": "",
+        "showList": false
       },
       "quali": {
         "title": "🎖️ Einheiten & Qualifikationen",
         "description": "Bewirb dich für eine Einheit oder Qualifikation. Wähle unten aus, wofür du dich bewerben möchtest.",
-        "image": ""
+        "image": "",
+        "placeholder": "Wähle eine Einheit oder Qualifikation …",
+        "channel": "",
+        "showList": true
       }
     },
     "defaults": {

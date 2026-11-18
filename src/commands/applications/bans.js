@@ -4,7 +4,11 @@ const { save, nextNumber } = require('../../lib/db');
 const store = require('../../lib/applications/store');
 const { findRobloxUser } = require('../../lib/applications/roblox');
 
-const scopeName = (scope) => (scope === '*' ? 'Alle Bewerbungen' : scope === 'police' ? 'Polizei-Bewerbung' : (store.baseTypes().find((t) => t.id === scope)?.name ?? scope));
+const autocomplete = require('../../lib/applications/autocomplete');
+
+// "police" ist der Bereich älterer Sperren für die frühere Polizei-Bewerbung.
+const scopeName = (guildId, scope) =>
+  scope === '*' ? 'Alle Bewerbungen' : scope === 'police' ? 'Polizei-Bewerbung' : (store.typeById(guildId, scope)?.name ?? scope);
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,15 +26,7 @@ module.exports = {
           o
             .setName('bereich')
             .setDescription('Wofür gilt die Sperre? (Standard: alle)')
-            .addChoices(
-              { name: 'Alle Bewerbungen', value: '*' },
-              { name: 'Polizei-Bewerbung', value: 'police' },
-              ...store
-                .baseTypes()
-                .filter((t) => t.workflow !== 'police')
-                .slice(0, 23)
-                .map((t) => ({ name: t.name, value: t.id })),
-            ),
+            .setAutocomplete(true),
         )
         .addIntegerOption((o) => o.setName('tage').setDescription('Dauer in Tagen (leer = unbegrenzt)').setMinValue(1).setMaxValue(3650)),
     )
@@ -41,6 +37,8 @@ module.exports = {
         .addStringOption((o) => o.setName('id').setDescription('ID der Sperre, z. B. B-0001').setRequired(true)),
     )
     .addSubcommand((s) => s.setName('liste').setDescription('Zeigt alle aktiven Sperren.')),
+
+  autocomplete: autocomplete.respond,
 
   async execute(interaction) {
     if (!store.managesAny(interaction.member)) return replyPrivate(interaction, 'Nur das Bewerbungsteam kann Sperren verwalten.');
@@ -54,7 +52,7 @@ module.exports = {
       const lines = active.map(
         (b) =>
           `**${b.id}** ${[b.discordId && `<@${b.discordId}>`, b.robloxName && `Roblox ${b.robloxName}`].filter(Boolean).join(' · ')}\n` +
-          `${b.scopes.map(scopeName).join(', ')} · ${b.expiresAt ? `bis <t:${Math.floor(b.expiresAt / 1000)}:d>` : 'unbegrenzt'} · ${b.reason}`,
+          `${b.scopes.map((x) => scopeName(interaction.guildId, x)).join(', ')} · ${b.expiresAt ? `bis <t:${Math.floor(b.expiresAt / 1000)}:d>` : 'unbegrenzt'} · ${b.reason}`,
       );
       return replyPrivate(interaction, { embeds: [embed('danger').setTitle(`🚫 Bewerbungssperren (${active.length})`).setDescription(truncate(lines.join('\n\n'), 4000))] });
     }
@@ -84,6 +82,11 @@ module.exports = {
       if (!roblox) return interaction.editReply(`❌ Kein Roblox-Konto „${robloxName}“ gefunden.`);
     }
 
+    const scope = interaction.options.getString('bereich') ?? '*';
+    if (scope !== '*' && !store.typeById(interaction.guildId, scope)) {
+      const text = `❌ Die Bewerbungsart „${scope}“ gibt es nicht. Wähle sie aus der Liste.`;
+      return interaction.deferred ? interaction.editReply(text) : replyPrivate(interaction, text);
+    }
     const days = interaction.options.getInteger('tage');
     const id = `B-${String(nextNumber('appBan', interaction.guildId)).padStart(4, '0')}`;
     const ban = {
@@ -91,7 +94,7 @@ module.exports = {
       discordId: user?.id ?? null,
       robloxId: roblox?.id ?? null,
       robloxName: roblox?.name ?? null,
-      scopes: [interaction.options.getString('bereich') ?? '*'],
+      scopes: [scope],
       reason: interaction.options.getString('grund'),
       expiresAt: days ? Date.now() + days * 86_400_000 : null,
       createdBy: interaction.user.id,
@@ -100,7 +103,7 @@ module.exports = {
     bans[id] = ban;
     save();
 
-    const text = `🚫 Sperre **${id}** angelegt: ${[user && `${user}`, roblox && `Roblox ${roblox.name}`].filter(Boolean).join(' · ')} – ${scopeName(ban.scopes[0])}, ${days ? `${days} Tage` : 'unbegrenzt'}.`;
+    const text = `🚫 Sperre **${id}** angelegt: ${[user && `${user}`, roblox && `Roblox ${roblox.name}`].filter(Boolean).join(' · ')} – ${scopeName(interaction.guildId, ban.scopes[0])}, ${days ? `${days} Tage` : 'unbegrenzt'}.`;
     await (interaction.deferred ? interaction.editReply(text) : replyPrivate(interaction, text));
     return sendTo(interaction.guild, 'modLog', { embeds: [embed('danger').setDescription(`${text}\n**Grund:** ${ban.reason}\nvon ${interaction.user}`)], allowedMentions: { parse: [] } });
   },

@@ -3,6 +3,7 @@ const settings = require('../../lib/settings');
 const { embed, replyPrivate, truncate } = require('../../lib/util');
 const { refreshPanels } = require('../../lib/tickets');
 const appMessages = require('../../lib/applications/messages');
+const appAutocomplete = require('../../lib/applications/autocomplete');
 
 const CHANNELS = {
   welcome: 'Willkommen',
@@ -102,11 +103,11 @@ function overview(guild) {
       {
         name: 'Bewerbungen',
         value: truncate(
-          `Bewerbungs-Kanal: ${channel(config.applications.channel)} · Qualifikations-Kanal: ${channel(config.applications.qualiChannel)}\n` +
+          `Bearbeiten: /bewerbungsart · Panels: /bewerbungspanel liste\n` +
             config.applications.types
               .map(
                 (t) =>
-                  `${t.emoji} **${t.name}** ${onOff(t.enabled)} · Panel ${t.panel} · Kanal ${channel(t.channels.open)} · ` +
+                  `${t.emoji} **${t.name}** (\`${t.id}\`) ${onOff(t.enabled)} · Panel ${t.panel} · Kanal ${channel(t.channels.open)} · ` +
                   `Manager ${t.roles.managers.map(role).join(' ') || '—'} · Wartezeit ${t.cooldownMinutes} Min. · Verlassen: ${t.onLeave}`,
               )
               .join('\n'),
@@ -228,14 +229,12 @@ const builder = new SlashCommandBuilder()
       .addStringOption((o) =>
         o
           .setName('art')
-          .setDescription('Welche Bewerbung?')
+          .setDescription('Welche Bewerbung? (alles Weitere: /bewerbungsart bearbeiten)')
           .setRequired(true)
-          .addChoices(...settings.base.applications.types.slice(0, 25).map((t) => ({ name: t.name, value: t.id }))),
+          .setAutocomplete(true),
       )
       .addBooleanOption((o) => o.setName('aktiv').setDescription('Bewerbungen annehmen?'))
-      .addStringOption((o) =>
-        o.setName('panel').setDescription('In welchem Panel?').addChoices({ name: 'Bewerbungs-Panel', value: 'apply' }, { name: 'Qualifikations-Panel', value: 'quali' }),
-      )
+      .addStringOption((o) => o.setName('panel').setDescription('In welchem Panel?').setAutocomplete(true))
       .addChannelOption((o) => o.setName('kanal_offen').setDescription('Hier landen neue Bewerbungen').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('kanal_angenommen').setDescription('Kopie angenommener Bewerbungen').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('kanal_abgelehnt').setDescription('Kopie abgelehnter Bewerbungen').addChannelTypes(ChannelType.GuildText))
@@ -258,7 +257,7 @@ const builder = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s
       .setName('bewerbungs-kanaele')
-      .setDescription('Standard-Kanäle für neue Bewerbungen (wenn eine Art keinen eigenen hat).')
+      .setDescription('Ältere Standard-Kanäle der Panels „apply“/„quali“ (neu: /bewerbungspanel bearbeiten).')
       .addChannelOption((o) => o.setName('bewerbungen').setDescription('Für das Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('qualifikationen').setDescription('Für das Qualifikations-Panel').addChannelTypes(ChannelType.GuildText)),
   )
@@ -288,7 +287,8 @@ const builder = new SlashCommandBuilder()
     s
       .setName('zuruecksetzen')
       .setDescription('Verwirft alle in Discord geänderten Einstellungen dieses Servers.')
-      .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true)),
+      .addBooleanOption((o) => o.setName('bestaetigen').setDescription('Wirklich zurücksetzen?').setRequired(true))
+      .addBooleanOption((o) => o.setName('bewerbungen_auch').setDescription('Auch selbst angelegte Bewerbungsarten und Panels verwerfen? (Standard: nein)')),
   );
 
 function changesFor(interaction, sub) {
@@ -363,6 +363,10 @@ function changesFor(interaction, sub) {
       ]);
     }
     case 'bewerbung': {
+      const types = settings.forGuild(interaction.guildId).applications;
+      if (!types.types.some((t) => t.id === o.getString('art'))) throw new Error(`Die Bewerbungsart „${o.getString('art')}“ gibt es nicht. Wähle sie aus der Liste.`);
+      const panel = o.getString('panel');
+      if (panel && !types.panels[panel]) throw new Error(`Das Panel „${panel}“ gibt es nicht. Übersicht: /bewerbungspanel liste`);
       const base = `applications.types.${o.getString('art')}`;
       const asList = (r) => [r.id];
       const changes = [];
@@ -419,6 +423,7 @@ function changesFor(interaction, sub) {
 module.exports = {
   data: builder,
   parsePeriods,
+  autocomplete: appAutocomplete.respond,
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
@@ -426,8 +431,14 @@ module.exports = {
 
     if (sub === 'zuruecksetzen') {
       if (!interaction.options.getBoolean('bestaetigen')) return replyPrivate(interaction, 'Abgebrochen.');
-      settings.reset(interaction.guildId);
-      await replyPrivate(interaction, '♻️ Alle Einstellungen dieses Servers kommen jetzt wieder aus der config.json.');
+      const all = interaction.options.getBoolean('bewerbungen_auch') ?? false;
+      settings.reset(interaction.guildId, { keep: all ? [] : ['applications'] });
+      await replyPrivate(
+        interaction,
+        all
+          ? '♻️ Alle Einstellungen dieses Servers kommen jetzt wieder aus der config.json – auch die Bewerbungsarten und Panels.'
+          : '♻️ Alle Einstellungen dieses Servers kommen jetzt wieder aus der config.json. Bewerbungsarten und Panels bleiben, wie du sie eingestellt hast.',
+      );
       await appMessages.refreshPanels(interaction.guild);
       return refreshPanels(interaction.guild);
     }

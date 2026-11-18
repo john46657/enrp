@@ -14,20 +14,28 @@ const STATUS = {
   WITHDRAWN: 'Zurückgezogen',
 };
 const FINAL = ['ACCEPTED', 'REJECTED', 'WITHDRAWN'];
-// Erlaubte Statuswechsel der Polizei-Bewerbung
-const POLICE_TRANSITIONS = {
-  SUBMITTED: ['SCREENING', 'REJECTED', 'WITHDRAWN'],
-  SCREENING: ['INTERVIEW', 'REJECTED', 'WITHDRAWN'],
-  INTERVIEW: ['PENDING_DECISION', 'REJECTED', 'WITHDRAWN'],
-  PENDING_DECISION: ['ACCEPTED', 'REJECTED', 'WITHDRAWN'],
-};
+// Diese Status-IDs sind fest vergeben und können keine eigenen Prüfschritte sein.
+const RESERVED_STATUS = ['SUBMITTED', 'OPEN', ...FINAL];
 
 // Bewerbungsarten mit den Einstellungen eines Servers; baseTypes() = Vorlage aus config.json (z. B. für Befehlsauswahlen).
 const types = (guildId) => forGuild(guildId).applications.types;
 const typeById = (guildId, id) => types(guildId).find((t) => t.id === id);
 const baseTypes = () => base.applications.types;
 const isOpenStatus = (status) => !FINAL.includes(status);
-const initialStatus = (type) => (type.workflow === 'police' ? 'SUBMITTED' : 'OPEN');
+const initialStatus = () => 'SUBMITTED';
+
+// Anzeigename eines Status: eigene Prüfschritte der Art zuerst, dann die festen Namen.
+const statusLabel = (status, type) => type?.stages?.find((s) => s.id === status)?.label ?? STATUS[status] ?? status;
+
+// Wohin eine offene Bewerbung im Status-Menü wechseln kann: jeder andere Prüfschritt der Art oder Zurückziehen.
+// Annehmen/Ablehnen läuft über die Buttons.
+function nextStatuses(record, type) {
+  if (!isOpenStatus(record.status)) return [];
+  return [...(type?.stages ?? []).map((s) => s.id).filter((id) => id !== record.status), 'WITHDRAWN'];
+}
+
+// Hat diese Art eine Roblox-Frage? Dann gilt „eine offene Bewerbung“ auch je Roblox-Konto.
+const usesRoblox = (type) => type.questions.some((q) => q.type === 'ROBLOX');
 
 const recordsOf = (guildId) => bucket('apps', guildId);
 const bansOf = (guildId) => bucket('appBans', guildId);
@@ -92,6 +100,7 @@ function activeBan(guildId, typeId, { discordId, robloxId }) {
   return (
     Object.values(bansOf(guildId)).find((ban) => {
       if (ban.liftedAt || (ban.expiresAt && ban.expiresAt < now)) return false;
+      // "police" ist der Bereich älterer Sperren für die frühere Polizei-Bewerbung.
       const scoped = ban.scopes.includes('*') || ban.scopes.includes(typeId) || (ban.scopes.includes('police') && type?.workflow === 'police');
       const matches = (discordId && ban.discordId === discordId) || (robloxId && ban.robloxId === robloxId);
       return scoped && matches;
@@ -125,7 +134,7 @@ function eligibility(member, type, { robloxId } = {}) {
   const ban = activeBan(member.guild.id, type.id, { discordId: member.id, robloxId });
   if (ban) return banMessage(ban);
 
-  const open = openOf(member.guild.id, (r) => r.type === type.id && (r.userId === member.id || (robloxId && type.workflow === 'police' && r.roblox?.id === robloxId)));
+  const open = openOf(member.guild.id, (r) => r.type === type.id && (r.userId === member.id || (robloxId && usesRoblox(type) && r.roblox?.id === robloxId)));
   if (open.length) return `Es gibt bereits eine offene **${type.name}** (${open[0].number}). Bitte warte auf die Entscheidung.`;
 
   const last = historyOf(member.guild.id, member.id).find((r) => r.type === type.id);
@@ -155,7 +164,10 @@ function resetProgress() {
 module.exports = {
   STATUS,
   FINAL,
-  POLICE_TRANSITIONS,
+  RESERVED_STATUS,
+  statusLabel,
+  nextStatuses,
+  usesRoblox,
   types,
   typeById,
   baseTypes,

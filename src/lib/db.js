@@ -2,7 +2,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DIR = path.join(__dirname, '..', '..', 'data');
+// DATA_DIR: anderer Ordner, z. B. für npm run check (damit Tests nie die echten Daten anfassen).
+const DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
 const FILE = path.join(DIR, 'db.json');
 const DEFAULTS = { warnings: {}, levels: {}, tickets: {}, applications: {}, counters: {} };
 
