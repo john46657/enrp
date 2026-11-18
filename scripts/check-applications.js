@@ -148,7 +148,7 @@ module.exports = function checkApplications(fail) {
     const fake = (fields = {}, extra = {}) => ({
       guildId: G,
       guild: { id: G, channels: { cache: new Map() } },
-      memberPermissions: { has: () => true },
+      member: { id: '100000000000000001', permissions: { has: () => true } },
       replied: false,
       deferred: false,
       update: async (payload) => {
@@ -213,9 +213,16 @@ module.exports = function checkApplications(fail) {
     await click(['toggle', 'bf']);
     expect(store.typeById(G, 'bf').enabled === true, 'Öffnen/Schließen');
 
-    const denied = fake({}, { memberPermissions: { has: () => false } });
-    await editor.components.appedit(denied, ['toggle', 'bf']);
+    const nobody = { id: '200000000000000002', permissions: { has: () => false } };
+    await editor.components.appedit(fake({}, { member: nobody }), ['toggle', 'bf']);
     expect(store.typeById(G, 'bf').enabled === true && /Server verwalten/.test(shown?.content ?? ''), 'Editor nur mit „Server verwalten“');
+
+    const previous = process.env.BOT_ADMINS;
+    process.env.BOT_ADMINS = nobody.id;
+    await editor.components.appedit(fake({}, { member: nobody }), ['toggle', 'bf']);
+    if (previous === undefined) delete process.env.BOT_ADMINS;
+    else process.env.BOT_ADMINS = previous;
+    expect(store.typeById(G, 'bf').enabled === false, 'Bot-Admin darf den Editor ohne Serverrechte benutzen');
   };
   return run();
 };

@@ -322,6 +322,7 @@ hohem Verdacht. **Nur ein Hinweis, kein Beweis.** Frag im Zweifel im Gespräch n
 | **Manager-Rollen** einer Art | diese Art entscheiden, Statusschritte, Verlauf, Ticket öffnen; `/bewerbungen` (außer löschen), `/bewerbungssperre` |
 | **Staff** (`roles.staff` oder „Server verwalten“) | alles oben für alle Arten, dazu `/bewerbungen loeschen` |
 | „Server verwalten“ | `/bewerbungsart`, `/bewerbungspanel`, `/qualipanel`, `/einstellungen` |
+| **Bot-Admins** (`BOT_ADMINS` in der `.env`) | alles auf **jedem** Server des Bots, im Dashboard auch ohne Mitgliedschaft (siehe README) |
 
 ---
 

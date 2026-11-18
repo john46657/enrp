@@ -122,7 +122,7 @@ function showLogin() {
 function renderHeader() {
   const { user, guilds } = state.me;
   const avatar = user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64` : null;
-  put(document.getElementById('user'), avatar ? h('img', { class: 'avatar', src: avatar, alt: '' }) : null, h('span', {}, user.name), h('a', { class: 'button ghost', href: '/logout' }, 'Abmelden'));
+  put(document.getElementById('user'), avatar ? h('img', { class: 'avatar', src: avatar, alt: '' }) : null, h('span', {}, user.name), user.isBotAdmin ? h('span', { class: 'badge warn', title: 'Voller Zugriff auf alle Server des Bots' }, 'Bot-Admin') : null, h('a', { class: 'button ghost', href: '/logout' }, 'Abmelden'));
   put(document.getElementById('guild-nav'), ...guilds.map((g) => h('a', { href: `#/g/${g.id}/apps`, class: g.id === state.guildId ? 'active' : '' }, g.name)));
 }
 

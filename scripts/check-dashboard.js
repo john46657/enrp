@@ -163,6 +163,25 @@ module.exports = async function checkDashboard(fail) {
     expect(ban.json?.id && store.activeBan(G, 'fw', { discordId: '123456789012345678' }), 'Sperre anlegen');
     expect((await call('DELETE', `/api/guilds/${G}/bans/${ban.json?.id}`)).status === 200 && !store.activeBan(G, 'fw', { discordId: '123456789012345678' }), 'Sperre aufheben');
 
+    // Bot-Admins (BOT_ADMINS): voller Zugriff auf jeden Server, auch ohne Mitgliedschaft
+    const { botAdmins, isStaff, canManageServer } = require('../src/lib/util');
+    const outsider = '999999999999999999';
+    expect(botAdmins({ BOT_ADMINS: `${outsider}, 123, 111111111111111111;abc` }).size === 2, 'BOT_ADMINS: nur gültige IDs, Komma/Leerzeichen/Semikolon');
+    expect((await call('GET', '/api/me', undefined, { user: outsider })).json?.guilds?.length === 0, 'ohne BOT_ADMINS kein Zugriff für Fremde');
+    const previous = process.env.BOT_ADMINS;
+    process.env.BOT_ADMINS = outsider;
+    try {
+      const adminMe = await call('GET', '/api/me', undefined, { user: outsider });
+      expect(adminMe.json?.user?.isBotAdmin && adminMe.json.guilds.length === 1 && adminMe.json.guilds[0].isAdmin, 'Bot-Admin sieht jeden Server des Bots als Admin');
+      expect((await call('PUT', `/api/guilds/${G}/types/fw`, { name: 'Vom Bot-Admin' }, { user: outsider })).json?.name === 'Vom Bot-Admin', 'Bot-Admin kann ohne Mitgliedschaft bearbeiten');
+      expect((await call('GET', `/api/guilds/${G}/applications?status=all`, undefined, { user: outsider })).json?.length >= 1, 'Bot-Admin sieht alle Bewerbungen');
+      const noPerms = { id: outsider, guild, roles: { cache: { has: () => false } }, permissions: { has: () => false } };
+      expect(isStaff(noPerms) && canManageServer(noPerms) && store.isManager(noPerms, store.typeById(G, 'fw')), 'Bot-Admin gilt in Discord als Staff, Verwalter und Manager');
+    } finally {
+      if (previous === undefined) delete process.env.BOT_ADMINS;
+      else process.env.BOT_ADMINS = previous;
+    }
+
     // Statistik, Löschen
     expect((await call('GET', `/api/guilds/${G}/stats?days=30`)).json?.fields?.length > 0, 'Statistik');
     expect((await call('POST', `/api/guilds/${G}/types`, { id: 'weg', template: 'leer' })).status === 200, 'zweite Art anlegen');

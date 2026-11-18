@@ -17,6 +17,9 @@ Browser ──https──▶ dashboard.deinserver.de (Caddy oder nginx) ──�
 | **Sperren** | anlegen (Discord-ID und/oder Roblox), aufheben, Übersicht | Manager, Staff |
 | **Statistik** | wie `/bewerbungen statistik` | Manager, Staff |
 
+**Bot-Admins** (`BOT_ADMINS` in der `.env`, siehe README) sehen im Dashboard **alle Server** des Bots mit vollen
+Rechten, auch ohne dort Mitglied zu sein. Sie tragen oben das Abzeichen „Bot-Admin“.
+
 Alles, was du im Dashboard änderst, gilt sofort – genau wie mit `/bewerbungsart` in Discord. Entscheidungen lösen
 dieselben DMs, Rollen und Nachrichten-Updates aus wie die Buttons in Discord. Jeder sieht nur die Server, auf denen er
 Rechte hat.
@@ -107,7 +110,7 @@ Fehlt etwas in der `.env`, sagt der Bot beim Start genau, was. Ohne Dashboard-Ei
 | Problem | Lösung |
 |---|---|
 | „Discord hat die Anmeldung abgelehnt“ | Redirect-URL im Developer Portal muss **exakt** `DASHBOARD_URL` + `/auth/callback` sein; Client Secret prüfen |
-| „Keine Server“ | Du brauchst auf dem Server Staff, „Server verwalten“ oder eine Manager-Rolle einer Bewerbungsart |
+| „Keine Server“ | Du brauchst auf dem Server Staff, „Server verwalten“ oder eine Manager-Rolle einer Bewerbungsart – oder deine ID in `BOT_ADMINS` |
 | 502 Bad Gateway | Bot läuft nicht oder `DASHBOARD_PORT` passt nicht zum Proxy |
 | Anmeldung klappt, sofort wieder abgemeldet | Seite über `http://` statt `https://` geöffnet, obwohl `DASHBOARD_URL` https ist |
 

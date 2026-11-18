@@ -4,7 +4,7 @@
 //   manager = Manager-Rolle mindestens einer Bewerbungsart → Bewerbungen dieser Arten, Sperren, Statistik
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { forGuild } = require('../lib/settings');
-const { embed, isStaff, sendTo } = require('../lib/util');
+const { embed, isStaff, isBotAdmin, sendTo } = require('../lib/util');
 const { save, nextNumber } = require('../lib/db');
 const store = require('../lib/applications/store');
 const admin = require('../lib/applications/admin');
@@ -31,10 +31,14 @@ const bad = (message) => {
 
 // ---------- Zugriff ----------
 
+// Bot-Admins (BOT_ADMINS in der .env) dürfen auf jeden Server, auch wenn sie dort kein Mitglied sind.
+// Dann steht ein Platzhalter-Mitglied ohne Rollen für die Rechteprüfung.
+const botAdminMember = (guild, userId) => ({ id: userId, guild, roles: { cache: { has: () => false } }, permissions: { has: () => false } });
+
 async function access(client, guildId, userId) {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) throw new HttpError(404, 'Den Server gibt es nicht oder der Bot ist dort nicht.');
-  const member = await guild.members.fetch(userId).catch(() => null);
+  const member = (await guild.members.fetch(userId).catch(() => null)) ?? (isBotAdmin(userId) ? botAdminMember(guild, userId) : null);
   if (!member) deny('Du bist nicht auf diesem Server.');
   const isAdmin = isStaff(member);
   const isManager = isAdmin || store.managesAny(member);
@@ -45,7 +49,7 @@ async function access(client, guildId, userId) {
 async function guildsFor(client, userId) {
   const list = [];
   for (const guild of client.guilds.cache.values()) {
-    const member = await guild.members.fetch(userId).catch(() => null);
+    const member = (await guild.members.fetch(userId).catch(() => null)) ?? (isBotAdmin(userId) ? botAdminMember(guild, userId) : null);
     if (!member) continue;
     const isAdmin = isStaff(member);
     if (!isAdmin && !store.managesAny(member)) continue;
@@ -206,7 +210,7 @@ function meta(guild) {
 const needAdmin = (ctx) => ctx.isAdmin || deny('Dafür brauchst du „Server verwalten“ oder die Staff-Rolle.');
 
 const routes = [
-  ['GET', '/api/me', async ({ client, user }) => ({ user, guilds: await guildsFor(client, user.id) })],
+  ['GET', '/api/me', async ({ client, user }) => ({ user: { ...user, isBotAdmin: isBotAdmin(user.id) }, guilds: await guildsFor(client, user.id) })],
 
   ['GET', '/api/guilds/:guild', (ctx) => ({
     ...meta(ctx.guild),

@@ -11,7 +11,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { forGuild } = require('../../lib/settings');
-const { embed, replyPrivate, truncate } = require('../../lib/util');
+const { embed, replyPrivate, truncate, canManageServer } = require('../../lib/util');
 const { bucket } = require('../../lib/db');
 const admin = require('../../lib/applications/admin');
 const autocomplete = require('../../lib/applications/autocomplete');
@@ -146,7 +146,7 @@ module.exports = {
 
   components: {
     async apppanel(interaction, [action, id]) {
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return replyPrivate(interaction, 'Dafür brauchst du die Berechtigung „Server verwalten“.');
+      if (!canManageServer(interaction.member)) return replyPrivate(interaction, 'Dafür brauchst du die Berechtigung „Server verwalten“.');
       if (action !== 'save') return replyPrivate(interaction, 'Diese Aktion ist veraltet.');
       try {
         const field = (name) => interaction.fields.getTextInputValue(name)?.trim() ?? '';

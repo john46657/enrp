@@ -16,7 +16,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { forGuild } = require('../../lib/settings');
-const { embed, replyPrivate, truncate } = require('../../lib/util');
+const { embed, replyPrivate, truncate, canManageServer } = require('../../lib/util');
 const store = require('../../lib/applications/store');
 const admin = require('../../lib/applications/admin');
 const templates = require('../../lib/applications/templates');
@@ -44,7 +44,7 @@ const ROLE_GROUPS = {
   },
 };
 
-const canEdit = (interaction) => interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+const canEdit = (interaction) => canManageServer(interaction.member);
 const roleList = (ids) => (ids?.length ? ids.map((id) => `<@&${id}>`).join(' ') : '—');
 const channel = (id) => (id ? `<#${id}>` : '—');
 const button = (id, label, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style);

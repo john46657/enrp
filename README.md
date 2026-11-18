@@ -47,6 +47,28 @@ ihm zugeordnet werden. Ist der Bot nur auf einem Server, passiert das automatisc
 > IDs bekommst du per Rechtsklick → „ID kopieren“. Dafür in Discord unter
 > *Einstellungen → Erweitert* den **Entwicklermodus** einschalten.
 
+### Bot-Admins (voller Zugriff auf allen Servern)
+
+Trägst du Discord-IDs in `BOT_ADMINS` in der `.env` ein (durch Komma getrennt), haben diese Personen auf **jedem
+Server, auf dem der Bot ist**, vollen Zugriff:
+
+- **Dashboard:** alle Server, als Admin – auch wenn sie dort kein Mitglied sind.
+- **Discord:** Sie gelten überall als Staff und als Manager jeder Bewerbungsart. Damit dürfen sie Bewerbungen
+  entscheiden, Tickets verwalten und den Editor sowie die Panel- und Ticket-Verwaltung nutzen.
+
+```env
+BOT_ADMINS=123456789012345678,234567890123456789
+```
+
+Die Liste lässt sich absichtlich **nur über die `.env`** ändern, nicht aus Discord. Änderungen gelten nach einem
+Neustart. Beim Start zeigt die Konsole die eingetragenen IDs.
+
+> Grenze in Discord: Befehle mit Discord-Berechtigung (z. B. `/einstellungen` braucht „Server verwalten“,
+> `/ban` braucht „Mitglieder bannen“) blendet Discord selbst aus, wenn die Person diese Berechtigung auf dem Server
+> nicht hat. Das kann der Bot nicht übergehen. Buttons und Menüs (Entscheiden, Editor, Tickets) funktionieren
+> trotzdem, und im Dashboard gibt es keine Einschränkung. Auf einem Server lässt sich das für einzelne Personen
+> unter *Servereinstellungen → Integrationen → Bot → Befehle* freigeben.
+
 ### Mehrere Server
 
 - Die `config.json` ist die **Vorlage für alle Server**: Texte, Ticket-Kategorien, Bewerbungsarten und Fragen.

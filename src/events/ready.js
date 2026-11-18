@@ -6,12 +6,15 @@ const appStore = require('../lib/applications/store');
 const { sweep } = require('../lib/applications/flow');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
+const { botAdmins } = require('../lib/util');
 
 module.exports = {
   name: Events.ClientReady,
   once: true,
   async execute(client) {
     console.log(`✅ Eingeloggt als ${client.user.tag} – auf ${client.guilds.cache.size} Server(n)`);
+    const admins = botAdmins();
+    if (admins.size) console.log(`👑 Bot-Admins (voller Zugriff auf allen Servern): ${[...admins].join(', ')}`);
 
     // Einstellungen aus der Zeit, als der Bot nur einen Server kannte, dem einzigen Server zuordnen.
     if (settings.hasLegacy()) {
