@@ -65,6 +65,19 @@ vollen Zugriff:
   mit ID, Roblox-Konto, angemeldet seit, zuletzt aktiv bzw. online) und wer sich wann an- oder abgemeldet hat (die
   letzten 1000 Einträge). Fremde Sitzungen kannst du beenden. Das Roblox-Konto kommt aus der Roblox-Verbindung im
   Discord-Profil (Login fragt dafür „Verbindungen“ an), sonst aus der letzten Bewerbung mit bestätigtem Roblox-Konto.
+- **Server verlassen / sperren:** auf jeder Serverkarte „Server verlassen …“, optional mit Sperre und Grund. Im Reiter
+  **⛔ Gesperrt** lassen sich Server auch per ID sperren und wieder entsperren. Wird der Bot auf einen gesperrten Server
+  eingeladen (oder ist er beim Start noch drauf), verlässt er ihn sofort.
+- **📊 System:** Laufzeit, Ping, Arbeitsspeicher, Größe der `db.json`, Git-Commit, Node.js- und discord.js-Version,
+  CPU-Last und Speicher des Hosts. Den Commit kannst du auch über `GIT_COMMIT` in der `.env` setzen, falls der Hoster
+  keinen `.git`-Ordner hochlädt.
+- **⚠️ Fehler:** alles, was der Bot als Fehler in die Konsole schreibt, mit Uhrzeit, Bereich und Stack (die letzten 300,
+  gleiche Fehler direkt hintereinander zusammengefasst). Durchsuchbar, lässt sich leeren.
+- **📝 Audit-Log:** jede Änderung im Dashboard mit Person, Server und Einstellung **vorher → nachher**, dazu Aktionen,
+  Zurücksetzen und alle Admin-Aktionen (verlassen, sperren, Sitzung beenden, Backup). Filter „nur Bot-Admins“; Änderungen
+  auf Servern, auf denen der Bot-Admin kein Mitglied ist, sind als „fremder Server“ markiert. Die letzten 1000 Einträge.
+- **💾 Backup:** die komplette `data/db.json` herunterladen (ohne Login-Sitzungen) oder ein Backup einspielen. Vor dem
+  Einspielen wird der aktuelle Stand als `data/db.json.vor-wiederherstellung-…` gesichert. Danach den Bot neu starten.
 - **Discord:** Bot-Admins gelten überall als Staff und Verwalter (Bewerbungen, Tickets, Vorschläge, Giveaways, Team,
   Laufbahnen, `/bewerbung-verwalten`).
 

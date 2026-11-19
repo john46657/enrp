@@ -430,6 +430,11 @@ const duration = (seconds) => {
 function adminFrame(tab, ...content) {
   const tabs = [
     ['', '🖥️ Server'],
+    ['system', '📊 System'],
+    ['fehler', '⚠️ Fehler'],
+    ['audit', '📝 Audit-Log'],
+    ['gesperrt', '⛔ Gesperrt'],
+    ['backup', '💾 Backup'],
     ['sitzungen', '🟢 Angemeldet'],
     ['verlauf', '🕒 Anmeldeverlauf'],
   ];
@@ -445,6 +450,7 @@ function adminFrame(tab, ...content) {
       ),
       h('div', { class: 'chips admin-tabs' }, tabs.map(([id, label]) => h('a', { class: `chip${id === tab ? ' active' : ''}`, href: `#/admin${id ? `/${id}` : ''}` }, label))),
       content,
+      h('div', { class: 'admin-bottom-space' }), // Platz für den Admin-Knopf unten links
     ),
   );
   document.title = `Admin · ${state.me.bot.brand} Dashboard`;
@@ -581,9 +587,341 @@ async function renderAdminHistory() {
   adminFrame('verlauf', search, h('div', { class: 'spacer-24' }), list, h('p', { class: 'muted small' }, 'Gespeichert werden die letzten 1000 An- und Abmeldungen.'));
 }
 
+// ---------- System ----------
+
+const bytes = (n) => {
+  if (n === null || n === undefined) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${n.toFixed(i ? 1 : 0).replace('.', ',')} ${units[i]}`;
+};
+const adminStat = (label, value, hint) => h('div', { class: 'stat' }, h('div', { class: 'label' }, label), h('div', { class: 'value' }, value), hint && h('div', { class: 'muted small' }, hint));
+
+async function loadAdmin(tab, url) {
+  adminFrame(tab, h('p', { class: 'muted' }, 'Lädt …'));
+  try {
+    return await api(url);
+  } catch (err) {
+    adminFrame(tab, h('p', {}, err.message));
+    return null;
+  }
+}
+
+async function renderAdminSystem() {
+  const s = await loadAdmin('system', '/api/admin/status');
+  if (!s) return;
+  const usedHost = s.host.memory.total - s.host.memory.free;
+  const row = (label, value) => h('tr', {}, h('th', {}, label), h('td', {}, value));
+  adminFrame(
+    'system',
+    h(
+      'div',
+      { class: 'stats-grid' },
+      adminStat('Laufzeit', duration(s.process.uptime), `seit ${dateTime(s.process.startedAt)}`),
+      adminStat('Bot-Ping', s.bot.ping === null ? '—' : `${s.bot.ping} ms`),
+      adminStat('Arbeitsspeicher', bytes(s.process.memory.rss), `Heap ${bytes(s.process.memory.heapUsed)} von ${bytes(s.process.memory.heapTotal)}`),
+      adminStat('Datenbank', bytes(s.db.bytes), `${s.db.sections} Bereiche in db.json`),
+      adminStat('Server', s.bot.guilds.toLocaleString('de-DE')),
+      adminStat('Fehler', s.errors.total, s.errors.lastAt ? `zuletzt ${ago(s.errors.lastAt)}` : 'keine aufgezeichnet'),
+    ),
+    h(
+      'div',
+      { class: 'card table-card' },
+      h(
+        'table',
+        {},
+        row('Bot', h('span', {}, s.bot.name ?? '—', ' · ', h('code', {}, s.bot.id ?? '—'))),
+        row('Version (Git-Commit)', s.version.commit ? h('code', {}, s.version.commit) : h('span', { class: 'muted' }, 'unbekannt')),
+        row('Node.js / discord.js', `${s.process.node} / ${s.version.discordJs}`),
+        row('System', `${s.host.platform} · ${s.host.cpus} CPU-Kerne`),
+        row('CPU-Last (1 / 5 / 15 Min)', s.host.load.join(' / ')),
+        row('Speicher des Hosts', `${bytes(usedHost)} von ${bytes(s.host.memory.total)} belegt`),
+        row('Prozess-ID', String(s.process.pid)),
+      ),
+    ),
+    h('div', { class: 'spacer-24' }),
+    h('button', { class: 'btn ghost', onclick: () => renderAdminSystem() }, '↻ Aktualisieren'),
+  );
+}
+
+// ---------- Fehler-Log ----------
+
+async function renderAdminErrors() {
+  const data = await loadAdmin('fehler', '/api/admin/errors?limit=300');
+  if (!data) return;
+  const clear = async () => {
+    if (!confirm('Alle aufgezeichneten Fehler löschen?')) return;
+    try {
+      await api('/api/admin/errors', { method: 'DELETE' });
+      toast('✅ Fehler-Log geleert');
+      renderAdminErrors();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  const search = h('input', { type: 'text', placeholder: 'Fehler durchsuchen …', oninput: () => draw() });
+  const list = h('div');
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    const shown = data.errors.filter((e) => !q || e.text.toLowerCase().includes(q));
+    setChildren(
+      list,
+      shown.length
+        ? shown.map((e) =>
+            h(
+              'details',
+              { class: 'card error-entry' },
+              h(
+                'summary',
+                {},
+                h('b', {}, dateTime(e.at)),
+                ' ',
+                h('span', { class: 'muted small' }, ago(e.at)),
+                e.label && h('span', { class: 'badge red' }, e.label),
+                e.count > 1 && h('span', { class: 'badge yellow' }, `${e.count}×`),
+                h('div', { class: 'error-first' }, e.text.split('\n')[0]),
+              ),
+              h('pre', { class: 'error-text' }, e.text),
+            ),
+          )
+        : h('div', { class: 'empty' }, q ? 'Nichts gefunden.' : '🎉 Keine Fehler aufgezeichnet.'),
+    );
+  };
+  draw();
+  adminFrame(
+    'fehler',
+    h('div', { class: 'admin-toolbar' }, search, h('button', { class: 'btn ghost', onclick: () => renderAdminErrors() }, '↻'), data.errors.length ? h('button', { class: 'btn danger', onclick: clear }, 'Leeren') : null),
+    h('div', { class: 'spacer-24' }),
+    list,
+    h('p', { class: 'muted small' }, 'Alles, was der Bot als Fehler in die Konsole schreibt. Gespeichert werden die letzten 300, gleiche Fehler direkt hintereinander werden zusammengefasst.'),
+  );
+}
+
+// ---------- Audit-Log ----------
+
+const AUDIT_LABEL = {
+  'settings.change': ['Einstellungen', ''],
+  'settings.reset': ['Zurückgesetzt', 'red'],
+  action: ['Aktion', ''],
+  'guild.leave': ['Server verlassen', 'red'],
+  'guild.block': ['Server gesperrt', 'red'],
+  'guild.unblock': ['Entsperrt', 'green'],
+  'session.end': ['Sitzung beendet', 'yellow'],
+  'errors.clear': ['Fehler-Log geleert', ''],
+  'backup.download': ['Backup geladen', ''],
+  'backup.restore': ['Backup eingespielt', 'red'],
+};
+
+function auditDetails(e) {
+  if (e.type === 'settings.change')
+    return h(
+      'div',
+      { class: 'audit-changes' },
+      e.changes.map((c) => h('div', {}, h('code', {}, c.path), ': ', h('span', { class: 'muted' }, c.before ?? '—'), ' → ', h('b', {}, c.after ?? '—'))),
+    );
+  const d = e.details ?? {};
+  if (e.type === 'action') return h('div', {}, h('code', {}, d.name), d.body && d.body !== '{}' ? h('div', { class: 'muted small' }, d.body) : null);
+  if (e.type === 'settings.reset') return h('span', { class: 'muted small' }, `${d.changed ?? 0} Einstellungen verworfen`);
+  if (e.type === 'session.end') return h('span', { class: 'muted small' }, `von ${d.user?.username ?? '?'}`);
+  if (e.type === 'backup.restore') return h('span', { class: 'muted small' }, `${d.sections} Bereiche · vorher gesichert als ${d.safety}`);
+  if (d.reason) return h('span', { class: 'muted small' }, `Grund: ${d.reason}`);
+  return null;
+}
+
+async function renderAdminAudit() {
+  const data = await loadAdmin('audit', '/api/admin/audit?limit=1000');
+  if (!data) return;
+  const search = h('input', { type: 'text', placeholder: 'Person, Server, ID oder Einstellung suchen …', oninput: () => draw() });
+  const onlyAdmins = h('input', { type: 'checkbox', onchange: () => draw() });
+  const list = h('div');
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    const shown = data.events.filter(
+      (e) =>
+        (!onlyAdmins.checked || e.actor.botAdmin) &&
+        (!q || [e.actor.username, e.actor.id, e.guild?.name, e.guild?.id, e.type, ...e.changes.map((c) => c.path), e.details?.name].some((v) => String(v ?? '').toLowerCase().includes(q))),
+    );
+    setChildren(
+      list,
+      shown.length
+        ? h(
+            'div',
+            { class: 'card table-card' },
+            h(
+              'table',
+              {},
+              h('tr', {}, h('th', {}, 'Zeit'), h('th', {}, 'Wer'), h('th', {}, 'Server'), h('th', {}, 'Was')),
+              shown.map((e) => {
+                const [label, color] = AUDIT_LABEL[e.type] ?? [e.type, ''];
+                return h(
+                  'tr',
+                  {},
+                  h('td', {}, h('b', {}, dateTime(e.at)), h('div', { class: 'muted small' }, ago(e.at))),
+                  h(
+                    'td',
+                    {},
+                    h('b', {}, e.actor.username),
+                    h('div', {}, e.actor.botAdmin && h('span', { class: 'badge yellow' }, 'Bot-Admin'), e.actor.member === false && h('span', { class: 'badge red', title: 'War auf diesem Server kein Mitglied' }, 'fremder Server')),
+                  ),
+                  h('td', {}, e.guild ? h('div', {}, e.guild.name ?? '—', h('div', { class: 'muted small' }, h('code', {}, e.guild.id))) : h('span', { class: 'muted small' }, 'Bot')),
+                  h('td', {}, h('span', { class: `badge ${color}` }, label), auditDetails(e)),
+                );
+              }),
+            ),
+          )
+        : h('div', { class: 'empty' }, q || onlyAdmins.checked ? 'Nichts gefunden.' : 'Noch keine Änderungen aufgezeichnet.'),
+    );
+  };
+  draw();
+  adminFrame(
+    'audit',
+    h('div', { class: 'admin-toolbar' }, search, h('label', { class: 'check' }, onlyAdmins, ' nur Bot-Admins')),
+    h('div', { class: 'spacer-24' }),
+    list,
+    h('p', { class: 'muted small' }, 'Alle Änderungen im Dashboard (Einstellungen mit vorher und nachher, Aktionen) und alle Admin-Aktionen. Gespeichert werden die letzten 1000.'),
+  );
+}
+
+// ---------- Gesperrte Server ----------
+
+async function renderAdminBlocked() {
+  const data = await loadAdmin('gesperrt', '/api/admin/blocked');
+  if (!data) return;
+  const id = h('input', { type: 'text', placeholder: 'Server-ID', inputmode: 'numeric' });
+  const reason = h('input', { type: 'text', placeholder: 'Grund (optional)' });
+  const add = async () => {
+    try {
+      const r = await api('/api/admin/blocked', { method: 'POST', body: { id: id.value.trim(), reason: reason.value } });
+      toast(r.left ? '✅ Gesperrt – der Bot hat den Server verlassen' : '✅ Gesperrt');
+      renderAdminBlocked();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  const remove = async (b) => {
+    if (!confirm(`„${b.name ?? b.id}“ entsperren? Der Bot kann danach wieder eingeladen werden.`)) return;
+    try {
+      await api(`/api/admin/blocked/${b.id}`, { method: 'DELETE' });
+      toast('✅ Entsperrt');
+      renderAdminBlocked();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  adminFrame(
+    'gesperrt',
+    h(
+      'div',
+      { class: 'card' },
+      h('div', { class: 'card-head' }, h('h3', {}, 'Server sperren')),
+      h(
+        'div',
+        { class: 'card-body' },
+        h('p', { class: 'muted small' }, 'Wird der Bot auf einen gesperrten Server eingeladen, verlässt er ihn sofort wieder. Ist er gerade drauf, verlässt er ihn jetzt.'),
+        h('div', { class: 'admin-toolbar' }, id, reason, h('button', { class: 'btn danger', onclick: add }, 'Sperren')),
+      ),
+    ),
+    h('div', { class: 'spacer-24' }),
+    data.blocked.length
+      ? h(
+          'div',
+          { class: 'card table-card' },
+          h(
+            'table',
+            {},
+            h('tr', {}, h('th', {}, 'Server'), h('th', {}, 'Grund'), h('th', {}, 'Gesperrt'), h('th', {})),
+            data.blocked.map((b) =>
+              h(
+                'tr',
+                {},
+                h('td', {}, h('b', {}, b.name ?? 'unbekannt'), h('div', { class: 'muted small' }, h('code', {}, b.id))),
+                h('td', {}, b.reason || h('span', { class: 'muted' }, '—')),
+                h('td', {}, dateTime(b.at), h('div', { class: 'muted small' }, `von ${b.by?.username ?? '?'}`)),
+                h('td', {}, h('button', { class: 'btn ghost small', onclick: () => remove(b) }, 'Entsperren')),
+              ),
+            ),
+          ),
+        )
+      : h('div', { class: 'empty' }, 'Kein Server gesperrt.'),
+  );
+}
+
+// ---------- Backup ----------
+
+function renderAdminBackup() {
+  const file = h('input', { type: 'file', accept: '.json,application/json' });
+  const restore = async () => {
+    const f = file.files[0];
+    if (!f) return toast('Bitte zuerst eine Backup-Datei auswählen.', true);
+    let backup;
+    try {
+      backup = JSON.parse(await f.text());
+    } catch {
+      return toast('Die Datei ist kein gültiges JSON.', true);
+    }
+    if (!confirm(`Backup „${f.name}“ einspielen? ALLE aktuellen Daten (Einstellungen, Tickets, Bewerbungen, Level …) werden ersetzt. Der aktuelle Stand wird vorher als Datei gesichert.`)) return;
+    try {
+      const r = await api('/api/admin/backup', { method: 'POST', body: { backup } });
+      toast(`✅ Eingespielt (${r.sections} Bereiche). Starte den Bot jetzt neu.`);
+      file.value = '';
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  adminFrame(
+    'backup',
+    h(
+      'div',
+      { class: 'card' },
+      h('div', { class: 'card-head' }, h('h3', {}, '⬇️ Backup herunterladen')),
+      h(
+        'div',
+        { class: 'card-body' },
+        h('p', { class: 'muted small' }, 'Die komplette Datenbank (data/db.json) aller Server als Datei. Angemeldete Dashboard-Sitzungen sind nicht enthalten. Die Datei enthält persönliche Daten – sicher aufbewahren.'),
+        h('div', {}, h('a', { class: 'btn primary', href: '/api/admin/backup', download: '' }, 'Backup herunterladen')),
+      ),
+    ),
+    h('div', { class: 'spacer-24' }),
+    h(
+      'div',
+      { class: 'card' },
+      h('div', { class: 'card-head' }, h('h3', {}, '⬆️ Backup einspielen')),
+      h(
+        'div',
+        { class: 'card-body' },
+        h('p', { class: 'muted small' }, 'Ersetzt alle Daten durch das Backup. Der aktuelle Stand wird vorher im Datenordner als db.json.vor-wiederherstellung-… gesichert. Starte den Bot danach neu, damit Panels und Erinnerungen den neuen Stand übernehmen.'),
+        h('div', { class: 'admin-toolbar' }, file, h('button', { class: 'btn danger', onclick: restore }, 'Einspielen')),
+      ),
+    ),
+  );
+}
+
+async function leaveGuild(g) {
+  const name = g.name;
+  if (!confirm(`Bot von „${name}“ entfernen?`)) return;
+  const blockIt = confirm(`„${name}“ zusätzlich sperren?\n\nOK = sperren (der Bot verlässt den Server auch nach jeder neuen Einladung sofort)\nAbbrechen = nur verlassen`);
+  const reason = blockIt ? (prompt('Grund für die Sperre (optional):') ?? '') : '';
+  try {
+    await api(`/api/admin/guilds/${g.id}/leave`, { method: 'POST', body: { block: blockIt, reason } });
+    toast(blockIt ? `✅ „${name}“ verlassen und gesperrt` : `✅ „${name}“ verlassen`);
+    renderAdmin('');
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
 async function renderAdmin(tab) {
   if (tab === 'sitzungen') return renderAdminSessions();
   if (tab === 'verlauf') return renderAdminHistory();
+  if (tab === 'system') return renderAdminSystem();
+  if (tab === 'fehler') return renderAdminErrors();
+  if (tab === 'audit') return renderAdminAudit();
+  if (tab === 'gesperrt') return renderAdminBlocked();
+  if (tab === 'backup') return renderAdminBackup();
   const app = document.getElementById('app');
   let data;
   try {
@@ -610,6 +948,7 @@ async function renderAdmin(tab) {
       ),
       h('div', { class: 'muted small' }, h('code', {}, g.id)),
       h('a', { class: 'btn primary', href: `#/g/${g.id}` }, 'Verwalten ›'),
+      h('button', { class: 'btn ghost small', onclick: () => leaveGuild(g) }, 'Server verlassen …'),
     );
   const draw = () => {
     const q = search.value.trim().toLowerCase();
