@@ -9,6 +9,7 @@ const settings = require('../lib/settings');
 const { bucket, save } = require('../lib/db');
 const { isValidTimeZone } = require('../lib/time');
 const { isBotAdmin } = require('../lib/util');
+const logins = require('./logins');
 
 const API = 'https://discord.com/api/v10';
 const SESSION_DAYS = 7;
@@ -87,7 +88,8 @@ function createApp(client) {
       client_id: client.application.id,
       response_type: 'code',
       redirect_uri: redirectUri,
-      scope: [OAuth2Scopes.Identify, OAuth2Scopes.Guilds].join(' '),
+      // connections: verknüpftes Roblox-Konto aus dem Discord-Profil (für den Admin-Bereich)
+      scope: [OAuth2Scopes.Identify, OAuth2Scopes.Guilds, OAuth2Scopes.Connections].join(' '),
       state,
       prompt: 'none',
     });
@@ -110,17 +112,24 @@ function createApp(client) {
         }),
       }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Token: ${r.status}`))));
       const auth = `${token.token_type} ${token.access_token}`;
-      const [user, guilds] = await Promise.all([discord('/users/@me', auth), discord('/users/@me/guilds', auth)]);
+      const [user, guilds, connections] = await Promise.all([
+        discord('/users/@me', auth),
+        discord('/users/@me/guilds', auth),
+        discord('/users/@me/connections', auth).catch(() => []), // ohne Scope „connections“ (alte Freigabe) einfach leer
+      ]);
       const id = crypto.randomBytes(24).toString('base64url');
+      const now = Date.now();
       sessions()[id] = {
-        user: { id: user.id, username: user.username, globalName: user.global_name, avatar: user.avatar },
+        user: { id: user.id, username: user.username, globalName: user.global_name, avatar: user.avatar, roblox: logins.findRoblox(user.id, connections) },
+        createdAt: now,
+        lastSeen: now,
         // Nur Server, auf denen der Nutzer „Server verwalten“ hat (Discord liefert die Rechte als Zahl).
         guilds: guilds
           .filter((g) => g.owner || (BigInt(g.permissions) & PermissionFlagsBits.ManageGuild) === PermissionFlagsBits.ManageGuild)
           .map((g) => ({ id: g.id, name: g.name, icon: g.icon, owner: g.owner })),
         expiresAt: Date.now() + SESSION_DAYS * 86_400_000,
       };
-      save();
+      logins.record('login', sessions()[id].user, { guilds: sessions()[id].guilds.length });
       setCookie(res, 'session', sign(id), SESSION_DAYS * 86_400);
       setCookie(res, 'oauth_state', '', 0);
       res.redirect('/');
@@ -132,7 +141,10 @@ function createApp(client) {
 
   app.post('/logout', (req, res) => {
     const id = unsign(cookies(req).session);
-    if (id) delete sessions()[id];
+    if (id && sessions()[id]) {
+      logins.record('logout', sessions()[id].user);
+      delete sessions()[id];
+    }
     save();
     setCookie(res, 'session', '', 0);
     res.json({ ok: true });
@@ -147,7 +159,13 @@ function createApp(client) {
     if (!session || session.expiresAt < Date.now()) return res.status(401).json({ error: 'Nicht angemeldet' });
     if (req.method !== 'GET' && req.get('X-Dashboard') !== '1') return res.status(403).json({ error: 'Ungültige Anfrage' });
     if (rateLimited(id, req.method === 'GET' ? 240 : 60)) return res.status(429).json({ error: 'Zu viele Anfragen, kurz warten.' });
+    // Letzte Aktivität höchstens einmal pro Minute speichern (für „online“ im Admin-Bereich).
+    if (!session.lastSeen || Date.now() - session.lastSeen > 60_000) {
+      session.lastSeen = Date.now();
+      save();
+    }
     req.session = session;
+    req.sessionId = id;
     next();
   });
 
@@ -220,6 +238,27 @@ function createApp(client) {
       totals: { guilds: guilds.length, members: guilds.reduce((sum, g) => sum + (g.memberCount ?? 0), 0) },
       bot: { name: client.user.username, id: client.user.id, uptime: Math.round(process.uptime()), ping: client.ws.ping },
     });
+  });
+
+  // Wer ist gerade im Dashboard angemeldet (aktive Sitzungen) – mit Discord- und Roblox-Konto.
+  app.get('/api/admin/sessions', adminOnly, (req, res) => {
+    res.json({ sessions: logins.activeSessions(sessions(), req.sessionId), onlineMinutes: logins.ONLINE_MS / 60_000 });
+  });
+
+  // Anmeldeverlauf: wer hat sich wann an- und abgemeldet (neueste zuerst).
+  app.get('/api/admin/logins', adminOnly, (req, res) => {
+    res.json({ events: logins.history({ limit: Number(req.query.limit) || 200, userId: req.query.user ? String(req.query.user) : undefined }) });
+  });
+
+  // Sitzung eines anderen beenden (z. B. verlorenes Gerät). Die Person muss sich neu anmelden.
+  app.delete('/api/admin/sessions/:id', adminOnly, (req, res) => {
+    const target = Object.entries(sessions()).find(([id]) => logins.publicId(id) === req.params.id);
+    if (!target) return res.status(404).json({ error: 'Diese Sitzung gibt es nicht mehr.' });
+    if (target[0] === req.sessionId) return res.status(400).json({ error: 'Deine eigene Sitzung beendest du mit „Abmelden“.' });
+    const ended = logins.endSession(sessions(), req.params.id);
+    logins.record('ended', ended.user, { by: { id: req.session.user.id, username: req.session.user.username } });
+    console.log(`[dashboard] Bot-Admin ${req.session.user.username} hat die Sitzung von ${ended.user.username} beendet`);
+    res.json({ ok: true });
   });
 
   app.get('/api/guilds/:guildId', guildAccess, (req, res) => {

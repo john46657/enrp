@@ -426,7 +426,164 @@ const duration = (seconds) => {
   return d ? `${d} T ${hours} Std` : hours ? `${hours} Std ${minutes} Min` : `${minutes} Min`;
 };
 
-async function renderAdmin() {
+// Gemeinsamer Rahmen der Admin-Seiten mit Reitern.
+function adminFrame(tab, ...content) {
+  const tabs = [
+    ['', '🖥️ Server'],
+    ['sitzungen', '🟢 Angemeldet'],
+    ['verlauf', '🕒 Anmeldeverlauf'],
+  ];
+  document.getElementById('app').replaceChildren(
+    h(
+      'div',
+      { class: 'servers' },
+      h(
+        'div',
+        { class: 'servers-head' },
+        h('div', {}, h('h1', {}, '🛡️ Admin-Bereich'), h('p', { class: 'lead' }, 'Als Bot-Admin hast du auf jedem Server des Bots vollen Zugriff – auch ohne dort Mitglied zu sein.')),
+        userBox(),
+      ),
+      h('div', { class: 'chips admin-tabs' }, tabs.map(([id, label]) => h('a', { class: `chip${id === tab ? ' active' : ''}`, href: `#/admin${id ? `/${id}` : ''}` }, label))),
+      content,
+    ),
+  );
+  document.title = `Admin · ${state.me.bot.brand} Dashboard`;
+}
+
+const dateTime = (ms) => (ms ? new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+function ago(ms) {
+  if (!ms) return '—';
+  const minutes = Math.round((Date.now() - ms) / 60_000);
+  if (minutes < 1) return 'gerade eben';
+  if (minutes < 60) return `vor ${minutes} Min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `vor ${hours} Std`;
+  return `vor ${Math.round(hours / 24)} Tagen`;
+}
+const avatarUrl = (u) => (u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : 'https://cdn.discordapp.com/embed/avatars/0.png');
+
+// Discord-Konto: Avatar, Anzeigename, @Name und ID (Klick kopiert die ID).
+const discordCell = (u) =>
+  h(
+    'div',
+    { class: 'person' },
+    h('img', { class: 'avatar', src: avatarUrl(u), alt: '' }),
+    h(
+      'div',
+      {},
+      h('b', {}, u.globalName || u.username),
+      h('div', { class: 'muted small' }, `@${u.username} · `, h('code', { title: 'Klicken zum Kopieren', onclick: () => navigator.clipboard?.writeText(u.id).then(() => toast('ID kopiert')) }, u.id)),
+    ),
+  );
+const robloxCell = (r) =>
+  r
+    ? h(
+        'div',
+        {},
+        h('a', { href: `https://www.roblox.com/users/${r.id}/profile`, target: '_blank', rel: 'noopener' }, r.name),
+        h('div', { class: 'muted small' }, r.source === 'discord' ? 'im Discord-Profil verknüpft' : 'aus einer Bewerbung', ' · ', h('code', {}, r.id)),
+      )
+    : h('span', { class: 'muted small' }, 'nicht verknüpft');
+
+async function renderAdminSessions() {
+  adminFrame('sitzungen', h('p', { class: 'muted' }, 'Lädt …'));
+  let data;
+  try {
+    data = await api('/api/admin/sessions');
+  } catch (err) {
+    return adminFrame('sitzungen', h('p', {}, err.message));
+  }
+  const online = data.sessions.filter((x) => x.online).length;
+  const end = async (session) => {
+    if (!confirm(`Sitzung von ${session.user.globalName || session.user.username} beenden? Die Person muss sich neu anmelden.`)) return;
+    try {
+      await api(`/api/admin/sessions/${session.id}`, { method: 'DELETE' });
+      toast('✅ Sitzung beendet');
+      renderAdminSessions();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  adminFrame(
+    'sitzungen',
+    h(
+      'div',
+      { class: 'stats-grid' },
+      h('div', { class: 'stat' }, h('div', { class: 'label' }, 'Angemeldet'), h('div', { class: 'value' }, data.sessions.length)),
+      h('div', { class: 'stat' }, h('div', { class: 'label' }, `Online (letzte ${data.onlineMinutes} Min)`), h('div', { class: 'value' }, online)),
+    ),
+    data.sessions.length
+      ? h(
+          'div',
+          { class: 'card table-card' },
+          h(
+            'table',
+            {},
+            h('tr', {}, h('th', {}, 'Discord'), h('th', {}, 'Roblox'), h('th', {}, 'Angemeldet seit'), h('th', {}, 'Zuletzt aktiv'), h('th', {})),
+            data.sessions.map((x) =>
+              h(
+                'tr',
+                {},
+                h('td', {}, discordCell(x.user)),
+                h('td', {}, robloxCell(x.roblox)),
+                h('td', {}, dateTime(x.loginAt)),
+                h('td', {}, h('span', { class: `badge ${x.online ? 'green' : ''}` }, x.online ? '● online' : ago(x.lastSeen))),
+                h('td', {}, x.current ? h('span', { class: 'muted small' }, 'du') : h('button', { class: 'btn ghost small', onclick: () => end(x) }, 'Beenden')),
+              ),
+            ),
+          ),
+        )
+      : h('div', { class: 'empty' }, 'Gerade ist niemand angemeldet.'),
+  );
+}
+
+async function renderAdminHistory() {
+  adminFrame('verlauf', h('p', { class: 'muted' }, 'Lädt …'));
+  let data;
+  try {
+    data = await api('/api/admin/logins?limit=500');
+  } catch (err) {
+    return adminFrame('verlauf', h('p', {}, err.message));
+  }
+  const LABEL = { login: ['Anmeldung', 'green'], logout: ['Abmeldung', ''], ended: ['Beendet', 'red'] };
+  const search = h('input', { type: 'text', placeholder: 'Name, Discord-ID oder Roblox-Name suchen …', oninput: () => draw() });
+  const list = h('div');
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    const shown = data.events.filter((e) => !q || [e.user.username, e.user.globalName, e.user.id, e.roblox?.name].some((v) => String(v ?? '').toLowerCase().includes(q)));
+    setChildren(
+      list,
+      shown.length
+        ? h(
+            'div',
+            { class: 'card table-card' },
+            h(
+              'table',
+              {},
+              h('tr', {}, h('th', {}, 'Zeit'), h('th', {}, 'Was'), h('th', {}, 'Discord'), h('th', {}, 'Roblox')),
+              shown.map((e) => {
+                const [label, color] = LABEL[e.type] ?? [e.type, ''];
+                return h(
+                  'tr',
+                  {},
+                  h('td', {}, h('b', {}, dateTime(e.at)), h('div', { class: 'muted small' }, ago(e.at))),
+                  h('td', {}, h('span', { class: `badge ${color}` }, label), e.by && h('div', { class: 'muted small' }, `von ${e.by.username}`)),
+                  h('td', {}, discordCell(e.user)),
+                  h('td', {}, robloxCell(e.roblox)),
+                );
+              }),
+            ),
+          )
+        : h('div', { class: 'empty' }, q ? 'Nichts gefunden.' : 'Noch keine Anmeldungen aufgezeichnet.'),
+    );
+  };
+  draw();
+  adminFrame('verlauf', search, h('div', { class: 'spacer-24' }), list, h('p', { class: 'muted small' }, 'Gespeichert werden die letzten 1000 An- und Abmeldungen.'));
+}
+
+async function renderAdmin(tab) {
+  if (tab === 'sitzungen') return renderAdminSessions();
+  if (tab === 'verlauf') return renderAdminHistory();
   const app = document.getElementById('app');
   let data;
   try {
@@ -464,30 +621,20 @@ async function renderAdmin() {
     );
   };
   draw();
-  app.replaceChildren(
+  adminFrame(
+    '',
     h(
       'div',
-      { class: 'servers' },
-      h(
-        'div',
-        { class: 'servers-head' },
-        h('div', {}, h('h1', {}, '🛡️ Admin-Bereich'), h('p', { class: 'lead' }, 'Als Bot-Admin hast du auf jedem Server des Bots vollen Zugriff – auch ohne dort Mitglied zu sein.')),
-        userBox(),
-      ),
-      h(
-        'div',
-        { class: 'stats-grid' },
-        stat('Server', data.totals.guilds.toLocaleString('de-DE')),
-        stat('Mitglieder gesamt', data.totals.members.toLocaleString('de-DE')),
-        stat('Bot-Ping', `${data.bot.ping} ms`),
-        stat('Laufzeit', duration(data.bot.uptime)),
-      ),
-      search,
-      h('div', { class: 'spacer-24' }),
-      list,
+      { class: 'stats-grid' },
+      stat('Server', data.totals.guilds.toLocaleString('de-DE')),
+      stat('Mitglieder gesamt', data.totals.members.toLocaleString('de-DE')),
+      stat('Bot-Ping', `${data.bot.ping} ms`),
+      stat('Laufzeit', duration(data.bot.uptime)),
     ),
+    search,
+    h('div', { class: 'spacer-24' }),
+    list,
   );
-  document.title = `Admin · ${state.me.bot.brand} Dashboard`;
 }
 
 // ---------- Routing ----------
@@ -501,7 +648,7 @@ async function render() {
     state.changes.clear();
     lastGuildId = null;
     updateSavebar();
-    return renderAdmin();
+    return renderAdmin(guildId);
   }
   if (kind !== 'g') {
     if (state.changes.size && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
