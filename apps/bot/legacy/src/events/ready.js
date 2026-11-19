@@ -7,6 +7,7 @@ const { sweep, restore } = require('../lib/applications/flow');
 const { watchPhases } = require('../lib/applications/messages');
 const { validateType } = require('../lib/applications/forms');
 const { setupGuild } = require('../lib/guilds');
+const { leaveIfBlocked } = require('../lib/botAdmin');
 const { startStatsWatcher } = require('../lib/stats');
 const { sweepExpired } = require('../lib/warnings');
 const { startTeamWatcher } = require('../lib/team');
@@ -29,7 +30,8 @@ module.exports = {
     // Früher global registrierte Befehle entfernen, sonst erscheinen sie doppelt. Jetzt wird je Server registriert.
     await client.application.commands.set([]).catch((err) => console.error('[commands] Globale Befehle entfernen:', err.message));
 
-    for (const guild of client.guilds.cache.values()) {
+    for (const guild of [...client.guilds.cache.values()]) {
+      if (await leaveIfBlocked(guild)) continue; // im Admin-Bereich gesperrt
       for (const problem of appStore.types(guild.id).flatMap((t) => validateType(t, { allowEmpty: true }))) {
         console.warn(`⚠️  „${guild.name}“ → Bewerbung: ${problem}`);
       }

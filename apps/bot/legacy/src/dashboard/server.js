@@ -10,10 +10,13 @@ const { bucket, save } = require('../lib/db');
 const { isValidTimeZone } = require('../lib/time');
 const { isBotAdmin } = require('../lib/util');
 const logins = require('./logins');
+const botAdmin = require('../lib/botAdmin');
 
 const API = 'https://discord.com/api/v10';
 const SESSION_DAYS = 7;
 const MAX_VALUE_BYTES = 60_000;
+const MAX_BACKUP = '50mb'; // Backup einspielen: db.json kann groß werden
+const BACKUP_PATH = '/api/admin/backup';
 
 // Top-Level-Bereiche, die das Dashboard ändern darf (applications: Bewerbungsarten, Panels und Kanäle).
 const EDITABLE = ['timezone', 'channels', 'roles', 'welcome', 'tickets', 'leveling', 'roblox', 'stats', 'moderation', 'team', 'security', 'giveaways', 'suggestions', 'counting', 'applications'];
@@ -71,7 +74,9 @@ function createApp(client) {
   const redirectUri = `${baseUrl}/auth/callback`;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '200kb' }));
+  const json = express.json({ limit: '200kb' });
+  // Backup einspielen hat ein eigenes, größeres Limit (siehe unten).
+  app.use((req, res, next) => (req.method === 'POST' && req.path === BACKUP_PATH ? next() : json(req, res, next)));
   app.use((req, res, next) => {
     res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin' });
     next();
@@ -187,7 +192,10 @@ function createApp(client) {
     const userId = req.session.user.id;
     let member = await guild.members.fetch(userId).catch(() => null);
     if (isBotAdmin(userId)) {
-      member ??= await botAdminMember(guild, userId);
+      if (!member) {
+        member = await botAdminMember(guild, userId);
+        req.viaBotAdmin = true; // nicht Mitglied, Zugriff nur als Bot-Admin
+      }
     } else if (!member || !(member.id === guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild))) {
       return res.status(403).json({ error: 'Du brauchst auf diesem Server „Server verwalten“.' });
     }
@@ -217,6 +225,14 @@ function createApp(client) {
     if (!isBotAdmin(req.session.user.id)) return res.status(403).json({ error: 'Nur für Bot-Admins.' });
     next();
   }
+
+  // Wer etwas ändert – fürs Audit-Log. member: ist die Person selbst auf dem Server?
+  const actorOf = (req) => ({
+    id: req.session.user.id,
+    username: req.session.user.username,
+    botAdmin: isBotAdmin(req.session.user.id),
+    member: req.guild ? !req.viaBotAdmin : null,
+  });
 
   // Alle Server, auf denen der Bot ist – mit Kennzahlen.
   app.get('/api/admin/guilds', adminOnly, (req, res) => {
@@ -257,8 +273,86 @@ function createApp(client) {
     if (target[0] === req.sessionId) return res.status(400).json({ error: 'Deine eigene Sitzung beendest du mit „Abmelden“.' });
     const ended = logins.endSession(sessions(), req.params.id);
     logins.record('ended', ended.user, { by: { id: req.session.user.id, username: req.session.user.username } });
+    botAdmin.recordAudit({ actor: actorOf(req), type: 'session.end', details: { user: { id: ended.user.id, username: ended.user.username } } });
     console.log(`[dashboard] Bot-Admin ${req.session.user.username} hat die Sitzung von ${ended.user.username} beendet`);
     res.json({ ok: true });
+  });
+
+  // Systemstatus: Speicher, Laufzeit, Version, Größe der Datenbank.
+  app.get('/api/admin/status', adminOnly, (req, res) => res.json(botAdmin.systemStatus(client)));
+
+  // Fehler-Log: alles, was der Bot mit console.error meldet (neueste zuerst).
+  app.get('/api/admin/errors', adminOnly, (req, res) => res.json({ errors: botAdmin.errorList({ limit: Number(req.query.limit) || 200 }) }));
+  app.delete('/api/admin/errors', adminOnly, (req, res) => {
+    botAdmin.clearErrors();
+    botAdmin.recordAudit({ actor: actorOf(req), type: 'errors.clear' });
+    res.json({ ok: true });
+  });
+
+  // Audit-Log: Änderungen im Dashboard und Admin-Aktionen. ?admins=1 → nur Bot-Admins, ?guild=ID → ein Server.
+  app.get('/api/admin/audit', adminOnly, (req, res) => {
+    res.json({
+      events: botAdmin.auditList({
+        limit: Number(req.query.limit) || 300,
+        guildId: req.query.guild ? String(req.query.guild) : undefined,
+        onlyBotAdmins: req.query.admins === '1',
+      }),
+    });
+  });
+
+  // Server verlassen, optional dabei sperren (der Bot verlässt ihn dann auch nach jeder neuen Einladung sofort).
+  app.post('/api/admin/guilds/:guildId/leave', adminOnly, async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Der Bot ist nicht auf diesem Server.' });
+    const blockIt = Boolean(req.body?.block);
+    const reason = String(req.body?.reason ?? '').trim();
+    if (blockIt) botAdmin.block(guild, req.session.user, reason);
+    botAdmin.recordAudit({ actor: actorOf(req), guild, type: blockIt ? 'guild.block' : 'guild.leave', details: { reason: reason || null, memberCount: guild.memberCount } });
+    try {
+      await guild.leave();
+    } catch (err) {
+      return res.status(500).json({ error: `Verlassen fehlgeschlagen: ${err.message}` });
+    }
+    console.log(`[dashboard] Bot-Admin ${req.session.user.username} → Server „${guild.name}“ (${guild.id}) verlassen${blockIt ? ' und gesperrt' : ''}`);
+    res.json({ ok: true });
+  });
+
+  // Gesperrte Server: ansehen, per ID sperren (auch wenn der Bot gerade nicht drauf ist), entsperren.
+  app.get('/api/admin/blocked', adminOnly, (req, res) => res.json({ blocked: botAdmin.blockedList() }));
+  app.post('/api/admin/blocked', adminOnly, async (req, res) => {
+    const id = String(req.body?.id ?? '').trim();
+    if (!/^\d{15,25}$/.test(id)) return res.status(400).json({ error: 'Bitte eine gültige Server-ID eingeben.' });
+    if (botAdmin.isBlocked(id)) return res.status(400).json({ error: 'Dieser Server ist schon gesperrt.' });
+    const guild = client.guilds.cache.get(id);
+    const reason = String(req.body?.reason ?? '').trim();
+    botAdmin.block(guild ?? { id, name: null }, req.session.user, reason);
+    botAdmin.recordAudit({ actor: actorOf(req), guild: guild ?? { id, name: null }, type: 'guild.block', details: { reason: reason || null } });
+    if (guild) await botAdmin.leaveIfBlocked(guild);
+    res.json({ ok: true, left: Boolean(guild) });
+  });
+  app.delete('/api/admin/blocked/:guildId', adminOnly, (req, res) => {
+    const entry = botAdmin.blockedList().find((b) => b.id === req.params.guildId);
+    if (!botAdmin.unblock(req.params.guildId)) return res.status(404).json({ error: 'Dieser Server ist nicht gesperrt.' });
+    botAdmin.recordAudit({ actor: actorOf(req), guild: { id: req.params.guildId, name: entry?.name ?? null }, type: 'guild.unblock' });
+    res.json({ ok: true });
+  });
+
+  // Backup: Datenbank herunterladen (ohne Login-Sitzungen) bzw. einspielen.
+  app.get(BACKUP_PATH, adminOnly, (req, res) => {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    botAdmin.recordAudit({ actor: actorOf(req), type: 'backup.download' });
+    res.set('Content-Disposition', `attachment; filename="db-backup-${stamp}.json"`);
+    res.type('application/json').send(JSON.stringify(botAdmin.exportBackup(), null, 2));
+  });
+  app.post(BACKUP_PATH, adminOnly, express.json({ limit: MAX_BACKUP }), (req, res) => {
+    try {
+      const result = botAdmin.restoreBackup(req.body?.backup);
+      botAdmin.recordAudit({ actor: actorOf(req), type: 'backup.restore', details: result });
+      console.log(`[dashboard] Bot-Admin ${req.session.user.username} hat ein Backup eingespielt (${result.sections} Bereiche, Sicherung: ${result.safety})`);
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   app.get('/api/guilds/:guildId', guildAccess, (req, res) => {
@@ -303,13 +397,17 @@ function createApp(client) {
       const error = check(config);
       if (error) return res.status(400).json({ error });
     }
+    const before = settings.forGuild(guildId);
+    const audited = changes.map((c) => ({ path: c.path, before: botAdmin.valueAt(before, c.path), after: c.value ?? null }));
     for (const { path: p, value } of changes) settings.set(guildId, p, value ?? undefined);
+    botAdmin.recordAudit({ actor: actorOf(req), guild: req.guild, type: 'settings.change', changes: audited });
     for (const fn of afterSave) await Promise.resolve(fn(req.guild, changes.map((c) => c.path))).catch((err) => console.error('[dashboard] afterSave:', err));
     console.log(`[dashboard] ${req.session.user.username} hat ${changes.length} Einstellung(en) auf „${req.guild.name}“ geändert`);
     res.json({ ok: true, config: settings.forGuild(guildId) });
   });
 
   app.post('/api/guilds/:guildId/reset', guildAccess, async (req, res) => {
+    botAdmin.recordAudit({ actor: actorOf(req), guild: req.guild, type: 'settings.reset', details: { changed: settings.overrideCount(req.guild.id) } });
     settings.reset(req.guild.id);
     for (const fn of afterSave) await Promise.resolve(fn(req.guild, EDITABLE)).catch(() => {});
     res.json({ ok: true });
@@ -320,7 +418,9 @@ function createApp(client) {
     if (!fn) return res.status(404).json({ error: 'Unbekannte Aktion' });
     try {
       if (isBotAdmin(req.session.user.id)) console.log(`[dashboard] Bot-Admin ${req.session.user.username} → Aktion „${req.params.name}“ auf „${req.guild.name}“`);
-      res.json({ ok: true, result: (await fn(req.guild, req.body ?? {}, req.member)) ?? null });
+      const result = (await fn(req.guild, req.body ?? {}, req.member)) ?? null;
+      botAdmin.recordAudit({ actor: actorOf(req), guild: req.guild, type: 'action', details: { name: req.params.name, body: JSON.stringify(req.body ?? {}).slice(0, 500) } });
+      res.json({ ok: true, result });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
