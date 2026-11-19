@@ -61,6 +61,10 @@ vollen Zugriff:
 - **Dashboard:** unten links erscheint der Knopf **🛡️ Admin**. Er öffnet eine Übersicht aller Server des Bots
   (Mitglieder, Laufzeit, Ping, Suche nach Name, ID oder Besitzer-ID). Jeder Server lässt sich voll verwalten, auch ohne
   dort Mitglied zu sein. Aktionen von Bot-Admins stehen in der Bot-Konsole.
+- **Angemeldet / Anmeldeverlauf:** im Admin-Bereich siehst du, wer gerade im Dashboard angemeldet ist (Discord-Konto
+  mit ID, Roblox-Konto, angemeldet seit, zuletzt aktiv bzw. online) und wer sich wann an- oder abgemeldet hat (die
+  letzten 1000 Einträge). Fremde Sitzungen kannst du beenden. Das Roblox-Konto kommt aus der Roblox-Verbindung im
+  Discord-Profil (Login fragt dafür „Verbindungen“ an), sonst aus der letzten Bewerbung mit bestätigtem Roblox-Konto.
 - **Discord:** Bot-Admins gelten überall als Staff und Verwalter (Bewerbungen, Tickets, Vorschläge, Giveaways, Team,
   Laufbahnen, `/bewerbung-verwalten`).
 
